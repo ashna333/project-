@@ -17,14 +17,15 @@ from .service import (
 )
 
 class RegisterView(APIView):
-    def post(self,request):
-        serializer=RegisterSerializer(data=request.data)
+    def post(self, request):
+        serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
-            user = register_user(serializer.validated_data)
-            return Response({"message":"User registered successfully,"
-            },status=status.HTTP_200_OK)
-        
-        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+            serializer.save()  
+            return Response(
+                {"message": "User registered successfully"},
+                status=status.HTTP_201_CREATED
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
 class LoginView(APIView):

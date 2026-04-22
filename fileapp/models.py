@@ -1,4 +1,4 @@
-from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager,PermissionsMixin
 from django.db import models
 
 class UserManager(BaseUserManager):
@@ -16,13 +16,18 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault("is_superuser", True)
         return self.create_user(email, password, **extra_fields)
 
-class User(AbstractUser):
-    username = None
-    email = models.EmailField(unique=True)
-    dob = models.DateField()
-    reset_token = models.CharField(max_length=255, null=True, blank=True)  
 
-    objects = UserManager()  # 👈 attach the manager
+    
+
+# models.py
+class User(AbstractBaseUser, PermissionsMixin):  # leaner base ✅
+    email = models.EmailField(unique=True)
+    first_name = models.CharField(max_length=50)
+    last_name = models.CharField(max_length=50)
+    dob = models.DateField()
+    reset_token = models.CharField(max_length=255, null=True, blank=True)
+    
+    objects = UserManager()
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["first_name", "last_name", "dob"]

@@ -52,7 +52,7 @@ def send_password_reset_email(email):
     user.reset_token = token
     user.save()
 
-    reset_link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+    reset_link = f"{settings.FRONTEND_URL}/reset-password/?token={token}"
 
     send_mail(
         subject="Password Reset Request",
