@@ -27,17 +27,17 @@ const getInitialUser = () => {
 }
 
 const useAuthStore = create((set) => ({
-  // ─── State ───────────────────────────────────────────────
+  //  State
   user: getInitialUser(),
   isAuthenticated: !!getInitialUser(),
   loading: false,
   error: null,
   successMessage: null,
 
-  // ─── Helpers ─────────────────────────────────────────────
+  // Helpers 
   clearMessages: () => set({ error: null, successMessage: null }),
 
-  // ─── Register ────────────────────────────────────────────
+  //  Register 
   register: async (formData) => {
     set({ loading: true, error: null, successMessage: null })
     try {
@@ -62,7 +62,7 @@ const useAuthStore = create((set) => ({
     }
   },
 
-  // ─── Login ───────────────────────────────────────────────
+  //  Login 
   login: async (email, password) => {
     set({ loading: true, error: null, successMessage: null })
     try {
@@ -71,7 +71,9 @@ const useAuthStore = create((set) => ({
       localStorage.setItem('access_token', access)
       localStorage.setItem('refresh_token', refresh)
       const decoded = decodeJWT(access)
-      set({ loading: false, user: decoded, isAuthenticated: true })
+      set({ loading: false, 
+        user: decoded, 
+         isAuthenticated: true })
       return { success: true }
     } catch (err) {
       const message = err.response?.data?.error || 'Invalid email or password.'
@@ -80,14 +82,14 @@ const useAuthStore = create((set) => ({
     }
   },
 
-  // ─── Logout ──────────────────────────────────────────────
+  //  Logout 
   logout: () => {
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
     set({ user: null, isAuthenticated: false, error: null, successMessage: null })
   },
 
-  // ─── Change Password ─────────────────────────────────────
+  //  Change Password 
   changePassword: async (formData) => {
     set({ loading: true, error: null, successMessage: null })
     try {
@@ -109,7 +111,7 @@ const useAuthStore = create((set) => ({
     }
   },
 
-  // ─── Forgot Password ─────────────────────────────────────
+  //  Forgot Password 
   forgotPassword: async (email) => {
     set({ loading: true, error: null, successMessage: null })
     try {
@@ -130,7 +132,7 @@ const useAuthStore = create((set) => ({
     }
   },
 
-  // ─── Reset Password ──────────────────────────────────────
+  //  Reset Password 
   resetPassword: async (token, newPassword) => {
     set({ loading: true, error: null, successMessage: null })
     try {

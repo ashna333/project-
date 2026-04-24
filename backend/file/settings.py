@@ -60,6 +60,14 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',   # unauthenticated users
+        'rest_framework.throttling.UserRateThrottle',   # authenticated users
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '20/minute',    # guests → 20 requests per minute
+        'user': '100/minute',   # logged in → 100 requests per minute
+    }
 }
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
@@ -144,3 +152,18 @@ SIMPLE_JWT = {
     'ROTATE_REFRESH_TOKENS': False,
     'BLACKLIST_AFTER_ROTATION': True,
 }
+
+
+import os
+from pathlib import Path
+ 
+BASE_DIR = Path(__file__).resolve().parent.parent
+ 
+# Media files (user uploads)
+MEDIA_URL = "/media/"
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+ 
+# File upload limits
+# Django's built-in limit for in-memory uploads before it spools to disk
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB in memory
+DATA_UPLOAD_MAX_MEMORY_SIZE = 105 * 1024 * 1024  

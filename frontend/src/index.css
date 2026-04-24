@@ -90,16 +90,19 @@ html, body, #root {
     display: none !important;
   }
 }
-
 .auth-panel-left {
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;  /* vertical center */
+  align-items: center;      /* horizontal center */
+  text-align: center;    
   padding: 48px;
   background: linear-gradient(145deg, #2d1010 0%, #4a1515 50%, #3b1212 100%);
   overflow: hidden;
 }
+
+
 
 .auth-panel-left::before {
   content: '';
@@ -142,12 +145,15 @@ html, body, #root {
 
 /* Brand in left panel */
 .brand-logo {
-  position: relative;
-  z-index: 1;
+  position: absolute;
+  top: 40px;
+  left: 40px;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 12px;
 }
+
 
 .brand-logo .icon {
   width: 40px;

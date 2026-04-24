@@ -128,3 +128,92 @@ class ResetPasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError("Passwords do not match")
         return data
 
+
+
+
+from rest_framework import serializers
+from .models import UserFile
+
+MAX_FILE_SIZE = 100 * 1024 * 1024        # 100 MB per file
+MAX_STORAGE_PER_USER = 1 * 1024 * 1024 * 1024  # 1 GB total per user
+
+
+class UserFileSerializer(serializers.ModelSerializer):
+    """Read serializer — used for listing/retrieving files."""
+    file_size_display = serializers.SerializerMethodField()
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserFile
+        fields = [
+            "id",
+            "original_name",
+            "file_size",
+            "file_size_display",
+            "mime_type",
+            "uploaded_at",
+            "url",
+        ]
+
+    def get_file_size_display(self, obj):
+        """Human-readable file size."""
+        size = obj.file_size
+        for unit in ["B", "KB", "MB", "GB"]:
+            if size < 1024:
+                return f"{size:.1f} {unit}"
+            size /= 1024
+        return f"{size:.1f} TB"
+
+    def get_url(self, obj):
+        request = self.context.get("request")
+        if request and obj.file:
+            return request.build_absolute_uri(obj.file.url)
+        return None
+
+
+class FileUploadSerializer(serializers.Serializer):
+    """Write serializer — used for uploading files."""
+    files = serializers.ListField(
+        child=serializers.FileField(),
+        allow_empty=False,
+    )
+
+    def validate_files(self, files):
+        for f in files:
+            if f.size > MAX_FILE_SIZE:
+                raise serializers.ValidationError(
+                    f"'{f.name}' exceeds the 100 MB per-file limit "
+                    f"(size: {f.size / (1024*1024):.1f} MB)."
+                )
+        return files
+
+    def validate(self, attrs):
+        """Check that total upload won't exceed 1 GB storage quota."""
+        request = self.context.get("request")
+        user = request.user
+
+        from django.db.models import Sum
+        current_usage = (
+            UserFile.objects.filter(user=user)
+            .aggregate(total=Sum("file_size"))["total"] or 0
+        )
+        incoming_size = sum(f.size for f in attrs["files"])
+
+        if current_usage + incoming_size > MAX_STORAGE_PER_USER:
+            used_gb = current_usage / (1024 ** 3)
+            raise serializers.ValidationError(
+                f"Upload would exceed your 1 GB storage limit. "
+                f"Currently using {used_gb:.2f} GB."
+            )
+        return attrs
+    
+class FileRenameSerializer(serializers.Serializer):
+    new_name = serializers.CharField(max_length=255, trim_whitespace=True)
+
+    def validate_new_name(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("File name cannot be empty.")
+        # Block path traversal attacks
+        if "/" in value or "\\" in value:
+            raise serializers.ValidationError("File name cannot contain slashes.")
+        return value.strip()

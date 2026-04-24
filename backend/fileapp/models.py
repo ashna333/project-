@@ -26,3 +26,41 @@ class User(AbstractBaseUser):
 
     def __str__(self):
         return self.email
+    
+
+from django.conf import settings
+import os
+
+
+def user_upload_path(instance, filename):
+    """Upload to media/uploads/<user_id>/<filename>"""
+    return f"uploads/{instance.user.id}/{filename}"
+
+
+class UserFile(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="files"
+    )
+    file = models.FileField(upload_to=user_upload_path)
+    original_name = models.CharField(max_length=255)
+    file_size = models.PositiveBigIntegerField()  # in bytes
+    mime_type = models.CharField(max_length=100, blank=True)
+    file_hash = models.CharField(max_length=32, blank=True) 
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    is_deleted = models.BooleanField(default=False)      # 👈 add this
+    deleted_at = models.DateTimeField(null=True, blank=True)  # 👈 and this
+
+
+    class Meta:
+        ordering = ["-uploaded_at"]
+
+    def __str__(self):
+        return f"{self.user.email} — {self.original_name}"
+
+    def delete(self, *args, **kwargs):
+        # Delete actual file from disk when model is deleted
+        if self.file and os.path.isfile(self.file.path):
+            os.remove(self.file.path)
+        super().delete(*args, **kwargs)
