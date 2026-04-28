@@ -15,6 +15,9 @@ export const registerApi = (data) =>
 export const loginApi = (email, password) =>
   api.post('/login/', { email, password })
 
+export const profileApi = () =>
+  api.get('/me/')
+
 /**
  * POST /api/change-password/   [protected]
  * Body: { old_password, new_password, confirm_new_password }

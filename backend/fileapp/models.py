@@ -30,6 +30,8 @@ class User(AbstractBaseUser):
 
 from django.conf import settings
 import os
+import uuid
+from django.utils import timezone
 
 
 def user_upload_path(instance, filename):
@@ -64,3 +66,49 @@ class UserFile(models.Model):
         if self.file and os.path.isfile(self.file.path):
             os.remove(self.file.path)
         super().delete(*args, **kwargs)
+
+
+class FileShare(models.Model):
+    """
+    Public share link for a single UserFile.
+    Same file can be shared multiple times (different recipients/tokens).
+    """
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="file_shares",
+    )
+    user_file = models.ForeignKey(
+        UserFile,
+        on_delete=models.CASCADE,
+        related_name="shares",
+    )
+
+    recipient_email = models.EmailField()
+    message = models.TextField()
+
+    token = models.CharField(max_length=64, unique=True, db_index=True, editable=False)
+    expires_at = models.DateTimeField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    accessed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["token"]),
+            models.Index(fields=["owner", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.owner.email} -> {self.recipient_email} ({self.user_file.original_name})"
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = uuid.uuid4().hex
+        super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at

@@ -129,6 +129,12 @@ class ResetPasswordSerializer(serializers.Serializer):
         return data
 
 
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["id", "first_name", "last_name", "email", "dob"]
+
+
 
 
 from rest_framework import serializers
@@ -217,3 +223,56 @@ class FileRenameSerializer(serializers.Serializer):
         if "/" in value or "\\" in value:
             raise serializers.ValidationError("File name cannot contain slashes.")
         return value.strip()
+
+
+from django.utils import timezone
+from .models import FileShare
+
+
+class FileShareCreateSerializer(serializers.Serializer):
+    file_id = serializers.IntegerField(min_value=1)
+    recipient_email = serializers.EmailField()
+    expires_in_hours = serializers.IntegerField(min_value=1, max_value=720)  # up to 30 days
+    message = serializers.CharField(allow_blank=False, trim_whitespace=True)
+
+
+class FileShareListSerializer(serializers.ModelSerializer):
+    file_name = serializers.CharField(source="user_file.original_name", read_only=True)
+    share_date = serializers.DateTimeField(source="created_at", read_only=True)
+    is_accessed = serializers.SerializerMethodField()
+    is_expired = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FileShare
+        fields = [
+            "id",
+            "file_name",
+            "recipient_email",
+            "share_date",
+            "expires_at",
+            "accessed_at",
+            "is_accessed",
+            "is_expired",
+            "token",
+        ]
+
+    def get_is_accessed(self, obj):
+        return obj.accessed_at is not None
+
+    def get_is_expired(self, obj):
+        return timezone.now() >= obj.expires_at
+
+
+class PublicFileShareSerializer(serializers.ModelSerializer):
+    file_name = serializers.CharField(source="user_file.original_name", read_only=True)
+    file_size = serializers.IntegerField(source="user_file.file_size", read_only=True)
+    mime_type = serializers.CharField(source="user_file.mime_type", read_only=True)
+
+    class Meta:
+        model = FileShare
+        fields = [
+            "file_name",
+            "file_size",
+            "mime_type",
+            "expires_at",
+        ]

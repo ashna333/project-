@@ -1,29 +1,18 @@
 import { create } from 'zustand'
-import { loginApi, registerApi, changePasswordApi, forgotPasswordApi, resetPasswordApi } from '../api/authApi'
-
-// Helper: decode JWT payload (no library needed)
-const decodeJWT = (token) => {
-  try {
-    const payload = token.split('.')[1]
-    return JSON.parse(atob(payload))
-  } catch {
-    return null
-  }
-}
+import { loginApi, registerApi, changePasswordApi, forgotPasswordApi, resetPasswordApi, profileApi } from '../api/authApi'
 
 // Bootstrap user from stored tokens on page load
 const getInitialUser = () => {
   const access = localStorage.getItem('access_token')
   if (!access) return null
-  const decoded = decodeJWT(access)
-  if (!decoded) return null
-  // Check token expiry
-  if (decoded.exp && decoded.exp * 1000 < Date.now()) {
-    localStorage.removeItem('access_token')
-    localStorage.removeItem('refresh_token')
+  const storedUser = localStorage.getItem('auth_user')
+  if (!storedUser) return null
+  try {
+    return JSON.parse(storedUser)
+  } catch {
+    localStorage.removeItem('auth_user')
     return null
   }
-  return decoded
 }
 
 const useAuthStore = create((set) => ({
@@ -36,6 +25,20 @@ const useAuthStore = create((set) => ({
 
   // Helpers 
   clearMessages: () => set({ error: null, successMessage: null }),
+  hydrateUser: async () => {
+    const access = localStorage.getItem('access_token')
+    if (!access) return
+    try {
+      const { data } = await profileApi()
+      localStorage.setItem('auth_user', JSON.stringify(data))
+      set({ user: data, isAuthenticated: true })
+    } catch {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      localStorage.removeItem('auth_user')
+      set({ user: null, isAuthenticated: false })
+    }
+  },
 
   //  Register 
   register: async (formData) => {
@@ -70,10 +73,8 @@ const useAuthStore = create((set) => ({
       const { access, refresh } = data.tokens
       localStorage.setItem('access_token', access)
       localStorage.setItem('refresh_token', refresh)
-      const decoded = decodeJWT(access)
-      set({ loading: false, 
-        user: decoded, 
-         isAuthenticated: true })
+      localStorage.setItem('auth_user', JSON.stringify(data.user))
+      set({ loading: false, user: data.user, isAuthenticated: true })
       return { success: true }
     } catch (err) {
       const message = err.response?.data?.error || 'Invalid email or password.'
@@ -86,6 +87,7 @@ const useAuthStore = create((set) => ({
   logout: () => {
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
+    localStorage.removeItem('auth_user')
     set({ user: null, isAuthenticated: false, error: null, successMessage: null })
   },
 

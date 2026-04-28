@@ -47,6 +47,15 @@ export default function LoginPage() {
     setter(e.target.value)
   }
 
+  const handleGoogleSignIn = () => {
+    const googleAuthUrl = import.meta.env.VITE_GOOGLE_AUTH_URL
+    if (!googleAuthUrl) {
+      window.alert('Google sign-in UI is added, but backend OAuth URL is not configured yet. Set VITE_GOOGLE_AUTH_URL after your backend Google auth endpoint is ready.')
+      return
+    }
+    window.location.href = googleAuthUrl
+  }
+
   return (
     <AuthLayout
       eyebrow="Welcome back"
@@ -105,6 +114,13 @@ export default function LoginPage() {
 
         <button className="btn btn-primary" type="submit" disabled={loading}>
           {loading ? <span className="spinner" /> : 'Sign In →'}
+        </button>
+
+        <div className="divider">or</div>
+
+        <button type="button" className="btn btn-google" onClick={handleGoogleSignIn}>
+          <span className="google-mark">G</span>
+          Continue with Google
         </button>
       </form>
 

@@ -3,6 +3,11 @@ from .utils import get_user_tokens
 import uuid
 from django.core.mail import send_mail        # 👈 add this
 from django.conf import settings 
+from datetime import date, timedelta
+import json
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 User= get_user_model()
 
 from django.utils import timezone
@@ -32,6 +37,34 @@ def login_user(email,password):
        "user": user,
        "tokens":tokens
     }
+
+
+def build_google_auth_url():
+    query = urlencode({
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "offline",
+        "prompt": "select_account",
+    })
+    return f"https://accounts.google.com/o/oauth2/v2/auth?{query}"
+
+
+def login_with_google_code(code):
+    token_data = _google_exchange_code_for_tokens(code)
+    id_token = token_data.get("id_token")
+    if not id_token:
+        raise ValueError("Google login failed: missing id_token.")
+
+    user_info = _google_fetch_userinfo(token_data["access_token"])
+    email = (user_info.get("email") or "").strip().lower()
+    if not email:
+        raise ValueError("Google account did not return an email address.")
+
+    user = _get_or_create_google_user(user_info)
+    tokens = get_user_tokens(user)
+    return {"user": user, "tokens": tokens}
    
 
 def change_user_password(user,old_password,new_password):
@@ -41,6 +74,64 @@ def change_user_password(user,old_password,new_password):
     user.set_password(new_password)
     user.save()
     return True
+
+
+def _google_exchange_code_for_tokens(code):
+    payload = urlencode({
+        "code": code,
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "client_secret": settings.GOOGLE_CLIENT_SECRET,
+        "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+        "grant_type": "authorization_code",
+    }).encode("utf-8")
+
+    request = Request(
+        "https://oauth2.googleapis.com/token",
+        data=payload,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+
+    try:
+        with urlopen(request, timeout=15) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        raise ValueError("Google token exchange failed.") from error
+
+
+def _google_fetch_userinfo(access_token):
+    request = Request(
+        "https://www.googleapis.com/oauth2/v2/userinfo",
+        headers={"Authorization": f"Bearer {access_token}"},
+        method="GET",
+    )
+    try:
+        with urlopen(request, timeout=15) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        raise ValueError("Failed to fetch Google profile.") from error
+
+
+def _get_or_create_google_user(user_info):
+    email = user_info["email"].strip().lower()
+    user = User.objects.filter(email=email).first()
+    if user:
+        if not user.first_name:
+            user.first_name = user_info.get("given_name") or email.split("@")[0][:50]
+        if not user.last_name:
+            user.last_name = user_info.get("family_name") or "Google"
+        user.save(update_fields=["first_name", "last_name"])
+        return user
+
+    default_dob = date.today() - timedelta(days=365 * 18)
+    user = User.objects.create_user(
+        email=email,
+        first_name=(user_info.get("given_name") or email.split("@")[0])[:50],
+        last_name=(user_info.get("family_name") or "Google User")[:50],
+        dob=default_dob,
+        password=uuid.uuid4().hex,
+    )
+    return user
 
 
 def send_password_reset_email(email):
@@ -199,3 +290,94 @@ def upload_files(user, files):
         created.append(user_file)
 
     return created, skipped  # 👈 now returns both
+
+
+from django.db import transaction
+from datetime import timedelta
+from django.core.mail import send_mail
+from .models import FileShare, UserFile
+
+
+def create_file_share(*, owner, file_id, recipient_email, expires_in_hours, message, request=None):
+    """
+    Create a public share link for a user's own file and email it to recipient.
+    Returns the created FileShare instance and the share URL (string).
+    """
+    try:
+        user_file = UserFile.objects.get(id=file_id, user=owner, is_deleted=False)
+    except UserFile.DoesNotExist:
+        return None, None
+
+    expires_at = timezone.now() + timedelta(hours=expires_in_hours)
+
+    with transaction.atomic():
+        share = FileShare.objects.create(
+            owner=owner,
+            user_file=user_file,
+            recipient_email=recipient_email,
+            message=message,
+            expires_at=expires_at,
+        )
+
+    share_url = None
+    if request is not None:
+        share_url = request.build_absolute_uri(f"/api/public/shares/{share.token}/")
+
+    _send_file_share_email(
+        owner_email=getattr(owner, "email", ""),
+        recipient_email=recipient_email,
+        message=message,
+        share_url=share_url or f"/api/public/shares/{share.token}/",
+        expires_at=expires_at,
+    )
+
+    return share, share_url
+
+
+def list_user_shares(user, search=None):
+    qs = FileShare.objects.select_related("user_file").filter(owner=user)
+    if search:
+        qs = qs.filter(user_file__original_name__icontains=search)
+    return qs
+
+
+def get_valid_share_by_token(token):
+    """
+    Return FileShare if it exists and is not expired and file not deleted.
+    """
+    try:
+        share = FileShare.objects.select_related("user_file", "owner").get(token=token)
+    except FileShare.DoesNotExist:
+        return None
+
+    if share.user_file.is_deleted:
+        return None
+
+    if share.is_expired:
+        return None
+
+    return share
+
+
+def mark_share_accessed(share):
+    if share.accessed_at is None:
+        share.accessed_at = timezone.now()
+        share.save(update_fields=["accessed_at"])
+
+
+def _send_file_share_email(*, owner_email, recipient_email, message, share_url, expires_at):
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", None)
+    subject = "File shared with you"
+    body = (
+        f"You have received a file share link from {owner_email or 'a user'}.\n\n"
+        f"Message:\n{message}\n\n"
+        f"Link: {share_url}\n"
+        f"Expires at: {expires_at.isoformat()}\n"
+    )
+    send_mail(
+        subject=subject,
+        message=body,
+        from_email=from_email,
+        recipient_list=[recipient_email],
+        fail_silently=True,
+    )

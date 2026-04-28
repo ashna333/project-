@@ -11,11 +11,40 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+import os
+from decouple import Config, RepositoryEnv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-FRONTEND_URL = "http://localhost:8000/api"
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+env = Config(RepositoryEnv(BASE_DIR / ".env"))
+FRONTEND_URL = "http://localhost:8001/api"
+FRONTEND_APP_URL = env("FRONTEND_APP_URL", default="http://localhost:5174")
+GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")
+GOOGLE_CLIENT_SECRET = env("GOOGLE_CLIENT_SECRET", default="")
+GOOGLE_REDIRECT_URI = env(
+    "GOOGLE_REDIRECT_URI",
+    default="http://127.0.0.1:8000/api/auth/google/callback/",
+)
+
+# Email
+# - If SMTP env vars are provided, send real emails via SMTP.
+# - Otherwise, fall back to console backend (prints emails in terminal).
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@filesharing.local")
+
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env("EMAIL_PORT", default=587, cast=int)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+
+EMAIL_USE_TLS = env("EMAIL_USE_TLS", default=True, cast=bool)
+EMAIL_USE_SSL = env("EMAIL_USE_SSL", default=False, cast=bool)
+EMAIL_BACKEND = (
+    "django.core.mail.backends.smtp.EmailBackend"
+    if EMAIL_HOST
+    else "django.core.mail.backends.console.EmailBackend"
+)
+
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
@@ -28,7 +57,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
-
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 # Application definition
 
 INSTALLED_APPS = [
@@ -70,7 +100,7 @@ REST_FRAMEWORK = {
     }
 }
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+    "http://localhost:5174",
 ]
 
 ROOT_URLCONF = 'file.urls'
@@ -154,10 +184,8 @@ SIMPLE_JWT = {
 }
 
 
-import os
-from pathlib import Path
  
-BASE_DIR = Path(__file__).resolve().parent.parent
+# BASE_DIR already defined above
  
 # Media files (user uploads)
 MEDIA_URL = "/media/"

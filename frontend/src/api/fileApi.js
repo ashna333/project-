@@ -2,25 +2,31 @@
 import api from './axiosInstance'
 
 export const fetchFilesApi = (page = 1, pageSize = 10, search = '') =>
-  api.get('/api/', { params: { page, page_size: pageSize, search: search || undefined } })
+  api.get('/', { params: { page, page_size: pageSize, search: search || undefined } })
 
 export const uploadFilesApi = (files, onUploadProgress) => {
   const formData = new FormData()
   files.forEach(f => formData.append('files', f))
-  return api.post('/api/upload/', formData, {
+  return api.post('/upload/', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress,
   })
 }
 
 export const deleteFileApi = (fileId) =>
-  api.delete(`/api/${fileId}/delete/`)
+  api.delete(`/${fileId}/delete/`)
 
 export const downloadFileApi = (fileId) =>
-  api.get(`/api/${fileId}/download/`, { responseType: 'blob' })
+  api.get(`/${fileId}/download/`, { responseType: 'blob' })
 
 export const renameFileApi = (fileId, newName) =>
-  api.patch(`/api/${fileId}/rename/`, { new_name: newName })
+  api.patch(`/${fileId}/rename/`, { new_name: newName })
 
 export const storageSummaryApi = () =>
-  api.get('/api/storage/')
+  api.get('/storage/')
+
+export const fetchSharesApi = (page = 1, pageSize = 10, search = '') =>
+  api.get('/shares/', { params: { page, page_size: pageSize, search: search || undefined } })
+
+export const createShareApi = (payload) =>
+  api.post('/shares/', payload)

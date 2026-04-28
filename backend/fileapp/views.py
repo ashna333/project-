@@ -2,19 +2,25 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
+from django.shortcuts import redirect
+from urllib.parse import urlencode
 from .serializers import (
     RegisterSerializer,
     ChangePasswordSerializer,
     ForgotPasswordSerializer,
-    ResetPasswordSerializer
+    ResetPasswordSerializer,
+    UserProfileSerializer,
 )
 from .service import (
     register_user,
     login_user,
+    build_google_auth_url,
+    login_with_google_code,
     change_user_password,
     send_password_reset_email,
     reset_user_password
 )
+from django.conf import settings
 
 class RegisterView(APIView):
     def post(self, request):
@@ -38,9 +44,50 @@ class LoginView(APIView):
 
        return Response({
            "message":"Logged in successfully",
-           "tokens":data['tokens']
+           "tokens":data['tokens'],
+           "user": UserProfileSerializer(data["user"]).data
 
        })
+
+
+class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(UserProfileSerializer(request.user).data)
+
+
+class GoogleAuthStartView(APIView):
+    def get(self, request):
+        if not getattr(settings, "GOOGLE_CLIENT_ID", "") or not getattr(settings, "GOOGLE_CLIENT_SECRET", ""):
+            return Response(
+                {"error": "Google sign-in is not configured on the server."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        return redirect(build_google_auth_url())
+
+
+class GoogleAuthCallbackView(APIView):
+    def get(self, request):
+        code = request.query_params.get("code")
+        if not code:
+            return redirect(f"{settings.FRONTEND_APP_URL}/auth/google/callback?error=missing_code")
+
+        try:
+            data = login_with_google_code(code)
+        except ValueError:
+            return redirect(f"{settings.FRONTEND_APP_URL}/auth/google/callback?error=google_auth_failed")
+
+        user = UserProfileSerializer(data["user"]).data
+        query = urlencode({
+            "access": data["tokens"]["access"],
+            "refresh": data["tokens"]["refresh"],
+            "email": user["email"],
+            "first_name": user["first_name"],
+            "last_name": user["last_name"],
+            "dob": user["dob"],
+        })
+        return redirect(f"{settings.FRONTEND_APP_URL}/auth/google/callback?{query}")
 
 
 class ChangePasswordView(APIView):
@@ -255,3 +302,122 @@ class StorageSummaryView(APIView):
     def get(self, request):
         storage = get_storage_summary(request.user)
         return Response(storage)
+
+
+from rest_framework.permissions import AllowAny
+from .serializers import (
+    FileShareCreateSerializer,
+    FileShareListSerializer,
+    PublicFileShareSerializer,
+)
+from .service import (
+    create_file_share,
+    list_user_shares,
+    get_valid_share_by_token,
+    mark_share_accessed,
+)
+
+
+class FileShareView(APIView):
+    """
+    POST /api/shares/
+    Create a share link for a file owned by the authenticated user.
+
+    GET /api/shares/?search=<term>&page=<n>&page_size=<n>
+    List all shares created by the authenticated user.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        search = request.query_params.get("search", "").strip()
+        qs = list_user_shares(request.user, search=search or None)
+
+        paginator = FilePagination()
+        page = paginator.paginate_queryset(qs, request)
+        serializer = FileShareListSerializer(page, many=True)
+        return paginator.get_paginated_response({"shares": serializer.data})
+
+    def post(self, request):
+        serializer = FileShareCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        share, share_url = create_file_share(
+            owner=request.user,
+            file_id=serializer.validated_data["file_id"],
+            recipient_email=serializer.validated_data["recipient_email"],
+            expires_in_hours=serializer.validated_data["expires_in_hours"],
+            message=serializer.validated_data["message"],
+            request=request,
+        )
+        if share is None:
+            return Response(
+                {"error": "File not found or you do not have permission."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(
+            {
+                "message": "Share link created and email sent.",
+                "share_url": share_url,
+                "expires_at": share.expires_at,
+                "share": FileShareListSerializer(share).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class PublicShareDetailView(APIView):
+    """
+    GET /api/public/shares/<token>/
+    Public endpoint to view share metadata (also marks as accessed).
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        share = get_valid_share_by_token(token)
+        if not share:
+            return Response(
+                {"error": "Invalid or expired share link."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        mark_share_accessed(share)
+        return Response(PublicFileShareSerializer(share).data, status=status.HTTP_200_OK)
+
+
+class PublicShareDownloadView(APIView):
+    """
+    GET /api/public/shares/<token>/download/
+    Public endpoint to download the shared file (marks as accessed).
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        share = get_valid_share_by_token(token)
+        if not share:
+            return Response(
+                {"error": "Invalid or expired share link."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        user_file = share.user_file
+        if not user_file.file or not os.path.isfile(user_file.file.path):
+            return Response(
+                {"error": "File not found on server."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        mark_share_accessed(share)
+
+        response = FileResponse(
+            open(user_file.file.path, "rb"),
+            as_attachment=True,
+            filename=user_file.original_name,
+        )
+        response["Content-Type"] = user_file.mime_type or "application/octet-stream"
+        response["Content-Length"] = user_file.file_size
+        return response
