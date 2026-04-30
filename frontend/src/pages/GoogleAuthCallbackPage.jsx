@@ -29,6 +29,7 @@ export default function GoogleAuthCallbackPage() {
       first_name: searchParams.get('first_name') || '',
       last_name: searchParams.get('last_name') || '',
       dob: searchParams.get('dob') || '',
+      auth_provider: 'google',
     }))
 
     navigate('/dashboard', { replace: true })

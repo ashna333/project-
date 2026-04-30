@@ -120,7 +120,8 @@ def _get_or_create_google_user(user_info):
             user.first_name = user_info.get("given_name") or email.split("@")[0][:50]
         if not user.last_name:
             user.last_name = user_info.get("family_name") or "Google"
-        user.save(update_fields=["first_name", "last_name"])
+        user.auth_provider = "google"
+        user.save(update_fields=["first_name", "last_name", "auth_provider"])
         return user
 
     default_dob = date.today() - timedelta(days=365 * 18)
@@ -130,6 +131,7 @@ def _get_or_create_google_user(user_info):
         last_name=(user_info.get("family_name") or "Google User")[:50],
         dob=default_dob,
         password=uuid.uuid4().hex,
+        auth_provider="google",
     )
     return user
 
@@ -209,6 +211,13 @@ def list_user_files(user, search=None):
     return qs
 
 
+def list_user_trash(user, search=None):
+    qs = UserFile.objects.filter(user=user, is_deleted=True)
+    if search:
+        qs = qs.filter(original_name__icontains=search)
+    return qs.order_by("-deleted_at", "-uploaded_at")
+
+
 
 def rename_user_file(user, file_id, new_name):
     try:
@@ -225,6 +234,26 @@ def delete_user_file(user, file_id):
         user_file.is_deleted = True
         user_file.deleted_at = timezone.now()
         user_file.save()
+        return True
+    except UserFile.DoesNotExist:
+        return False
+
+
+def restore_user_file(user, file_id):
+    try:
+        user_file = UserFile.objects.get(id=file_id, user=user, is_deleted=True)
+        user_file.is_deleted = False
+        user_file.deleted_at = None
+        user_file.save(update_fields=["is_deleted", "deleted_at"])
+        return user_file
+    except UserFile.DoesNotExist:
+        return None
+
+
+def permanently_delete_user_file(user, file_id):
+    try:
+        user_file = UserFile.objects.get(id=file_id, user=user, is_deleted=True)
+        user_file.delete()
         return True
     except UserFile.DoesNotExist:
         return False

@@ -94,6 +94,12 @@ class ChangePasswordView(APIView):
     permission_classes=[IsAuthenticated]
 
     def post(self,request):
+        if getattr(request.user, "auth_provider", "password") == "google":
+            return Response(
+                {"error": "Password change is not available for Google-authenticated accounts."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         serializer = ChangePasswordSerializer(data=request.data)
 
         if serializer.is_valid():
@@ -151,7 +157,10 @@ from .service import (
     delete_user_file,
     get_user_file,
     get_storage_summary,
-    rename_user_file
+    rename_user_file,
+    list_user_trash,
+    restore_user_file,
+    permanently_delete_user_file,
 )
 
 
@@ -209,7 +218,8 @@ class FileListView(APIView):
 
         return paginator.get_paginated_response(
             {
-                "files": serializer.data
+                "files": serializer.data,
+                "storage": storage,
             }
         )
 
@@ -302,6 +312,38 @@ class StorageSummaryView(APIView):
     def get(self, request):
         storage = get_storage_summary(request.user)
         return Response(storage)
+
+
+class TrashListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        search = request.query_params.get("search", "").strip()
+        qs = list_user_trash(request.user, search=search or None)
+        paginator = FilePagination()
+        page = paginator.paginate_queryset(qs, request)
+        serializer = UserFileSerializer(page, many=True, context={"request": request})
+        return paginator.get_paginated_response({"files": serializer.data})
+
+
+class TrashRestoreView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, file_id):
+        restored = restore_user_file(request.user, file_id)
+        if not restored:
+            return Response({"error": "File not found in trash."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"message": "File restored successfully."})
+
+
+class TrashDeletePermanentView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, file_id):
+        deleted = permanently_delete_user_file(request.user, file_id)
+        if not deleted:
+            return Response({"error": "File not found in trash."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"message": "File permanently deleted."})
 
 
 from rest_framework.permissions import AllowAny

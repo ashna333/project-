@@ -6,6 +6,9 @@ from .views import( RegisterView, LoginView,
                     FileDeleteView,
                     FileDownloadView,
                     FileRenameView,
+                    TrashListView,
+                    TrashRestoreView,
+                    TrashDeletePermanentView,
                     ProfileView,
                     GoogleAuthStartView,
                     GoogleAuthCallbackView,
@@ -37,6 +40,9 @@ urlpatterns = [
 
     path("<int:file_id>/delete/", FileDeleteView.as_view(), name="file-delete"),
     path("<int:file_id>/rename/", FileRenameView.as_view(), name="file-rename"),
+    path("trash/", TrashListView.as_view(), name="file-trash-list"),
+    path("trash/<int:file_id>/restore/", TrashRestoreView.as_view(), name="file-trash-restore"),
+    path("trash/<int:file_id>/destroy/", TrashDeletePermanentView.as_view(), name="file-trash-destroy"),
     path("storage/", StorageSummaryView.as_view(), name="file-storage"),
 
     # FILE SHARING (authenticated)

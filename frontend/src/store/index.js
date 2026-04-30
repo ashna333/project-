@@ -1,14 +1,13 @@
-// src/store/index.js
-import { createStore, combineReducers } from 'redux'
+// ✅ src/store/index.js (or store.js)
+import { configureStore } from '@reduxjs/toolkit'
 import fileReducer from './fileSlice'
+// import other reducers...
 
-const rootReducer = combineReducers({
-  files: fileReducer,
+export const store = configureStore({
+  reducer: {
+    files: fileReducer,
+    // auth: authReducer,  ← add others here
+  },
+  // thunk middleware is included automatically by configureStore ✅
 })
-
-const store = createStore(
-  rootReducer,
-  window.__REDUX_DEVTOOLS_EXTENSION__?.()
-)
-
 export default store

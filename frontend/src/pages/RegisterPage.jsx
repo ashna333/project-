@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
 import AuthLayout from '../components/AuthLayout'
@@ -25,6 +25,36 @@ export default function RegisterPage() {
   const [showPass, setShowPass] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [fieldErrors, setFieldErrors] = useState({})
+  const [dobParts, setDobParts] = useState({ year: '', month: '', day: '' })
+
+  const currentYear = new Date().getFullYear()
+  const years = useMemo(
+    () => Array.from({ length: 100 }, (_, i) => String(currentYear - i)),
+    [currentYear]
+  )
+  const months = useMemo(
+    () => [
+      { value: '01', label: 'January' },
+      { value: '02', label: 'February' },
+      { value: '03', label: 'March' },
+      { value: '04', label: 'April' },
+      { value: '05', label: 'May' },
+      { value: '06', label: 'June' },
+      { value: '07', label: 'July' },
+      { value: '08', label: 'August' },
+      { value: '09', label: 'September' },
+      { value: '10', label: 'October' },
+      { value: '11', label: 'November' },
+      { value: '12', label: 'December' },
+    ],
+    []
+  )
+
+  const dayOptions = useMemo(() => {
+    if (!dobParts.year || !dobParts.month) return []
+    const totalDays = new Date(Number(dobParts.year), Number(dobParts.month), 0).getDate()
+    return Array.from({ length: totalDays }, (_, i) => String(i + 1).padStart(2, '0'))
+  }, [dobParts.year, dobParts.month])
 
   const validate = () => {
     const errs = {}
@@ -42,6 +72,21 @@ export default function RegisterPage() {
     clearMessages()
     setFieldErrors((prev) => ({ ...prev, [e.target.name]: '' }))
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
+  }
+
+  const handleDobPartChange = (key, value) => {
+    clearMessages()
+    setFieldErrors((prev) => ({ ...prev, dob: '' }))
+    setDobParts((prev) => {
+      const next = { ...prev, [key]: value }
+      if (key !== 'day') {
+        const maxDays = next.year && next.month ? new Date(Number(next.year), Number(next.month), 0).getDate() : 31
+        if (next.day && Number(next.day) > maxDays) next.day = ''
+      }
+      const dobValue = next.year && next.month && next.day ? `${next.year}-${next.month}-${next.day}` : ''
+      setForm((formPrev) => ({ ...formPrev, dob: dobValue }))
+      return next
+    })
   }
 
   const handleSubmit = async (e) => {
@@ -120,14 +165,33 @@ export default function RegisterPage() {
 
         <div className="form-group">
           <label className="form-label">Date of Birth</label>
-          <input
-            className={`form-input${fieldErrors.dob ? ' error' : ''}`}
-            name="dob"
-            type="date"
-            value={form.dob}
-            onChange={handleChange}
-            style={{ colorScheme: 'dark' }}
-          />
+          <div className={`dob-select-row${fieldErrors.dob ? ' error' : ''}`}>
+            <select
+              className="form-input dob-select"
+              value={dobParts.year}
+              onChange={(e) => handleDobPartChange('year', e.target.value)}
+            >
+              <option value="">Year</option>
+              {years.map((year) => <option key={year} value={year}>{year}</option>)}
+            </select>
+            <select
+              className="form-input dob-select"
+              value={dobParts.month}
+              onChange={(e) => handleDobPartChange('month', e.target.value)}
+            >
+              <option value="">Month</option>
+              {months.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}
+            </select>
+            <select
+              className="form-input dob-select"
+              value={dobParts.day}
+              onChange={(e) => handleDobPartChange('day', e.target.value)}
+              disabled={!dobParts.year || !dobParts.month}
+            >
+              <option value="">Day</option>
+              {dayOptions.map((day) => <option key={day} value={day}>{day}</option>)}
+            </select>
+          </div>
           {fieldErrors.dob && <span className="field-error">⚠ {fieldErrors.dob}</span>}
         </div>
 

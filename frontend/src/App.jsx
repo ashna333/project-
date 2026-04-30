@@ -9,8 +9,11 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
 import GoogleAuthCallbackPage from './pages/GoogleAuthCallbackPage'
-import DashboardPage from './pages/DashboardPage'
+import DashboardOverviewPage from './pages/DashboardOverviewPage'
 import FileManagerPage from './pages/FileManagerPage'
+import FileSharingPage from './pages/FileSharingPage'
+import ProfilePage from './pages/ProfilePage'
+import TrashPage from './pages/TrashPage'
 
 
 export default function App() {
@@ -31,10 +34,12 @@ export default function App() {
         <Route path="/auth/google/callback" element={<GoogleAuthCallbackPage />} />
 
         {/* Protected */}
-        <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute><DashboardOverviewPage /></ProtectedRoute>} />
         <Route path="/change-password" element={<ProtectedRoute><ChangePasswordPage /></ProtectedRoute>} />
-        <Route path="/profile" element={<ProtectedRoute><DashboardPage defaultTab="profile" /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="/files" element={<ProtectedRoute><FileManagerPage /></ProtectedRoute>} />
+        <Route path="/sharing" element={<ProtectedRoute><FileSharingPage /></ProtectedRoute>} />
+        <Route path="/trash" element={<ProtectedRoute><TrashPage /></ProtectedRoute>} />
 
         {/* Default */}
         <Route path="/" element={<Navigate to="/login" replace />} />

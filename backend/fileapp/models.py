@@ -16,6 +16,9 @@ class User(AbstractBaseUser):
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
     dob = models.DateField()
+    # Used to control which auth features are available (e.g. password change).
+    # Values: "password" (normal login) | "google" (Google OAuth login)
+    auth_provider = models.CharField(max_length=20, default="password")
     reset_token = models.CharField(max_length=255, null=True, blank=True)
     is_active = models.BooleanField(default=True)  # keep this — needed by Django auth
 

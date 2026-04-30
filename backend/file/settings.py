@@ -16,14 +16,16 @@ from decouple import Config, RepositoryEnv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-env = Config(RepositoryEnv(BASE_DIR / ".env"))
+env = Config(RepositoryEnv("/home/ashnakhalid/Documents/project-/backend/.env"))
+
+
 FRONTEND_URL = "http://localhost:8001/api"
 FRONTEND_APP_URL = env("FRONTEND_APP_URL", default="http://localhost:5174")
 GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")
 GOOGLE_CLIENT_SECRET = env("GOOGLE_CLIENT_SECRET", default="")
 GOOGLE_REDIRECT_URI = env(
     "GOOGLE_REDIRECT_URI",
-    default="http://127.0.0.1:8000/api/auth/google/callback/",
+    default="http://127.0.0.1:8001/api/auth/google/callback/",
 )
 
 # Email
@@ -57,9 +59,6 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-# Application definition
 
 INSTALLED_APPS = [
     'django.contrib.admin',

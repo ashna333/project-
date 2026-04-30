@@ -30,3 +30,12 @@ export const fetchSharesApi = (page = 1, pageSize = 10, search = '') =>
 
 export const createShareApi = (payload) =>
   api.post('/shares/', payload)
+
+export const fetchTrashApi = (page = 1, pageSize = 10, search = '') =>
+  api.get('/trash/', { params: { page, page_size: pageSize, search: search || undefined } })
+
+export const restoreTrashFileApi = (fileId) =>
+  api.post(`/trash/${fileId}/restore/`)
+
+export const destroyTrashFileApi = (fileId) =>
+  api.delete(`/trash/${fileId}/destroy/`)
