@@ -4,14 +4,16 @@ import useAuthStore from '../store/authStore'
 import { storageSummaryApi } from '../api/fileApi'
 
 const navStyle = ({ isActive }) => ({
-  display: 'block',
-  padding: '10px 12px',
-  borderRadius: 10,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  padding: '10px 14px',
+  borderRadius: 999,
   textDecoration: 'none',
   color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
   background: isActive ? 'var(--accent-soft)' : 'transparent',
   border: isActive ? '1px solid var(--accent-soft-border)' : '1px solid transparent',
-  fontWeight: 700,
+  fontWeight: isActive ? 700 : 600,
 })
 
 export default function AppShell({ title, subtitle, children }) {
@@ -29,10 +31,20 @@ export default function AppShell({ title, subtitle, children }) {
 
   const initials = `${user?.first_name?.[0] || ''}${user?.last_name?.[0] || ''}`.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'
 
+  const navItems = [
+    { to: '/dashboard', label: 'Overview', icon: '⌂' },
+    { to: '/files', label: 'My Drive', icon: '▦' },
+    { to: '/sharing', label: 'Shared with me', icon: '↗' },
+    { to: '/trash', label: 'Trash', icon: '⌫' },
+  ]
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <nav className="dashboard-nav">
-        <div className="nav-brand">CloudNest</div>
+        <div className="nav-brand">
+          <span className="drive-brand-mark">◆</span>
+          CloudNest Drive
+        </div>
         <div className="nav-actions">
           <button className="user-avatar-btn" title={user?.email || ''}>{initials}</button>
           <button className="btn-sm" onClick={() => { if (window.confirm('Are you sure you want to logout?')) { logout(); navigate('/login') } }}>Sign out</button>
@@ -44,11 +56,14 @@ export default function AppShell({ title, subtitle, children }) {
             <h2 style={{ marginBottom: 6 }}>{title}</h2>
             <p>{subtitle}</p>
           </div>
+          <div className="sidebar-section-label">Main</div>
           <div style={{ display: 'grid', gap: 8 }}>
-            <NavLink to="/dashboard" style={navStyle}>Overview</NavLink>
-            <NavLink to="/files" style={navStyle}>File Manager</NavLink>
-            <NavLink to="/sharing" style={navStyle}>File Sharing</NavLink>
-            <NavLink to="/trash" style={navStyle}>Trash</NavLink>
+            {navItems.map((item) => (
+              <NavLink key={item.to} to={item.to} style={navStyle}>
+                <span className="sidebar-nav-icon">{item.icon}</span>
+                {item.label}
+              </NavLink>
+            ))}
           </div>
           <div className="storage-card" style={{ marginTop: 8 }}>
               <div className="storage-card-title">STORAGE</div>

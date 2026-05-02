@@ -72,7 +72,7 @@ export default function DropZone() {
   return (
     <div className="dropzone-wrap">
       <div
-        className={`dropzone ${dragging ? 'dragging' : ''} ${uploading ? 'uploading' : ''}`}
+        className={`upload-dropzone ${dragging ? 'dragging' : ''} ${uploading ? 'uploading' : ''}`}
         onDrop={onDrop}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
@@ -86,31 +86,40 @@ export default function DropZone() {
           onChange={e => handleFiles(e.target.files)}
         />
 
-        <div className="dropzone-icon">
+        <div className="upload-dropzone-icon">
           {uploading ? (
             <div className="spinner-dark" />
           ) : dragging ? '📂' : '☁️'}
         </div>
 
-        <div className="dropzone-text">
+        <div>
           {uploading ? (
-            <><strong>Uploading...</strong><span>Please wait</span></>
+            <>
+              <div className="upload-dropzone-title">Uploading...</div>
+              <div className="upload-dropzone-subtitle">Please wait</div>
+            </>
           ) : dragging ? (
-            <><strong>Drop files here</strong><span>Release to upload</span></>
+            <>
+              <div className="upload-dropzone-title">Drop files here</div>
+              <div className="upload-dropzone-subtitle">Release to upload</div>
+            </>
           ) : (
-            <><strong>Drag & drop files here</strong><span>or click to browse · Max 100MB per file · Multiple files supported</span></>
+            <>
+              <div className="upload-dropzone-title">Drag and drop files here</div>
+              <div className="upload-dropzone-subtitle">or click to browse · Max 100MB per file · Multiple files supported</div>
+            </>
           )}
         </div>
       </div>
 
       {(localError || error) && (
-        <div className="fm-alert fm-alert-error">⚠ {localError || error}</div>
+        <div className="alert alert-error">⚠ {localError || error}</div>
       )}
       {successMessage && (
-        <div className="fm-alert fm-alert-success">✓ {successMessage}</div>
+        <div className="alert alert-success">✓ {successMessage}</div>
       )}
       {skipped.length > 0 && (
-        <div className="fm-alert fm-alert-warning">
+        <div className="alert" style={{ border: '1px solid #facc15', background: '#fef9c3', color: '#854d0e' }}>
           ⚠ Skipped duplicate file(s): {skipped.join(', ')}
         </div>
       )}

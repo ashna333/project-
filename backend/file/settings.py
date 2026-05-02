@@ -16,7 +16,7 @@ from decouple import Config, RepositoryEnv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-env = Config(RepositoryEnv("/home/ashnakhalid/Documents/project-/backend/.env"))
+env = Config(RepositoryEnv(str(BASE_DIR / ".env")))
 
 
 FRONTEND_URL = "http://localhost:8001/api"
@@ -100,6 +100,7 @@ REST_FRAMEWORK = {
 }
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5174",
+    "http://localhost:5173"
 ]
 
 ROOT_URLCONF = 'file.urls'

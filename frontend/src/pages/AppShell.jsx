@@ -5,7 +5,6 @@ import DropZone from '../components/DropZone'
 import { deleteFile, downloadFile, fetchFiles, renameFile } from '../store/fileThunks'
 import { setPage, setSearchQuery, setViewMode } from '../store/fileSlice'
 import { createShareApi, fetchSharesApi } from '../api/fileApi'
-import '../filemanager.css'
 
 const getPages = (current, total) => {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
-import AuthLayout from '../components/AuthLayout'
+import '../styles/AuthStyles.css'
 
 const EyeIcon = ({ open }) => open ? (
   <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -14,10 +14,11 @@ const EyeIcon = ({ open }) => open ? (
   </svg>
 )
 
+
 export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { login, loading, error, successMessage, clearMessages } = useAuthStore()
+  const { login, loading, error, clearMessages } = useAuthStore()
 
   const from = location.state?.from?.pathname || '/dashboard'
 
@@ -34,6 +35,12 @@ export default function LoginPage() {
     return Object.keys(errs).length === 0
   }
 
+  const handleChange = (setter, field) => (e) => {
+    clearMessages()
+    setFieldErrors((p) => ({ ...p, [field]: '' }))
+    setter(e.target.value)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validate()) return
@@ -41,92 +48,98 @@ export default function LoginPage() {
     if (result.success) navigate(from, { replace: true })
   }
 
-  const handleChange = (setter, field) => (e) => {
-    clearMessages()
-    setFieldErrors((p) => ({ ...p, [field]: '' }))
-    setter(e.target.value)
-  }
-
   const handleGoogleSignIn = () => {
     const googleAuthUrl = import.meta.env.VITE_GOOGLE_AUTH_URL
-    if (!googleAuthUrl) {
-      window.alert('Google sign-in UI is added, but backend OAuth URL is not configured yet. Set VITE_GOOGLE_AUTH_URL after your backend Google auth endpoint is ready.')
-      return
-    }
-    window.location.href = googleAuthUrl
+    if (googleAuthUrl) window.location.href = googleAuthUrl
   }
 
   return (
-    <AuthLayout
-      eyebrow="Welcome back"
-      title="Sign in"
-      subtitle="Enter your credentials to access your account."
-    >
-      <form className="form" onSubmit={handleSubmit} noValidate>
-        {error && (
-          <div className="alert alert-error">
-            <span>⚠</span> {error}
+    <>
+      
+      <div className="auth-root">
+        {/* Left Branding Panel */}
+        <div className="auth-left">
+          <div className="auth-brand">
+            <div className="auth-brand-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                <path d="M12 13V7m-4 4 4 4 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <span className="auth-brand-name">CloudShare</span>
           </div>
-        )}
-        {successMessage && (
-          <div className="alert alert-success">
-            <span>✓</span> {successMessage}
+          <div className="auth-hero">
+            <h1 className="auth-hero-title">Share files</h1>
+            <h1 className="auth-hero-accent">without limits.</h1>
+            <p className="auth-hero-sub">
+              Encrypted cloud storage with time-boxed share links, delivered straight to inboxes.
+            </p>
           </div>
-        )}
-
-        <div className="form-group">
-          <label className="form-label">Email Address</label>
-          <input
-            className={`form-input${fieldErrors.email ? ' error' : ''}`}
-            type="email"
-            placeholder="john@example.com"
-            value={email}
-            onChange={handleChange(setEmail, 'email')}
-            autoFocus
-          />
-          {fieldErrors.email && <span className="field-error">⚠ {fieldErrors.email}</span>}
         </div>
 
-        <div className="form-group">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <label className="form-label">Password</label>
-            <Link
-              to="/forgot-password"
-              style={{ fontSize: '12px', color: 'var(--accent)', textDecoration: 'none' }}
-            >
-              Forgot password?
-            </Link>
+        {/* Right Form Panel */}
+        <div className="auth-right">
+          <div className="auth-box">
+            <h2 className="auth-form-title">Sign in</h2>
+            <p className="auth-form-sub">Access your secure file vault</p>
+
+            <form className="auth-form" onSubmit={handleSubmit} noValidate>
+              {error && (
+                <div className="alert alert-error">
+                  <span>⚠</span> {error}
+                </div>
+              )}
+
+              <div className="auth-group">
+                <label className="auth-label">Email</label>
+                <input 
+                  className={`auth-input ${fieldErrors.email ? 'error' : ''}`}
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={handleChange(setEmail, 'email')}
+                />
+                {fieldErrors.email && <span className="field-error">⚠ {fieldErrors.email}</span>}
+              </div>
+
+              <div className="auth-group">
+                <div className="auth-label-row">
+                  <label className="auth-label">Password</label>
+                  <Link to="/forgot-password" size="12px" className="auth-forgot">Forgot password?</Link>
+                </div>
+                <div className="auth-input-wrap">
+                  <input 
+                    className={`auth-input ${fieldErrors.password ? 'error' : ''}`}
+                    type={showPass ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={handleChange(setPassword, 'password')}
+                  />
+                  <button type="button" className="auth-input-icon-btn" onClick={() => setShowPass(!showPass)}>
+                    <EyeIcon open={showPass} />
+                  </button>
+                </div>
+                {fieldErrors.password && <span className="field-error">⚠ {fieldErrors.password}</span>}
+              </div>
+
+              <button className="auth-submit" type="submit" disabled={loading}>
+                {loading ? "Signing in..." : "Sign in"}
+              </button>
+
+              <div className="auth-divider">or</div>
+
+              <button type="button" className="btn btn-google" onClick={handleGoogleSignIn}>
+                <span className="google-mark">G</span>
+                Continue with Google
+              </button>
+            </form>
+
+            <div className="auth-footer">
+              New to CloudShare? <Link to="/register">Create account</Link>
+            </div>
           </div>
-          <div className="form-input-wrap">
-            <input
-              className={`form-input has-icon${fieldErrors.password ? ' error' : ''}`}
-              type={showPass ? 'text' : 'password'}
-              placeholder="Your password"
-              value={password}
-              onChange={handleChange(setPassword, 'password')}
-            />
-            <button type="button" className="input-icon" onClick={() => setShowPass(!showPass)}>
-              <EyeIcon open={showPass} />
-            </button>
-          </div>
-          {fieldErrors.password && <span className="field-error">⚠ {fieldErrors.password}</span>}
         </div>
-
-        <button className="btn btn-primary" type="submit" disabled={loading}>
-          {loading ? <span className="spinner" /> : 'Sign In →'}
-        </button>
-
-        <div className="divider">or</div>
-
-        <button type="button" className="btn btn-google" onClick={handleGoogleSignIn}>
-          <span className="google-mark">G</span>
-          Continue with Google
-        </button>
-      </form>
-
-      <div className="auth-footer">
-        Don't have an account? <Link to="/register">Create one</Link>
       </div>
-    </AuthLayout>
+    </>
   )
 }
