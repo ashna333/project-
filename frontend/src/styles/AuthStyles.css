@@ -88,6 +88,21 @@
     font-family: inherit;
     transition: border-color 0.2s;
   }
+
+  /* Fix autofill background + text color */
+.auth-input:-webkit-autofill,
+.auth-input:-webkit-autofill:hover,
+.auth-input:-webkit-autofill:focus,
+.auth-input:-webkit-autofill:active {
+  -webkit-text-fill-color: #fff !important;
+  caret-color: #fff;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* Force dark background for autofill */
+.auth-input:-webkit-autofill {
+  box-shadow: 0 0 0px 1000px #000 inset !important;
+}
   
   .auth-input.error { border-color: #e8294c; }
 

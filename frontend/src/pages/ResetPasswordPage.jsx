@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
-
+import '../styles/Forgotpassword.css'
 
 const EyeIcon = ({ open }) => open ? (
   <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -19,105 +19,139 @@ export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token')
   const { resetPassword, loading, error, successMessage, clearMessages } = useAuthStore()
-
-  const [form, setForm] = useState({ new_password: '', confirm: '' })
   const [showPass, setShowPass] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+
+  const [form, setForm] = useState({ new_password: '', confirm: '' })
   const [fieldErrors, setFieldErrors] = useState({})
 
-  const validate = () => {
-    const errs = {}
-    if (form.new_password.length < 8) errs.new_password = 'At least 8 characters'
-    if (form.new_password !== form.confirm) errs.confirm = 'Passwords do not match'
-    setFieldErrors(errs)
-    return Object.keys(errs).length === 0
+  useEffect(() => {
+    return () => clearMessages()
+  }, [clearMessages])
+  
+
+  useEffect(() => {
+    if (!error && !successMessage) return
+
+    const timer = setTimeout(() => {
+      clearMessages()
+    }, 5000)
+
+    return () => clearTimeout(timer) // cleanup if message changes before 5s
+  }, [error, successMessage, clearMessages])
+
+
+
+ const handleSubmit = async (e) => {
+  e.preventDefault()
+
+  let errors = {}
+
+  if (!form.new_password) errors.new_password = "Enter password"
+  if (!form.confirm) errors.confirm = "Confirm password"
+
+  if (
+    form.new_password &&
+    form.confirm &&
+    form.new_password !== form.confirm
+  ) {
+    errors.confirm = "Passwords do not match"
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!validate()) return
-    const result = await resetPassword(token, form.new_password)
-    if (result.success) setTimeout(() => navigate('/login'), 2000)
+  if (Object.keys(errors).length > 0) {
+    setFieldErrors(errors)
+    return
   }
 
-  if (!token) {
-    return (
-      <AuthLayout eyebrow="Error" title="Invalid link" subtitle="This password reset link is missing or invalid.">
-        <div className="alert alert-error" style={{ marginBottom: 20 }}>
-          <span>⚠</span> No reset token found in the URL.
-        </div>
-        <Link to="/forgot-password">
-          <button className="btn btn-primary" type="button">Request a new link →</button>
-        </Link>
-      </AuthLayout>
-    )
-  }
+  setFieldErrors({})
 
+  const result = await resetPassword(
+    token,
+    form.new_password,
+    form.confirm
+  )
+
+  if (result.success) {
+    setTimeout(() => navigate('/login'), 3000)
+  }
+}
   return (
-    <AuthLayout
-      eyebrow="Reset password"
-      title="Choose new password"
-      subtitle="Your new password must be at least 8 characters."
-      features={[
-        'Minimum 8 characters required',
-        'Token is single-use for security',
-        'You can log in immediately after',
-      ]}
-    >
-      <form className="form" onSubmit={handleSubmit} noValidate>
-        {error && (
-          <div className="alert alert-error">
-            <span>⚠</span> {error}
+    <div className="auth-container reset-page-layout">
+      <div className="reset-wrapper">
+        {/* Security Header */}
+        <div className="security-header">
+          <div className="security-icon-box">
+             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2">
+              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3-3.5 3.5z" />
+            </svg>
           </div>
-        )}
-        {successMessage && (
-          <div className="alert alert-success">
-            <span>✓</span> {successMessage} Redirecting to login…
+          <div>
+          
+            <h2 className="page-title">Change password</h2>
           </div>
-        )}
+        </div>
 
-        <div className="form-group">
-          <label className="form-label">New Password</label>
-          <div className="form-input-wrap">
+        {/* The Stylized Form Container */}
+        <form className="change-password-form" onSubmit={handleSubmit}>
+          {error && <div className="message error">{error}</div>}
+          {successMessage && <div className="message success">{successMessage}</div>}
+
+          <div className="form-input-group">
+            <label className="input-label">New password</label>
+
             <input
-              className={`form-input has-icon${fieldErrors.new_password ? ' error' : ''}`}
+              className={`form-input-field ${fieldErrors.new_password ? 'input-error' : ''}`}
               type={showPass ? 'text' : 'password'}
-              placeholder="Min. 8 characters"
+              placeholder="8+ chars, letters & numbers"
               value={form.new_password}
-              onChange={(e) => { clearMessages(); setFieldErrors(p => ({...p, new_password:''})); setForm(p => ({...p, new_password: e.target.value})) }}
+              onChange={(e) =>
+                setForm({ ...form, new_password: e.target.value })
+              }
             />
-            <button type="button" className="input-icon" onClick={() => setShowPass(!showPass)}>
+
+            <button
+              type="button"
+              className="eyeicon"
+              onClick={() => setShowPass(!showPass)}
+            >
               <EyeIcon open={showPass} />
             </button>
+
+            {fieldErrors.new_password && (
+              <p className="field-error-text">{fieldErrors.new_password}</p>
+            )}
           </div>
-          {fieldErrors.new_password && <span className="field-error">⚠ {fieldErrors.new_password}</span>}
-        </div>
 
-        <div className="form-group">
-          <label className="form-label">Confirm Password</label>
-          <div className="form-input-wrap">
-            <input
-              className={`form-input has-icon${fieldErrors.confirm ? ' error' : ''}`}
-              type={showConfirm ? 'text' : 'password'}
-              placeholder="Repeat new password"
-              value={form.confirm}
-              onChange={(e) => { clearMessages(); setFieldErrors(p => ({...p, confirm:''})); setForm(p => ({...p, confirm: e.target.value})) }}
-            />
-            <button type="button" className="input-icon" onClick={() => setShowConfirm(!showConfirm)}>
-              <EyeIcon open={showConfirm} />
-            </button>
-          </div>
-          {fieldErrors.confirm && <span className="field-error">⚠ {fieldErrors.confirm}</span>}
-        </div>
+          <div className="form-input-group">
+              <label className="input-label">Confirm new password</label>
 
-        <button className="btn btn-primary" type="submit" disabled={loading || !!successMessage}>
-          {loading ? <span className="spinner" /> : 'Reset Password →'}
-        </button>
-      </form>
+              <input
+                className={`form-input-field ${fieldErrors.confirm ? 'input-error' : ''}`}
+                type={showConfirm ? "text" : "password"}
+                value={form.confirm}
+                onChange={(e) =>
+                  setForm({ ...form, confirm: e.target.value })
+                }
+              />
 
-      <div className="auth-footer">
-        <Link to="/login">Back to Sign in</Link>
+              <button
+                type="button"
+                className="eyeicon"
+                onClick={() => setShowConfirm(!showConfirm)}
+              >
+                <EyeIcon open={showConfirm} />
+              </button>
+
+              {fieldErrors.confirm && (
+                <p className="field-error-text">{fieldErrors.confirm}</p>
+              )}
+            </div>
+
+          <button className="submit-btn-rose" type="submit" disabled={loading}>
+            {loading ? "Updating..." : "Update password"}
+          </button>
+        </form>
       </div>
-    </AuthLayout>
+    </div>
   )
 }

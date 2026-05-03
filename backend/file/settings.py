@@ -19,8 +19,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 env = Config(RepositoryEnv(str(BASE_DIR / ".env")))
 
 
-FRONTEND_URL = "http://localhost:8001/api"
-FRONTEND_APP_URL = env("FRONTEND_APP_URL", default="http://localhost:5174")
+FRONTEND_URL = "http://localhost:5173"
+FRONTEND_APP_URL = env("FRONTEND_APP_URL", default="http://localhost:5173")
 GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")
 GOOGLE_CLIENT_SECRET = env("GOOGLE_CLIENT_SECRET", default="")
 GOOGLE_REDIRECT_URI = env(

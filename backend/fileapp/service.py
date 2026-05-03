@@ -167,12 +167,16 @@ def reset_user_password(token, new_password):
     try:
         user = User.objects.get(reset_token=token)
     except User.DoesNotExist:
-        return False
+        return False, "Invalid or expired token"
+
+    if user.check_password(new_password):
+        return False, "New password cannot be the same as old password"
 
     user.set_password(new_password)
-    user.reset_token = None   # clear token after use — one time use only
+    user.reset_token = None
     user.save()
-    return True
+
+    return True, "Password reset successful"
 
 import mimetypes
 from django.db.models import Sum, Q

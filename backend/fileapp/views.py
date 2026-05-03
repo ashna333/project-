@@ -131,13 +131,13 @@ class ResetPasswordView(APIView):
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
         if serializer.is_valid():
-            success = reset_user_password(
+            success, message = reset_user_password(   # ✅ unpack the tuple
                 serializer.validated_data.get("token"),
                 serializer.validated_data.get("new_password")
             )
             if not success:
-                return Response({"error": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
-            return Response({"message": "Password reset successfully"})
+                return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)  # ✅ use actual message
+            return Response({"message": message})  # ✅ use actual message
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

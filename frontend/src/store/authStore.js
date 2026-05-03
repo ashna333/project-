@@ -135,10 +135,11 @@ const useAuthStore = create((set) => ({
   },
 
   //  Reset Password 
-  resetPassword: async (token, newPassword) => {
+  resetPassword: async (token, newPassword,confirmPassword) => {
     set({ loading: true, error: null, successMessage: null })
+    console.log("Token:", token)
     try {
-      await resetPasswordApi(token, newPassword)
+      await resetPasswordApi(token, newPassword,confirmPassword)
       set({ loading: false, successMessage: 'Password reset successfully! You can now log in.' })
       return { success: true }
     } catch (err) {
