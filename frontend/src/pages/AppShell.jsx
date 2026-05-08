@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import AppShell from '../components/AppShell'
-import DropZone from '../components/DropZone'
 import { deleteFile, downloadFile, fetchFiles, renameFile } from '../store/fileThunks'
 import { setPage, setSearchQuery, setViewMode } from '../store/fileSlice'
-import { createShareApi, fetchSharesApi } from '../api/fileApi'
+import { createShareApi, fetchSharesApi } from '../store/fileApi'
 
 const getPages = (current, total) => {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)

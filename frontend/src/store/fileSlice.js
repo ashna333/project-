@@ -7,7 +7,7 @@ const initialState = {
     next: null,
     previous: null,
     currentPage: 1,
-    pageSize: 10,
+    pageSize: 12,
   },
   storage: {
     used_bytes: 0,
@@ -29,21 +29,34 @@ const fileSlice = createSlice({
   initialState,
   reducers: {
     // Fetch files
-    fetchFilesStart(state) {
-      state.loading = true
-      state.error = null
-    },
-    fetchFilesSuccess(state, action) {
-      state.loading = false
-      state.files = action.payload.files
-      state.pagination = {
-        ...state.pagination,
-        count: action.payload.count,
-        next: action.payload.next,
-        previous: action.payload.previous,
-      }
-      state.storage = action.payload.storage
-    },
+   // FIX ONLY THIS PART inside fetchFilesSuccess
+
+// REPLACE WITH:
+
+
+fetchFilesStart(state) {
+  state.loading = true
+  state.error = null
+},
+fetchFilesSuccess(state, action) {
+  state.loading = false
+  state.files = action.payload.files
+
+  state.pagination = {
+    ...state.pagination,
+    count: action.payload.count,
+    next: action.payload.next,
+    previous: action.payload.previous,
+
+    // THIS FIXES PAGE STATE
+    currentPage: action.payload.currentPage,
+
+    // THIS KEEPS PAGE SIZE UPDATED
+    pageSize: action.payload.pageSize,
+  }
+
+  state.storage = action.payload.storage
+},
     fetchFilesFailure(state, action) {
       state.loading = false
       state.error = action.payload

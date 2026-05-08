@@ -6,11 +6,11 @@
   padding: 0;
 }
 body {
-  font-family: 'Poppins', 'Segoe UI', 'Inter', sans-serif;
+    font-family: 'Inter', sans-serif;
 }
 
 h1, h2, h3 {
-  font-family: 'Poppins', 'Segoe UI', 'Inter', sans-serif;
+   font-family: 'Inter', sans-serif;
 }
 :root {
   --bg: #eef3fb;

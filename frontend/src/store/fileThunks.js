@@ -8,21 +8,37 @@ import {
 import {
   fetchFilesApi, uploadFilesApi, deleteFileApi,
   downloadFileApi, renameFileApi,
-} from '../api/fileApi'
+  fetchPublicShareApi, downloadPublicFileApi 
+} from './fileApi'
+
+
+
+// FIX THIS PART inside fetchFiles thunk
 
 export const fetchFiles = (page = 1, pageSize = 10, search = '') => async (dispatch) => {
   dispatch(fetchFilesStart())
+
   try {
     const { data } = await fetchFilesApi(page, pageSize, search)
+
     dispatch(fetchFilesSuccess({
       files: data.results.files,
       count: data.count,
       next: data.next,
       previous: data.previous,
       storage: data.results.storage,
+
+      // ADD THESE:
+      currentPage: page,
+      pageSize: pageSize,
     }))
+
   } catch (err) {
-    dispatch(fetchFilesFailure(err.response?.data?.detail || 'Failed to fetch files.'))
+    dispatch(
+      fetchFilesFailure(
+        err.response?.data?.detail || 'Failed to fetch files.'
+      )
+    )
   }
 }
 
@@ -86,3 +102,22 @@ export const renameFile = (fileId, newName) => async (dispatch) => {
     return { success: false }
   }
 }
+
+
+export const downloadPublicFile = (token, fileName) => async () => {
+  try {
+    const { data } = await downloadPublicFileApi(token);
+    const url = window.URL.createObjectURL(new Blob([data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName || 'download');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    return { success: true };
+  } catch (err) {
+    console.error("Public download failed:", err);
+    return { success: false };
+  }
+};

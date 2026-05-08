@@ -1,0 +1,167 @@
+.public-share-root {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background-size: cover;
+  background-position: center;
+  font-family: 'Inter' !important;
+  color: white;
+}
+
+.public-share-container {
+  width: 100%;
+  max-width: 512px;
+}
+
+/* Header Section */
+.public-share-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+
+.brand-logo-box {
+  width: 40px;
+  height: 40px;
+  background-color: #e11d48; /* rose-600 */
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 15px -3px rgba(159, 18, 57, 0.4);
+}
+
+.brand-text {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.text-rose { color: #f43f5e; } /* rose-500 */
+.icon-rose { color: #f43f5e; }
+
+/* Card Styling (Glassmorphism) */
+.public-card {
+  background: rgba(24, 24, 27, 0.4); /* zinc-900 with opacity */
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 40px;
+  text-align: center;
+}
+
+.error-card {
+  border-color: rgba(159, 18, 57, 0.4);
+}
+
+.loading-card {
+  color: #71717a;
+}
+
+.card-top-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #71717a;
+  margin-bottom: 12px;
+}
+
+.sender-info {
+  font-size: 0.875rem;
+  color: #a1a1aa;
+  margin-bottom: 24px;
+}
+
+.text-white { color: white; font-weight: 600; }
+
+.file-icon-box {
+  width: 80px;
+  height: 80px;
+  background-color: #27272a; /* zinc-800 */
+  border-radius: 16px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-display-name {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-display-size {
+  color: #71717a;
+  margin-bottom: 24px;
+}
+
+/* Message Section */
+.message-box {
+  background: rgba(24, 24, 27, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: left;
+  margin-bottom: 24px;
+}
+
+.message-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #71717a;
+  margin-bottom: 4px;
+}
+
+.message-content {
+  font-size: 0.875rem;
+  color: #d4d4d8;
+  white-space: pre-wrap;
+}
+
+/* Expiry and Button */
+.expiry-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: #71717a;
+}
+
+.download-btn {
+  width: 100%;
+  height: 48px;
+  background-color: #e11d48;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1rem;
+  margin-top: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.download-btn:hover { background-color: #be123c; }
+.download-btn:active { transform: scale(0.98); }
+.download-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.powered-by {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 0.75rem;
+  color: #52525b;
+}
+
+.mb-4 { margin-bottom: 16px; }

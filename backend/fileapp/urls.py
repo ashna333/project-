@@ -15,7 +15,8 @@ from .views import( RegisterView, LoginView,
                     StorageSummaryView,
                     FileShareView,
                     PublicShareDetailView,
-                    PublicShareDownloadView,)
+                    PublicShareDownloadView,
+                    FileShareDeleteView)
 
 urlpatterns = [
     # REGISTER
@@ -51,5 +52,6 @@ urlpatterns = [
     # FILE SHARING (public)
     path("public/shares/<str:token>/", PublicShareDetailView.as_view(), name="public-share-detail"),
     path("public/shares/<str:token>/download/", PublicShareDownloadView.as_view(), name="public-share-download"),
+    path("shares/<int:share_id>/delete/", FileShareDeleteView.as_view()),
 ]
 

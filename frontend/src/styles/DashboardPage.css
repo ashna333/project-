@@ -17,7 +17,8 @@
   --text-muted: #a1a1aa;
   --accent: #e11d48;
   --accent-hover: #be123c;
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font:  'Outfit', sans-serif;
+
 }
 
 /* ===== FULL BACKGROUND COLOR + NOISE EFFECT ===== */
@@ -369,6 +370,7 @@
   cursor:pointer;
   transition:all .2s ease;
   box-shadow:0 1px 2px rgba(0,0,0,.25); /* shadow */
+  text-decoration: none;
 }
 
 .upload-btn:hover{
@@ -626,4 +628,831 @@
   font-size: 12px;
   margin-top: 60px;
   padding-bottom: 30px;
+}
+
+
+
+
+/* =====================
+   FILE UPLOAD SECTION
+===================== */
+
+
+
+
+
+/* Navigation Active State */
+.nav-btn.active-nav {
+  background-color: #27272a; /* zinc-800 */
+  color: white;
+}
+
+/* Dropzone Styles */
+.dropzone-container {
+  margin-top: 32px;
+  background-color: rgba(24, 24, 27, 0.4); /* zinc-900/40 */
+  border: 2px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 64px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+
+/* Queue Card */
+.file-queue-card {
+  margin-top: 32px;
+  background-color: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.queue-header {
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.queue-count {
+  font-size: 13px;
+  font-weight: 500;
+  color: #a1a1aa;
+}
+
+.queue-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.clear-btn {
+  background: transparent;
+  color: #a1a1aa;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.upload-all-btn {
+  background-color: #e11d48;
+  color: white;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* File List Item */
+.file-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.file-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.file-item:last-child {
+  border-bottom: none;
+}
+
+.file-item-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.file-icon {
+  color: #71717a;
+}
+
+.file-name {
+  font-size: 14px;
+  color: #e4e4e7;
+}
+
+.file-size {
+  font-size: 11px;
+  color: #71717a;
+}
+
+.remove-file-btn {
+  background: transparent;
+  border: none;
+  color: #52525b;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.remove-file-btn:hover {
+  color: #e11d48;
+}
+
+.footer-text {
+    margin-top: 80px;
+    padding-bottom: 24px;
+    text-align: center;
+    font-size: 12px;
+    color: #52525b;
+}
+
+.logout-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+.logout-btn:hover {
+    background: #18181b;
+}
+
+/* Additions and Modifications for File Upload Progress */
+
+/* Main File Item Layout */
+.file-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  background-color: transparent; /* Changed from old design */
+  transition: background-color 0.2s;
+}
+
+.file-item:last-child {
+  border-bottom: none;
+}
+
+/* State changes */
+.file-completed {
+  background-color: rgba(16, 185, 129, 0.03); /* Faint Emerald tint */
+}
+
+/* Re-layout for progress bar and text stack */
+.file-item-left {
+  display: flex;
+  align-items: flex-start; /* Align icons with top of content block */
+  gap: 16px;
+  flex: 1; /* Take up available space */
+}
+
+.file-icon {
+  color: #71717a; /* zinc-500 */
+  margin-top: 3px; /* slight adjustment */
+}
+
+.file-content-block {
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* Space between details row and loading bar */
+    flex: 1;
+}
+
+.file-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.file-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #e4e4e7; /* zinc-200 */
+  flex: 1; /* Name takes priority */
+  margin-right: 20px;
+}
+
+.file-status-info {
+    text-align: right;
+    width: auto;
+}
+
+.file-size {
+  font-size: 12px;
+  color: #71717a;
+}
+
+.percentage-text {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* THE ROSE-COLORED LOADING BAR (from image) */
+.file-loading-bar-container {
+    width: 100%;
+    height: 4px;
+    background-color: rgba(225, 29, 72, 0.1); /* Faint Rose-600 background */
+    border-radius: 99px;
+    overflow: hidden;
+}
+
+.file-loading-bar-fill {
+    height: 100%;
+    background-color: #e11d48; /* Rose-600 */
+    border-radius: 99px;
+    transition: width 0.3s ease-out; /* Smooth movement */
+}
+
+/* Action buttons states */
+.remove-file-btn:disabled,
+.clear-btn:disabled,
+.upload-all-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Emerald Checkmark */
+.text-emerald-500 {
+    color: #10b981;
+}
+
+/* Red Alert Icon */
+.text-red-500 {
+    color: #ef4444;
+}
+
+
+/* filmanager page file uplaod css*/
+
+/* Essential styles for the list view */
+/* Container for the list */
+/* Container styling for the card itself */
+.file-list-card {
+  background-color: #18181b; /* bg-zinc-900 */
+  border: 1px solid rgba(255, 255, 255, 0.05); /* border-white/5 */
+  border-radius: 0.75rem; /* rounded-xl */
+  overflow: hidden;
+}
+
+.file-ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Individual LI row */
+.file-row-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem; /* gap-4 */
+  padding: 1rem 1.25rem; /* px-5 py-4 */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05); /* border-white/5 */
+  transition: background-color 0.2s ease;
+}
+
+.file-row-item:last-child {
+  border-bottom: none; /* last:border-b-0 */
+}
+
+.file-row-item:hover {
+  background-color: rgba(39, 39, 42, 0.5); /* hover:bg-zinc-800/50 */
+}
+
+/* Icon Container */
+.file-icon-square {
+  width: 2.5rem; /* w-10 */
+  height: 2.5rem; /* h-10 */
+  background-color: #27272a; /* bg-zinc-800 */
+  border-radius: 0.5rem; /* rounded-lg */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.text-rose {
+  color: #f43f5e; /* text-rose-500 */
+}
+
+/* Text Content */
+.file-info-stack {
+  flex: 1;
+  min-width: 0; /* allows truncate to work */
+}
+
+.file-name-main {
+  font-weight: 500;
+  color: #f4f4f5; /* zinc-100 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* truncate */
+}
+
+.file-meta-sub {
+  font-size: 0.75rem; /* text-xs */
+  color: #71717a; /* text-zinc-500 */
+  margin-top: 0.125rem; /* mt-0.5 */
+}
+
+/* Action Section */
+.file-actions-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem; /* gap-1 */
+}
+
+.icon-action-btn {
+  width: 2.25rem; /* h-9 w-9 */
+  height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 0.375rem; /* rounded-md */
+  color: #a1a1aa; /* text-zinc-400 */
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.icon-action-btn.hover-rose:hover {
+  color: #f43f5e; /* hover:text-rose-500 */
+  background-color: #18181b; /* hover:bg-zinc-900 */
+}
+
+.icon-action-btn.hover-white:hover {
+  color: #ffffff; /* hover:text-white */
+  background-color: #18181b;
+}
+
+
+/* Parent container */
+/* Main header */
+.file-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+/* Left side */
+.welcome-sectionfm {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Search container */
+.search-containerfm {
+  position: relative;
+  width: 320px;
+  max-width: 100%;
+}
+
+/* Search icon inside input */
+.search-iconfm {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none; /* prevents blocking clicks */
+}
+
+/* Input styling */
+.fm-search-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px 0 42px; /* left padding makes room for icon */
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  color: white;
+  outline: none;
+}
+
+/* Placeholder */
+.fm-search-input::placeholder {
+  color: #71717a;
+}
+
+/* Pagination main wrapper */
+/* Pagination wrapper */
+.pagination-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-top: 2rem; /* mt-8 */
+}
+
+.page-info {
+  font-size: 0.875rem; /* text-sm */
+  color: #71717a; /* text-zinc-500 */
+}
+
+.pagination-btns {
+  display: flex;
+  gap: 0.5rem; /* gap-2 */
+}
+
+.p-btn {
+  /* Layout & Size */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.25rem; /* h-9 */
+  padding: 0 1rem; /* px-4 */
+  border-radius: 0.375rem; /* rounded-md */
+  
+  /* Colors & Borders */
+  background-color: #18181b; /* bg-zinc-900 */
+  border: 1px solid rgba(255, 255, 255, 0.1); /* border-white/10 */
+  color: #ffffff;
+  
+  /* Typography */
+  font-size: 0.875rem; /* text-sm */
+  font-weight: 500; /* font-medium */
+  white-space: nowrap;
+  
+  /* Interactions */
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* shadow-sm */
+}
+
+.p-btn:hover:not(:disabled) {
+  background-color: #27272a; /* hover:bg-zinc-800 */
+}
+
+/* Match the Tailwind focus-visible ring if you want that extra detail */
+.p-btn:focus-visible {
+  outline: 2px solid #f43f5e;
+  outline-offset: 2px;
+}
+
+.p-btn:disabled {
+  opacity: 0.5; /* disabled:opacity-50 */
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 640px) {
+  .pagination-wrapper {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+  }
+}
+/* Base button style (active/bright) */
+.p-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: #27272a; /* Dark background */
+  color: white;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 1; /* Fully bright by default */
+}
+
+.p-btn:hover:not(:disabled) {
+  background-color: #3f3f46;
+  border-color: #52525b;
+}
+
+/* Disabled state: Lighter/Faded and no click interaction */
+.p-btn:disabled {
+  opacity: 0.4;            /* Makes it look lighter/faded */
+  cursor: not-allowed;     /* Shows the 'block' icon on hover */
+  filter: grayscale(1);    /* Optional: removes color pop */
+  pointer-events: none;    /* Ensures no clicks trigger events */
+}
+
+
+
+
+/* =====================
+   DELETE CONFIRMATION BOX
+===================== */
+
+.modal-overlaydelete {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  z-index: 9999;
+
+  animation: fadeOverlayIn 0.2s ease-out;
+}
+
+/* ===== MODAL BOX ===== */
+.modal-content {
+  width: 100%;
+  max-width: 448px; /* md */
+  
+  background: rgba(24, 24, 27, 0.96); /* zinc-900 */
+  backdrop-filter: blur(14px);
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
+
+  border-radius: 8px;
+
+  padding: 24px;
+
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.02);
+
+  color: white;
+
+  animation: modalPopIn 0.22s ease-out;
+}
+
+/* ===== TITLE ===== */
+.modal-title {
+  margin: 0 0 8px 0;
+
+  font-size: 1.125rem; /* 18px */
+  font-weight: 600;
+
+  color: #ffffff;
+
+  letter-spacing: -0.01em;
+}
+
+/* ===== SUBTITLE ===== */
+.modal-subtitle {
+  margin: 0;
+
+  font-size: 0.875rem; /* 14px */
+  line-height: 1.5;
+
+  color: #a1a1aa; /* zinc-400 */
+}
+
+/* ===== BUTTON CONTAINER ===== */
+.modal-actions {
+  margin-top: 24px;
+
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* ===== COMMON BUTTON ===== */
+.btn-cancel,
+.btn-revoke {
+  height: 33px;
+
+  padding: 0 18px;
+
+  border-radius: 4px;
+
+  font-size: 0.875rem;
+  font-weight: 500;
+
+  border: none;
+
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ===== CANCEL ===== */
+.btn-cancel {
+  background: #27272a; /* zinc-800 */
+  color: white;
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.btn-cancel:hover {
+  background: #3f3f46; /* zinc-700 */
+  transform: translateY(-1px);
+}
+
+/* ===== REVOKE / DELETE ===== */
+.btn-revoke {
+  background: #e11d48; /* rose-600 */
+  color: white;
+}
+
+.btn-revoke:hover {
+  background: #be123c; /* rose-700 */
+  transform: translateY(-1px);
+}
+
+/* ===== ACTIVE CLICK ===== */
+.btn-cancel:active,
+.btn-revoke:active {
+  transform: scale(0.98);
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeOverlayIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalPopIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ===== MOBILE ===== */
+@media (max-width: 640px) {
+  .modal-content {
+    max-width: 92%;
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .btn-cancel,
+  .btn-revoke {
+    width: 100%;
+  }
+}
+
+/* =====================
+   FILE GRID VIEW
+===================== */
+
+.file-grid-inner {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); 
+  gap: 24px;
+  padding-bottom: 20px;
+}
+
+
+/* Optional: Add a Media Query for Mobile */
+/* On smaller screens (like phones), 3 columns might look too cramped */
+@media (max-width: 768px) {
+  .file-grid-inner {
+    grid-template-columns: repeat(2, 1fr); /* 2 columns on tablets */
+  }
+}
+
+@media (max-width: 480px) {
+  .file-grid-inner {
+    grid-template-columns: 1fr; /* 1 column on mobile */
+  }
+}
+
+/* Individual Grid Card */
+.file-grid-item {
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 12px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s ease;
+  /* Ensure cards don't grow too tall */
+  min-height: 250px; 
+}
+
+/* Ensure the preview maintains a nice shape in a 3-column layout */
+.file-preview-container {
+  width: 100%;
+  aspect-ratio: 16 / 10; /* Wider aspect ratio looks better in 3-column rows */
+  background: #09090b;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+
+/* Individual Grid Card */
+.file-grid-item {
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.file-grid-item:hover {
+  transform: translateY(-4px);
+  border-color: #f43f5e;
+}
+
+/* The Image Preview Box */
+.file-preview-container {
+  width: 100%;
+  height: 180px; /* Forces visibility */
+  background: #09090b;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid #27272a;
+}
+
+/* The actual image */
+.file-image-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Grid Actions Strip */
+.file-grid-item .file-actions-strip {
+  margin-top: 15px;
+  padding-top: 12px;
+  border-top: 1px solid #27272a;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* View Toggle Buttons */
+.view-toggle-group {
+  display: flex;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.view-btn {
+  background: none;
+  border: none;
+  color: #71717a;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.view-btn.active {
+  background: #27272a;
+  color: #f43f5e;
+}
+
+
+
+
+.pdf-preview-wrapper {
+  width: 100%;
+  height: 100%;
+  overflow: hidden; /* Clips the extra PDF area */
+  position: relative;
+  background: #18181b;
+}
+
+.pdf-preview-content {
+  width: 200%;    /* Make the internal canvas large */
+  height: 200%;   /* Make the internal canvas large */
+  transform: scale(0.5); /* Scale it back down to fit */
+  transform-origin: 0 0; /* Scale from the top left */
+  border: none;
+}
+
+.pdf-embed-no-scroll {
+  /* Make it slightly wider/taller to push scrollbars outside the clip area */
+  width: 110%; 
+  height: 110%;
+  border: none;
+  /* Re-center the PDF since we made it 110% */
+  margin-left: -5%; 
+  margin-top: -5%;
+  pointer-events: none; /* Prevents scrolling inside the small box */
 }

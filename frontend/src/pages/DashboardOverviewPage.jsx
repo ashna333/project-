@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { CloudUpload, HardDrive, Files, Share2, LogOut, Layers, KeyRound } from 'lucide-react';
-import { fetchFilesApi, fetchSharesApi } from '../api/fileApi';
+import { Link } from 'react-router-dom';
+import { CloudUpload, HardDrive, Files, Share2, LogOut, Layers, KeyRound, User } from 'lucide-react';
+import { fetchFilesApi, fetchSharesApi } from '../store/fileApi';
 import StatsGrid from '../components/StatsGrid'; // 1. Import your new component
 import '../styles/DashboardPage.css';
+import useAuthStore from '../store/authStore'
 
 export default function DashboardOverviewPage() {
   const [totalFiles, setTotalFiles] = useState(0);
   const [totalShares, setTotalShares] = useState(0);
   const [storage, setStorage] = useState({ used_percent: 0, used_bytes: 0, max_bytes: 0 });
-
+  const user = JSON.parse(localStorage.getItem('auth_user')) || { first_name: 'User' };
   useEffect(() => {
     fetchFilesApi(1, 6, '').then(({ data }) => {
       setTotalFiles(data.count || 0);
@@ -21,37 +23,19 @@ export default function DashboardOverviewPage() {
 
   return (
     <div className="dashboard-container">
-      <header className="main-header">
-        <div className="header-content">
-          <div className="brand">
-            <div className="brand-icon"><CloudUpload size={20} color="white" /></div>
-            <span>Cloud<span className="rose-text">Share</span></span>
-          </div>
-          
-          <nav className="nav-links">
-            <button className="nav-btn"><Layers size={18} /> Dashboard</button>
-            <a className="nav-btn"><Files size={18} /> My Files</a>
-            <button className="nav-btn"><CloudUpload size={18} /> Upload</button>
-            <button className="nav-btn"><Share2 size={18} /> Shared</button>
-            <button className="nav-btn"><KeyRound size={18} /> Password</button>
-          </nav>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '14px', fontWeight: '500' }}>aa aa</div>
-              <div style={{ fontSize: '11px', color: '#71717a' }}>aaa@gmail.com</div>
-            </div>
-            <LogOut size={18} color="#71717a" cursor="pointer" />
-          </div>
-        </div>
-      </header>
+     
 
       <main className="dashboard-main fade-in">
-        <div className="welcome-section">
-          <div className="welcome-label">Welcome back</div>
-          <h1 className="welcome-title">Hello, <span className="rose-text">aa</span>.</h1>
-          <p style={{ color: '#a1a1aa', marginTop: '10px' }}>Your encrypted file vault is ready. Upload, share, and track every link.</p>
-        </div>
+       <div className="welcome-section">
+  <div className="welcome-label">Welcome back</div>
+  {/* Changed User.first_name to user.first_name */}
+  <h1 className="welcome-title">
+    Hello, <span className="rose-text">{user?.first_name || 'User'}</span>.
+  </h1>
+  <p style={{ color: '#a1a1aa', marginTop: '10px' }}>
+    Your encrypted file vault is ready. Upload, share, and track every link.
+  </p>
+</div>
 
         <section className="storage-card">
           <div className="storage-header">
@@ -64,7 +48,11 @@ export default function DashboardOverviewPage() {
                 </div>
               </div>
             </div>
-            <button className="upload-btn"><CloudUpload size={18} /> Upload files</button>
+         
+          <Link to="/upload" className="upload-btn">
+            <CloudUpload size={18} />
+            Upload files
+          </Link>
           </div>
           
           <div className="progress-container">

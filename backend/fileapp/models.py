@@ -87,7 +87,7 @@ class FileShare(models.Model):
         on_delete=models.CASCADE,
         related_name="shares",
     )
-
+    is_revoked = models.BooleanField(default=False)
     recipient_email = models.EmailField()
     message = models.TextField()
 

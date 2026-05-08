@@ -76,14 +76,15 @@ INSTALLED_APPS = [
 AUTH_USER_MODEL='fileapp.User'
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
+    #'django.middleware.clickjacking.XFrameOptionsMiddleware',
+   
 ]
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -195,3 +196,4 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 # Django's built-in limit for in-memory uploads before it spools to disk
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB in memory
 DATA_UPLOAD_MAX_MEMORY_SIZE = 105 * 1024 * 1024  
+X_FRAME_OPTIONS = 'ALLOWALL'

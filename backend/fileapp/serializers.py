@@ -4,6 +4,8 @@ from datetime import date
 import re
 from .service import register_user
 User = get_user_model()
+from django.core.mail import send_mail        # 👈 add this
+from django.conf import settings 
 
 
 def validate_name(value, field_name="Name", min_length=2):
@@ -233,7 +235,7 @@ class FileShareCreateSerializer(serializers.Serializer):
     file_id = serializers.IntegerField(min_value=1)
     recipient_email = serializers.EmailField()
     expires_in_hours = serializers.IntegerField(min_value=1, max_value=720)  # up to 30 days
-    message = serializers.CharField(allow_blank=False, trim_whitespace=True)
+    message = serializers.CharField(allow_blank=True, trim_whitespace=True)
 
 
 class FileShareListSerializer(serializers.ModelSerializer):
@@ -241,6 +243,8 @@ class FileShareListSerializer(serializers.ModelSerializer):
     share_date = serializers.DateTimeField(source="created_at", read_only=True)
     is_accessed = serializers.SerializerMethodField()
     is_expired = serializers.SerializerMethodField()
+    share_url = serializers.SerializerMethodField()
+        
 
     class Meta:
         model = FileShare
@@ -254,6 +258,8 @@ class FileShareListSerializer(serializers.ModelSerializer):
             "is_accessed",
             "is_expired",
             "token",
+            "share_url",
+            'is_revoked'
         ]
 
     def get_is_accessed(self, obj):
@@ -261,18 +267,32 @@ class FileShareListSerializer(serializers.ModelSerializer):
 
     def get_is_expired(self, obj):
         return timezone.now() >= obj.expires_at
+    def get_share_url(self, obj):
+        frontend_base = getattr(settings, "FRONTEND_APP_URL", "http://localhost:5173")
+        return f"{frontend_base}/s/{obj.token}/"
 
 
+# In your serializers.py (Backend)
 class PublicFileShareSerializer(serializers.ModelSerializer):
-    file_name = serializers.CharField(source="user_file.original_name", read_only=True)
-    file_size = serializers.IntegerField(source="user_file.file_size", read_only=True)
-    mime_type = serializers.CharField(source="user_file.mime_type", read_only=True)
-
+    file_name = serializers.CharField(source='user_file.original_name',read_only=True)
+    file_size = serializers.IntegerField(source='user_file.file_size',read_only=True)
+    # Add this to get the sender's name
+    sender = serializers.SerializerMethodField(source='owner.username', read_only=True)
+    download_url = serializers.SerializerMethodField()
+    
+   
     class Meta:
         model = FileShare
-        fields = [
-            "file_name",
-            "file_size",
-            "mime_type",
-            "expires_at",
-        ]
+        fields = ['file_name', 'file_size', 'expires_at', 'message', 'sender',"download_url"]
+
+    def get_sender(self, obj):
+        full_name = f"{obj.owner.first_name} {obj.owner.last_name}".strip()
+        return full_name or obj.owner.email
+
+    def get_download_url(self, obj):
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(
+                f"/api/public/shares/{obj.token}/download/"
+            )
+        return f"/api/public/shares/{obj.token}/download/"

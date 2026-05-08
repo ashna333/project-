@@ -35,7 +35,7 @@ export default function StatsGrid({ totalFiles, totalShares }) {
       icon: Share2,
       label: 'Active Shares',
       value: totalShares,
-      href: '/shares',
+      href: '/shared',
     },
     {
       id: 'upload',

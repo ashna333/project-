@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
 import '../styles/AuthStyles.css'
+import { useToast } from '../components/ToastContext'
+import { CloudUpload, Lock, Mail } from "lucide-react"
 
 const EyeIcon = ({ open }) => open ? (
   <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -19,6 +21,7 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { login, loading, error, clearMessages } = useAuthStore()
+  const { showToast } = useToast()
 
   const from = location.state?.from?.pathname || '/dashboard'
 
@@ -41,13 +44,17 @@ export default function LoginPage() {
     setter(e.target.value)
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!validate()) return
-    const result = await login(email, password)
-    if (result.success) navigate(from, { replace: true })
+ const handleSubmit = async (e) => {
+  e.preventDefault()
+  if (!validate()) return
+  
+  const result = await login(email, password)
+  
+  if (result.success) {
+    showToast("Welcome back!") // Trigger the global toast
+    navigate(from, { replace: true })
   }
-
+}
   const handleGoogleSignIn = () => {
     const googleAuthUrl = import.meta.env.VITE_GOOGLE_AUTH_URL
     if (googleAuthUrl) window.location.href = googleAuthUrl
@@ -90,37 +97,49 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <div className="auth-group">
-                <label className="auth-label">Email</label>
-                <input 
-                  className={`auth-input ${fieldErrors.email ? 'error' : ''}`}
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={handleChange(setEmail, 'email')}
-                />
-                {fieldErrors.email && <span className="field-error">⚠ {fieldErrors.email}</span>}
-              </div>
+          
 
-              <div className="auth-group">
-                <div className="auth-label-row">
-                  <label className="auth-label">Password</label>
-                  <Link to="/forgot-password" size="12px" className="auth-forgot">Forgot password?</Link>
-                </div>
-                <div className="auth-input-wrap">
-                  <input 
-                    className={`auth-input ${fieldErrors.password ? 'error' : ''}`}
-                    type={showPass ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={handleChange(setPassword, 'password')}
-                  />
-                  <button type="button" className="auth-input-icon-btn" onClick={() => setShowPass(!showPass)}>
-                    <EyeIcon open={showPass} />
-                  </button>
-                </div>
-                {fieldErrors.password && <span className="field-error">⚠ {fieldErrors.password}</span>}
-              </div>
+              {/* Email Group */}
+<div className="auth-group">
+  <label className="auth-label">Email</label>
+  <div className="auth-input-wrap">
+    <div className="auth-input-icon-left">
+      <Mail size={16} strokeWidth={2} />
+    </div>
+    <input 
+      className={`auth-input has-icon-left ${fieldErrors.email ? 'error' : ''}`}
+      type="email"
+      placeholder="you@example.com"
+      value={email}
+      onChange={handleChange(setEmail, 'email')}
+    />
+  </div>
+  {fieldErrors.email && <span className="field-error">⚠ {fieldErrors.email}</span>}
+</div>
+
+{/* Password Group */}
+<div className="auth-group">
+  <div className="auth-label-row">
+    <label className="auth-label">Password</label>
+    <Link to="/forgot-password" strokeWidth={1.5} className="auth-forgot">Forgot password?</Link>
+  </div>
+  <div className="auth-input-wrap">
+    <div className="auth-input-icon-left">
+      <Lock size={16} strokeWidth={2} />
+    </div>
+    <input 
+      className={`auth-input has-icon-left ${fieldErrors.password ? 'error' : ''}`}
+      type={showPass ? 'text' : 'password'}
+      placeholder="••••••••"
+      value={password}
+      onChange={handleChange(setPassword, 'password')}
+    />
+    <button type="button" className="auth-input-icon-btn" onClick={() => setShowPass(!showPass)}>
+      <EyeIcon open={showPass} />
+    </button>
+  </div>
+  {fieldErrors.password && <span className="field-error">⚠ {fieldErrors.password}</span>}
+</div>
 
               <button className="auth-submit" type="submit" disabled={loading}>
                 {loading ? "Signing in..." : "Sign in"}

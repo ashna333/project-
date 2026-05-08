@@ -1,3 +1,5 @@
+import token
+from .models import FileShare
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -208,7 +210,7 @@ class FileListView(APIView):
 
     def get(self, request):
         search = request.query_params.get("search", "").strip()
-        qs = list_user_files(request.user, search=search or None)
+        qs = list_user_files(request.user, search=search or None).filter(is_deleted=False)
 
         paginator = FilePagination()
         page = paginator.paginate_queryset(qs, request)
@@ -377,8 +379,9 @@ class FileShareView(APIView):
 
         paginator = FilePagination()
         page = paginator.paginate_queryset(qs, request)
-        serializer = FileShareListSerializer(page, many=True)
+        serializer = FileShareListSerializer(page, many=True, context={"request": request})
         return paginator.get_paginated_response({"shares": serializer.data})
+        
 
     def post(self, request):
         serializer = FileShareCreateSerializer(data=request.data)
@@ -408,7 +411,7 @@ class FileShareView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
-
+        
 
 class PublicShareDetailView(APIView):
     """
@@ -419,17 +422,30 @@ class PublicShareDetailView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, token):
-        share = get_valid_share_by_token(token)
-        if not share:
-            return Response(
-                {"error": "Invalid or expired share link."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+        try:
+            # Look up the share by its unique token
+            share = FileShare.objects.get(token=token)
 
-        mark_share_accessed(share)
-        return Response(PublicFileShareSerializer(share).data, status=status.HTTP_200_OK)
+            # Check if it was revoked or expired
+            if share.is_revoked:
+                return Response({"error": "This link has been revoked."}, status=403)
+            
+            if share.is_expired: # Assuming you have an expiry check
+                return Response({"error": "This link has expired."}, status=410)
+
+            mark_share_accessed(share)
+            
+            # Use your PublicFileShareSerializer to send file info to the frontend
+            serializer = PublicFileShareSerializer(share, context={"request": request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+            
+        except FileShare.DoesNotExist:
+            return Response({"error": "Invalid link."}, status=status.HTTP_404_NOT_FOUND)
+       
 
 
+
+        
 class PublicShareDownloadView(APIView):
     """
     GET /api/public/shares/<token>/download/
@@ -463,3 +479,32 @@ class PublicShareDownloadView(APIView):
         response["Content-Type"] = user_file.mime_type or "application/octet-stream"
         response["Content-Length"] = user_file.file_size
         return response
+    
+
+
+class FileShareDeleteView(APIView):
+    """
+    DELETE /api/shares/<share_id>/delete/
+    Revoke a share so the public link stops working.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, share_id):
+        try:
+            share = FileShare.objects.get(id=share_id, owner=request.user)
+            
+
+            # Delete share = token invalid instantly
+            share.is_revoked = True
+            share.save()
+
+            return Response(
+                {"message": "Share revoked successfully."},
+                status=status.HTTP_200_OK,
+            )
+
+        except FileShare.DoesNotExist:
+            return Response(
+                {"error": "Share not found or permission denied."},
+                status=status.HTTP_404_NOT_FOUND,
+            )

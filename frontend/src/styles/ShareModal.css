@@ -1,0 +1,186 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+
+  /* 1. Transparent Black (0.4) instead of solid black */
+  background-color: rgba(0, 0, 0, 0.116); 
+
+  /* 2. The magic property that blurs the content behind the overlay */
+  backdrop-filter: blur(0.15px); 
+  -webkit-backdrop-filter: blur(3px); /* Crucial for Safari support */
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.share-modal-card {
+  background-color: #111113; /* Use a deep grey, not pure black */
+  border: 1px solid rgba(255, 255, 255, 0.1); /* Subtle thin border */
+  border-radius: 12px;
+  width: 440px;
+  padding: 24px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: white;
+}
+
+.modal-title-row h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.close-x-btn {
+  background: none;
+  border: none;
+  color: #71717a;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.modal-subtitle {
+  color: #71717a;
+  font-size: 13px;
+  margin-bottom: 24px;
+}
+
+.input-group {
+  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-group label {
+  color: #e4e4e7;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+
+
+.modal-input,
+.modal-textarea {
+  background-color: #09090b;
+  border: 1px solid #27272a;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: white;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+
+/* ONLY active field turns red */
+.modal-input:focus,
+.modal-textarea:focus {
+  border-color: #e11d48;
+  box-shadow: 0 0 0 2px rgba(225, 29, 72, 0.15);
+}
+
+/* Optional: better placeholder */
+.modal-input::placeholder,
+.modal-textarea::placeholder {
+  color: #71717a;
+}
+/* When selected / focused */
+.modal-input:focus,
+.modal-textarea:focus {
+  border-color: #e11d48; /* rose-600 */
+  box-shadow: 0 0 0 2px rgba(225, 29, 72, 0.15);
+}
+.modal-textarea {
+  min-height: 100px;
+  resize: none;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.cancel-btn {
+  background: none;
+  border: none;
+  color: #a1a1aa;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 8px 16px;
+}
+
+.share-submit-btn {
+  background-color: #e11d48; /* rose-600 */
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.share-submit-btn:hover {
+  background-color: #be123c;
+}
+
+.share-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.text-rose {
+  color: #e11d48;
+}
+
+
+
+/* ══ THE DEFINITIVE AUTOFILL OVERRIDE ══ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+    /* 1. Paint the background black using a massive inset shadow */
+    -webkit-box-shadow: 0 0 0 1000px #000000 inset !important;
+    
+    /* 2. Force the text to be white */
+    -webkit-text-fill-color: #ffffff !important;
+    
+    /* 3. Force the caret (cursor) color */
+    caret-color: #ffffff !important;
+
+    /* 4. Stop the browser from changing the font to system default */
+    font-family: 'Inter', sans-serif !important;
+    font-size: 12.5px !important;
+
+    /* 5. Keep your custom border intact */
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* This is the secret sauce for Chrome: it forces the transition to "never" happen, 
+   effectively sticking the background to whatever the box-shadow is. */
+input:-webkit-autofill {
+    transition: background-color 5000s ease-in-out 0s !important;
+}

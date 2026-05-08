@@ -1,0 +1,67 @@
+.toast-notification {
+  position: fixed !important;
+  top: 80px !important; 
+  right: 142px !important;
+  z-index: 999999 !important;
+  display: block;
+  animation: toastSlideTop 10s ease-out;
+  transform: translate3d(0, 0, 0); 
+  backface-visibility: hidden;
+}
+
+
+
+
+.toast-icon {
+  background-color: white; /* The white circle from your image */
+  color: #18181b; /* Black checkmark */
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 2px; 
+}
+
+
+
+.toast-content {
+  background-color: #111111; /* Matches the dark void in your screenshots */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 10px 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  color: white !important;
+  min-width: 190px;
+}
+
+@keyframes toastSlideTop {
+  0% {
+    transform: translateY(-120%);
+    opacity: 0;
+    animation-timing-function: ease-in;
+  }
+
+  15% {
+    transform: translateY(0);
+    opacity: 1;
+    animation-timing-function: ease-out;
+  }
+
+  85% {
+    transform: translateY(0);
+    opacity: 1;
+    animation-timing-function: ease-in;
+  }
+
+  100% {
+    transform: translateY(-120%);
+    opacity: 0;
+  }
+}
+

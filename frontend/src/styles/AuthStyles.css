@@ -90,18 +90,28 @@
   }
 
   /* Fix autofill background + text color */
+/* ══ AUTOFILL FIX ══ */
 .auth-input:-webkit-autofill,
 .auth-input:-webkit-autofill:hover,
 .auth-input:-webkit-autofill:focus,
 .auth-input:-webkit-autofill:active {
-  -webkit-text-fill-color: #fff !important;
-  caret-color: #fff;
-  transition: background-color 9999s ease-in-out 0s;
+  /* Match this EXACTLY to your .auth-input background color (#000) */
+  -webkit-box-shadow: 0 0 0 1000px #000 inset !important;
+  
+  /* Forces text to remain white */
+  -webkit-text-fill-color: #ffffff !important;
+  
+  /* Forces the caret (typing cursor) to stay white */
+  caret-color: #ffffff !important;
+  
+  /* This stops the background-color from ever "leaking" through */
+  transition: background-color 9999s ease-in-out 0s !important;
 }
 
-/* Force dark background for autofill */
-.auth-input:-webkit-autofill {
-  box-shadow: 0 0 0px 1000px #000 inset !important;
+/* For Firefox support (rarely causes issues but good to have) */
+.auth-input:filter(autofill) {
+  background-color: #000 !important;
+  color: #fff !important;
 }
   
   .auth-input.error { border-color: #e8294c; }
@@ -216,3 +226,31 @@
     .auth-root { grid-template-columns: 1fr; }
     .auth-left { display: none; }
   }
+
+/* Ensure the wrapper centers the icon vertically */
+.auth-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center; /* Vertical alignment */
+}
+
+/* Position the Mail/Lock icon */
+.auth-input-icon-left {
+  position: absolute;
+  left: 12px;
+  z-index: 10;
+  color: rgba(255, 255, 255, 0.4); /* Matches your theme opacity */
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+/* Shift the text to the right so it doesn't hit the icon */
+.auth-input.has-icon-left {
+  padding-left: 38px; 
+}
+
+/* Keep the Eye icon button on the right */
+.auth-input-icon-btn {
+  z-index: 10;
+}

@@ -1,28 +1,27 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { CloudUpload, Files, Share2, LogOut, Layers, KeyRound, Trash2 } from 'lucide-react';
+import { CloudUpload, Files, Share2, LogOut, Layers, KeyRound } from 'lucide-react';
 import '../styles/DashboardPage.css';
 
-export default function AppShell() {
+export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
-  
-  // Get user from localStorage
-  const user = JSON.parse(localStorage.getItem('auth_user')) || { first_name: 'User', last_name: '', email: '' };
+  const user = JSON.parse(localStorage.getItem('user')) || { first_name: 'User', last_name: '', email: '' };
 
   const handleLogout = () => {
-    localStorage.removeItem('access_token'); // Or your specific key
+    localStorage.removeItem('token');
     localStorage.removeItem('user');
     navigate('/login');
   };
 
+  // Helper to check if link is active
   const isActive = (path) => location.pathname === path ? 'active' : '';
 
   return (
     <div className="dashboard-container">
       <header className="main-header">
         <div className="header-content">
-          <div className="brand" onClick={() => navigate('/dashboard')} style={{ cursor: 'pointer' }}>
+          <div className="brand" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
             <div className="brand-icon"><CloudUpload size={20} color="white" /></div>
             <span>Cloud<span className="rose-text">Share</span></span>
           </div>
@@ -40,8 +39,8 @@ export default function AppShell() {
             <button className={`nav-btn ${isActive('/shared')}`} onClick={() => navigate('/shared')}>
               <Share2 size={18} /> Shared
             </button>
-            <button className={`nav-btn ${isActive('/trash')}`} onClick={() => navigate('/trash')}>
-              <Trash2 size={18} /> Trash
+            <button className={`nav-btn ${isActive('/settings')}`} onClick={() => navigate('/settings')}>
+              <KeyRound size={18} /> Password
             </button>
           </nav>
 
@@ -52,18 +51,13 @@ export default function AppShell() {
               </div>
               <div style={{ fontSize: '11px', color: '#71717a' }}>{user.email}</div>
             </div>
-            <LogOut 
-              size={18} 
-              color="#71717a" 
-              style={{ cursor: 'pointer' }} 
-              onClick={handleLogout} 
-            />
+            <LogOut size={18} color="#71717a" cursor="pointer" onClick={handleLogout} />
           </div>
         </div>
       </header>
 
-      {/* This is where FileManagerPage, TrashPage, etc. will appear */}
-      <main className="shell-content">
+      {/* This renders the actual page content */}
+      <main>
         <Outlet />
       </main>
     </div>

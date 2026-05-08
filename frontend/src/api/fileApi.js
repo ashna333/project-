@@ -39,3 +39,11 @@ export const restoreTrashFileApi = (fileId) =>
 
 export const destroyTrashFileApi = (fileId) =>
   api.delete(`/trash/${fileId}/destroy/`)
+
+
+
+// Add this to your fileApi.js
+export const downloadPublicFileApi = (token) =>
+  axios.get(`${API_BASE}/public/shares/${token}/download/`, {
+    responseType: 'blob', // Important for file downloads
+  })
