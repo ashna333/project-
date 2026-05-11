@@ -3,8 +3,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
   Files, Share2, Layers, Search, File,
-  Download, Trash2, ChevronLeft, ChevronRight, 
-  Edit2, FileText, Image as ImageIcon, File as FileIcon
+  Download, Trash2, ChevronLeft, ChevronRight,
+  Edit2, FileText, Image as ImageIcon, File as FileIcon, X, Star, Zap
 } from 'lucide-react';
 import { fetchFiles, downloadFile } from '../store/fileThunks';
 import { setSearchQuery } from '../store/fileSlice';
@@ -18,7 +18,7 @@ export default function FileManagerPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { files, pagination, loading, searchQuery } = useSelector((s) => s.files);
-  
+
   const [searchInput, setSearchInput] = useState(searchQuery);
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -27,6 +27,7 @@ export default function FileManagerPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState(null);
   const { showToast } = useToast();
+  const [selectedFile, setSelectedFile] = useState(null); // For sidebar details
 
   // --- Helpers ---
   const getFileIcon = (file) => {
@@ -73,7 +74,7 @@ export default function FileManagerPage() {
     if (!fileToDelete) return;
     try {
       await deleteFileApi(fileToDelete.id);
-      showToast("File moved to trash"); 
+      showToast("File moved to trash");
       dispatch(fetchFiles(pagination.currentPage, pagination.pageSize, searchQuery));
       setIsDeleteModalOpen(false);
       setFileToDelete(null);
@@ -94,7 +95,7 @@ export default function FileManagerPage() {
   return (
     <div className="dashboard-container">
       <main className="dashboard-main fade-in">
-        
+
         {/* Header */}
         <div className="file-manager-header">
           <div className="welcome-sectionfm">
@@ -118,14 +119,14 @@ export default function FileManagerPage() {
         {/* View Controls */}
         <div className="view-controls" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
           <div className="view-toggle-group">
-            <button 
-              className={`view-btn ${viewMode === 'list' ? 'active' : ''}`} 
+            <button
+              className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
               onClick={() => setViewMode('list')}
             >
               <Files size={18} />
             </button>
-            <button 
-              className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`} 
+            <button
+              className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
               onClick={() => setViewMode('grid')}
             >
               <Layers size={18} />
@@ -144,65 +145,63 @@ export default function FileManagerPage() {
             </div>
           ) : (
             /* CONDITIONAL LAYOUT WRAPPER */
-           <div className={viewMode === 'grid' ? 'file-grid-inner' : 'file-list-card'}>
-            {files.map((file) => {
+            <div className={viewMode === 'grid' ? 'file-grid-inner' : 'file-list-card'}>
+              {files.map((file) => {
 
-              // BACKEND BASE
-              const backendBase = "http://127.0.0.1:8001";
-
-              const rawUrl = file.file || file.file_url || file.url;
-              const fullUrl = rawUrl?.startsWith("http") ? rawUrl : `${backendBase}${rawUrl}`;
-            const extension = file.original_name?.split(".").pop()?.toLowerCase();
-
-            const isImage = ["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp"].includes(extension);
-            const isPDF = extension === "pdf";
-            const isText = extension === "txt";
-
-            /* EXCLUDE HTML FROM PREVIEW */
-            const isPreviewable = isImage || isPDF || isText;
+                // BACKEND BASE
+                const backendBase = "http://127.0.0.1:8001";
+                const rawUrl = file.file || file.file_url || file.url;
+                const fullUrl = rawUrl?.startsWith("http") ? rawUrl : `${backendBase}${rawUrl}`;
+                const extension = file.original_name?.split(".").pop()?.toLowerCase();
+                const isImage = ["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp"].includes(extension);
+                const isPDF = extension === "pdf";
+                const isText = extension === "txt";
+                const isPreviewable = isImage || isPDF || isText;
 
                 return (
                   <div
                     key={file.id}
                     className={viewMode === 'grid' ? 'file-grid-item' : 'file-row-item'}
+                    onClick={() => setSelectedFile(file)} // Click to show details
                   >
+
 
                     {/* ICON / PREVIEW BOX */}
                     {/* ICON / PREVIEW BOX */}
-            <div className={viewMode === 'grid' ? 'file-preview-container' : 'file-icon-square'}>
-              {isImage ? (
-                <img
-                  src={fullUrl}
-                  alt={file.original_name}
-                  className="file-image-preview"
-                  onError={(e) => {
-                    e.target.style.display = "none";
-                    e.target.parentElement.innerHTML = `<div class="file-type-preview">${extension?.toUpperCase() || "FILE"}</div>`;
-                  }}
-                />
-              ) : isPDF ? (
-                <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                  <embed
-                  src={`${fullUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-                  type="application/pdf"
-                  width="100%"
-                  height="100%"
-                  className="pdf-embed-no-scroll"
-                />
-                
-                </div>
-              ) : isText ? (
-              <div
-                className="file-type-preview"
-                onClick={() => window.open(fullUrl, "_blank")}
-                style={{ cursor: "pointer" }}
-              >
-                TXT
-              </div>
-            ) :  (
-                getFileIcon(file)
-              )}
-            </div>
+                    <div className={viewMode === 'grid' ? 'file-preview-container' : 'file-icon-square'}>
+                      {isImage ? (
+                        <img
+                          src={fullUrl}
+                          alt={file.original_name}
+                          className="file-image-preview"
+                          onError={(e) => {
+                            e.target.style.display = "none";
+                            e.target.parentElement.innerHTML = `<div class="file-type-preview">${extension?.toUpperCase() || "FILE"}</div>`;
+                          }}
+                        />
+                      ) : isPDF ? (
+                        <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                          <embed
+                            src={`${fullUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                            type="application/pdf"
+                            width="100%"
+                            height="100%"
+                            className="pdf-embed-no-scroll"
+                          />
+
+                        </div>
+                      ) : isText ? (
+                        <div
+                          className="file-type-preview"
+                          onClick={() => window.open(fullUrl, "_blank")}
+                          style={{ cursor: "pointer" }}
+                        >
+                          TXT
+                        </div>
+                      ) : (
+                        getFileIcon(file)
+                      )}
+                    </div>
                     {/* FILE INFO */}
                     <div className="file-info-stack">
                       <div className="file-name-main" title={file.original_name}>{file.original_name}</div>
@@ -213,10 +212,10 @@ export default function FileManagerPage() {
 
                     {/* ACTIONS */}
                     <div className="file-actions-strip">
-                      <button className="icon-action-btn hover-white" title="Rename" onClick={() => { setActiveFile(file); setIsRenameModalOpen(true); }}><Edit2 size={16} /></button>
-                      <button className="icon-action-btn hover-rose" onClick={() => { setActiveFile(file); setIsModalOpen(true); }}><Share2 size={16} /></button>
-                      <button className="icon-action-btn hover-white" title="Download" onClick={() => dispatch(downloadFile(file.id, file.original_name))}><Download size={16} /></button>
-                      <button className="icon-action-btn hover-rose" title="Delete" onClick={() => handleDeleteTrigger(file)}><Trash2 size={16} /></button>
+                      <button className="icon-action-btn hover-white" title="Rename" onClick={(e) => { e.stopPropagation();setActiveFile(file); setIsRenameModalOpen(true); }}><Edit2 size={16} /></button>
+                      <button className="icon-action-btn hover-rose" onClick={(e) => { e.stopPropagation();setActiveFile(file); setIsModalOpen(true); }}><Share2 size={16} /></button>
+                        <button className="icon-action-btn hover-white" title="Download" onClick={(e) => {e.stopPropagation();dispatch(downloadFile(file.id, file.original_name))}}><Download size={16} /></button>
+                      <button className="icon-action-btn hover-rose" title="Delete" onClick={(e) => {e.stopPropagation();handleDeleteTrigger(file)}}><Trash2 size={16} /></button>
                     </div>
                   </div>
                 );
@@ -239,14 +238,113 @@ export default function FileManagerPage() {
         <footer className="fm-footer">CloudShare - Secure file sharing, built for teams.</footer>
       </main>
 
+      {/* --- FILE DETAILS SIDEBAR --- */}
+      {selectedFile && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setSelectedFile(null)}
+        />
+      )}
+
+      {/* --- FILE DETAILS SIDEBAR --- */}
+      {selectedFile && (
+        <aside className="file-details-sidebar fade-in-right">
+          <div className="sidebar-header">
+            <span className="sidebar-label">File Details</span>
+            <button className="close-sidebar" onClick={() => setSelectedFile(null)}>
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="sidebar-content">
+            {/* PREVIEW AREA */}
+            <div className="detail-preview-box">
+              {(() => {
+                const extension = selectedFile.original_name?.split(".").pop()?.toLowerCase();
+                const isImage = ["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp"].includes(extension);
+                const isPDF = extension === "pdf";
+                const backendBase = "http://127.0.0.1:8001";
+                const rawUrl = selectedFile.file || selectedFile.file_url || selectedFile.url;
+                const fullUrl = rawUrl?.startsWith("http") ? rawUrl : `${backendBase}${rawUrl}`;
+
+                if (isImage) {
+                  return <img src={fullUrl} alt="Preview" className="sidebar-img-preview" />;
+                }
+                if (isPDF) {
+                  return (
+                    <embed
+                      src={`${fullUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                      type="application/pdf"
+                      width="100%"
+                      height="100%"
+                    />
+                  );
+                }
+                return getFileIcon(selectedFile);
+              })()}
+            </div>
+
+            <div className="detail-title-row">
+              <h2 className="detail-filename">{selectedFile.original_name}</h2>
+              <Star size={18} className="star-icon" />
+            </div>
+
+            <div className="detail-info-grid">
+              <div className="info-group">
+                <label>Size</label>
+                <span>{formatFileSize(selectedFile.file_size)}</span>
+              </div>
+              <div className="info-group">
+                <label>Type</label>
+                <span>{selectedFile.file_type || 'Unknown'}</span>
+              </div>
+              <div className="info-group">
+                <label>Uploaded</label>
+                <span>
+                  {new Date(selectedFile.uploaded_at).toLocaleDateString('en-GB', {
+                    day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                  })}
+                </span>
+              </div>
+            </div>
+
+            <div className="sidebar-actions-main">
+              <button className="sidebar-btn-download" onClick={() => dispatch(downloadFile(selectedFile.id, selectedFile.original_name))}>
+                <Download size={18} /> Download
+              </button>
+              <button className="sidebar-btn-share" onClick={() => { setActiveFile(selectedFile); setIsModalOpen(true); }}>
+                <Share2 size={18} /> Share
+              </button>
+              <button className="sidebar-btn-delete" onClick={() => handleDeleteTrigger(selectedFile)}>
+                <Trash2 size={18} /> Delete
+              </button>
+            </div>
+
+            <div className="ai-insights-card">
+              <div className="insights-header">
+                <div className="insights-title"><Zap size={14} /> AI Insights</div>
+                <button className="insights-regen">Regenerate</button>
+              </div>
+              <p className="insights-text">
+                A {selectedFile.file_type || 'document'} named '{selectedFile.original_name}'.
+                {selectedFile.file_size > 1000000 ? " This is a large file." : " Optimized for quick sharing."}
+              </p>
+              <div className="insight-tag">
+                {selectedFile.original_name?.split(".").pop()?.toUpperCase() || "FILE"}
+              </div>
+            </div>
+          </div>
+        </aside>
+      )}
+
       {/* Modals */}
       <ShareModal file={activeFile} isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setActiveFile(null); }} onRefresh={() => dispatch(fetchFiles(pagination.currentPage, pagination.pageSize, searchQuery))} />
       <RenameModal file={activeFile} isOpen={isRenameModalOpen} onClose={() => { setIsRenameModalOpen(false); setActiveFile(null); }} onRefresh={() => dispatch(fetchFiles(pagination.currentPage, pagination.pageSize, searchQuery))} />
-      
+
       {isDeleteModalOpen && (
         <div className="modal-overlaydelete">
           <div className="modal-content">
-            <h3 className="modal-title">Delete File?</h3> 
+            <h3 className="modal-title">Delete File?</h3>
             <p className="modal-subtitle">The file will be moved to trash.</p>
             <div className="modal-actions">
               <button className="btn-cancel" onClick={() => { setIsDeleteModalOpen(false); setFileToDelete(null); }}>Cancel</button>

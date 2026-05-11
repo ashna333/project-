@@ -39,21 +39,29 @@ const copyLink = async (url) => {
 };
  
 
+
+  
 const handleRevoke = async () => {
+  if (!revokeTarget) return;
+  
   try {
     await deleteShareApi(revokeTarget.id);
     showToast("Share revoked");
     
-    // If you want the file to disappear from the list immediately:
-    setShares((prevShares) => prevShares.filter((share) => share.id !== revokeTarget.id));
+    // Instead of filtering, update the specific share's status
+    setShares((prevShares) => 
+      prevShares.map((share) => 
+        share.id === revokeTarget.id 
+          ? { ...share, is_revoked: true } 
+          : share
+      )
+    );
 
     setRevokeTarget(null);
   } catch (e) {
     showToast("Failed to revoke share");
   }
 };
-  
-
 
   
   return (

@@ -1,5 +1,10 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 from django.db import models
+from django.conf import settings
+import os
+import uuid
+from django.utils import timezone
+
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -12,6 +17,7 @@ class UserManager(BaseUserManager):
         return user
 
 class User(AbstractBaseUser):
+    uuid = models.UUIDField(null=True, unique=True, editable=False)
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
@@ -31,15 +37,11 @@ class User(AbstractBaseUser):
         return self.email
     
 
-from django.conf import settings
-import os
-import uuid
-from django.utils import timezone
-
 
 def user_upload_path(instance, filename):
-    """Upload to media/uploads/<user_id>/<filename>"""
-    return f"uploads/{instance.user.id}/{filename}"
+    ext = os.path.splitext(filename)[1]
+    unique_filename = f"{uuid.uuid4()}{ext}"
+    return f"uploads/{instance.user.uuid}/{unique_filename}"
 
 
 class UserFile(models.Model):
@@ -48,6 +50,7 @@ class UserFile(models.Model):
         on_delete=models.CASCADE,
         related_name="files"
     )
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     file = models.FileField(upload_to=user_upload_path)
     original_name = models.CharField(max_length=255)
     file_size = models.PositiveBigIntegerField()  # in bytes

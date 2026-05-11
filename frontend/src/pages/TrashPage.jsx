@@ -113,6 +113,8 @@ export default function TrashPage() {
     }
   };
 
+
+
   return (
     <div className="dashboard-container">
       <main className="dashboard-main fade-in">
@@ -160,6 +162,8 @@ export default function TrashPage() {
             <div className="file-list-card">
               <ul className="file-ul">
                 {files.map((file) => (
+                  
+                  
                   <li key={file.id} className="file-row-item">
                     <div className="file-icon-square">
                       {getFileIcon(file)}
@@ -168,7 +172,8 @@ export default function TrashPage() {
                     <div className="file-info-stack">
                       <div className="file-name-main">{file.original_name}</div>
                       <div className="file-meta-sub">
-                        {file.file_size_display} · Deleted on {new Date(file.deleted_at).toLocaleDateString('en-GB')}
+                        {file.file_size_display} 
+                         
                       </div>
                     </div>
 

@@ -7,8 +7,18 @@ export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Get user from localStorage
-  const user = JSON.parse(localStorage.getItem('auth_user')) || { first_name: 'User', last_name: '', email: '' };
+const rawUser = JSON.parse(localStorage.getItem('auth_user')) || {};
+  
+  // Helper to remove "Google User" or extra suffixes
+  const cleanName = (name) => {
+    if (!name) return 'User';
+    // Removes "Google User" and trims extra spaces
+    return name.replace(/Google User/i, '').trim();
+  };
+
+  const firstName = cleanName(rawUser.first_name);
+  const lastName = cleanName(rawUser.last_name);
+  const userEmail = rawUser.email || '';
 
   const handleLogout = () => {
     localStorage.removeItem('access_token'); // Or your specific key
@@ -48,9 +58,9 @@ export default function AppShell() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '14px', fontWeight: '500', color: 'white' }}>
-                {user.first_name} {user.last_name}
+                {firstName} {lastName}
               </div>
-              <div style={{ fontSize: '11px', color: '#71717a' }}>{user.email}</div>
+              <div style={{ fontSize: '11px', color: '#71717a' }}>{userEmail}</div>
             </div>
             <LogOut 
               size={18} 
