@@ -61,6 +61,16 @@ fetchFilesSuccess(state, action) {
       state.loading = false
       state.error = action.payload
     },
+    // --- ADD THIS TO FIX THE STAR PERSISTENCE ---
+    updateFileSuccess(state, action) {
+      const { id, updates } = action.payload
+      const index = state.files.findIndex(f => f.id === id)
+      if (index !== -1) {
+        // This updates the file in the main list so that when you 
+        // click it again, 'selectedFile' gets the updated version.
+        state.files[index] = { ...state.files[index], ...updates }
+      }
+    },
 
     // Upload
     uploadStart(state) {
@@ -100,7 +110,25 @@ fetchFilesSuccess(state, action) {
     renameFileFailure(state, action) {
       state.error = action.payload
     },
+    updateUserSuccess(state, action) {
+      // If you store user info in this slice, update it here
+      if (state.user) {
+        state.user = { ...state.user, ...action.payload };
+      }
+      state.successMessage = 'Profile updated successfully.';
+    },
 
+    // Security / Password
+    passwordChangeSuccess(state) {
+      state.successMessage = 'Password changed successfully.';
+      state.error = null;
+    },
+    
+    // Unified Error Handling (Optional: if you want to use it for profile/password)
+    setOperationFailure(state, action) {
+      state.loading = false;
+      state.error = action.payload;
+    },
     // UI state
     setPage(state, action) {
       state.pagination.currentPage = action.payload
@@ -121,10 +149,10 @@ fetchFilesSuccess(state, action) {
 
 export const {
   fetchFilesStart, fetchFilesSuccess, fetchFilesFailure,
-  uploadStart, uploadSuccess, uploadFailure, setUploadProgress,
+  uploadStart, uploadSuccess, uploadFailure, setUploadProgress,updateFileSuccess,
   deleteFileSuccess, deleteFileFailure,
   renameFileSuccess, renameFileFailure,
-  setPage, setSearchQuery, setViewMode, clearMessages,
+  setPage, setSearchQuery, setViewMode, clearMessages,updateUserSuccess, passwordChangeSuccess, setOperationFailure,
 } = fileSlice.actions
 
 export default fileSlice.reducer

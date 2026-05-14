@@ -197,3 +197,11 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB in memory
 DATA_UPLOAD_MAX_MEMORY_SIZE = 105 * 1024 * 1024  
 X_FRAME_OPTIONS = 'ALLOWALL'
+
+# settings.py
+CELERY_BEAT_SCHEDULE = {
+    'clear_trash_daily': {
+        'task': 'fileapp.tasks.purge_expired_trash',
+        'schedule': 86400.0, # Every 24 hours (in seconds)
+    },
+}

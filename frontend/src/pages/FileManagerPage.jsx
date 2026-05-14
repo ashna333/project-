@@ -6,21 +6,24 @@ import {
   Download, Trash2, ChevronLeft, ChevronRight,
   Edit2, FileText, Image as ImageIcon, File as FileIcon, X, Star, Zap
 } from 'lucide-react';
-import { fetchFiles, downloadFile } from '../store/fileThunks';
-import { setSearchQuery } from '../store/fileSlice';
+import { fetchFiles, downloadFile ,toggleFileStar} from '../store/fileThunks';
+import { setSearchQuery,updateFileSuccess} from '../store/fileSlice';
 import '../styles/DashboardPage.css';
+import '../styles/FileManager.css';
 import ShareModal from '../components/ShareModal';
 import RenameModal from '../components/RenameModal';
 import { deleteFileApi } from '../store/fileApi';
 import { useToast } from '../components/ToastContext';
+import { FILE_BASE_URL } from '../config';
 
 export default function FileManagerPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { files, pagination, loading, searchQuery } = useSelector((s) => s.files);
+  const [showStarredOnly, setShowStarredOnly] = useState(false);
 
   const [searchInput, setSearchInput] = useState(searchQuery);
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
+  const [viewMode, setViewMode] = useState('grid'); // 'list' or 'grid'
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [activeFile, setActiveFile] = useState(null);
@@ -29,6 +32,7 @@ export default function FileManagerPage() {
   const { showToast } = useToast();
   const [selectedFile, setSelectedFile] = useState(null); // For sidebar details
 
+                
   // --- Helpers ---
   const getFileIcon = (file) => {
     const type = (file?.file_type || "").toLowerCase();
@@ -49,11 +53,18 @@ export default function FileManagerPage() {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
-
+ const { currentPage, pageSize, count } = pagination;
   // --- Effects ---
-  useEffect(() => {
-    dispatch(fetchFiles(pagination.currentPage, pagination.pageSize, searchQuery));
-  }, [dispatch, pagination.currentPage, pagination.pageSize, searchQuery]);
+useEffect(() => {
+  dispatch(
+    fetchFiles(
+      currentPage,
+      pageSize,
+      searchQuery,
+      showStarredOnly ? { is_starred: true } : {}
+    )
+  );
+}, [dispatch, currentPage, pageSize, searchQuery, showStarredOnly]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -64,6 +75,7 @@ export default function FileManagerPage() {
     return () => clearTimeout(t);
   }, [dispatch, searchInput, searchQuery]);
 
+  
   // --- Handlers ---
   const handleDeleteTrigger = (file) => {
     setFileToDelete(file);
@@ -84,20 +96,94 @@ export default function FileManagerPage() {
   };
 
   const handlePageChange = (newPage) => {
-    const totalPages = Math.ceil(pagination.count / pagination.pageSize) || 1;
-    if (newPage < 1 || newPage > totalPages) return;
-    dispatch(fetchFiles(newPage, pagination.pageSize, searchQuery));
-  };
+  const totalPages = Math.ceil(count / pageSize) || 1; // Use destructured count/pageSize
+  if (newPage < 1 || newPage > totalPages) return;
+  dispatch(fetchFiles(newPage, pageSize, searchQuery));
+}
+
+  const handleToggleStar = async (file) => {
+  try {
+    const result = await dispatch(toggleFileStar(file.id));
+    
+    // Sync the main list in the Redux store
+    dispatch(updateFileSuccess({ 
+      id: file.id, 
+      updates: { is_starred: result.is_starred } 
+    }));
+
+    
+    showToast(result.is_starred ? "Added to Starred" : "Removed from Starred");
+  } catch (err) {
+    showToast("Failed to update star");
+  }
+};
 
   const totalPages = Math.ceil(pagination.count / pagination.pageSize) || 1;
-  const currentPage = pagination.currentPage || 1;
+  
+  // ADD this helper near your other helper functions
+const getReadableFileType = (file) => {
+  // const mime =
+  //   file?.file_type ||
+  //   file?.mime_type ||
+  //   file?.content_type ||
+  //   "";
+
+  const extension = file?.original_name
+    ?.split(".")
+    .pop()
+    ?.toLowerCase();
+
+  // Prefer MIME if available
+  // if (mime) {
+  //   if (mime.includes("image")) return "Image";
+  //   if (mime.includes("pdf")) return "PDF Document";
+  //   if (mime.includes("word") || mime.includes("document")) return "Word Document";
+  //   if (mime.includes("sheet") || mime.includes("excel")) return "Spreadsheet";
+  //   if (mime.includes("text")) return "Text File";
+  //   if (mime.includes("zip")) return "Archive";
+  //   return mime;
+  // }
+
+  // Fallback by extension
+  const fileTypes = {
+    jpg: "Image",
+    jpeg: "Image",
+    png: "Image",
+    gif: "Image",
+    svg: "Vector Image",
+    webp: "Image",
+    bmp: "Bitmap Image",
+    pdf: "PDF Document",
+    txt: "Text File",
+    doc: "Word Document",
+    docx: "Word Document",
+    xls: "Excel Spreadsheet",
+    xlsx: "Excel Spreadsheet",
+    csv: "CSV File",
+    ppt: "PowerPoint Presentation",
+    pptx: "PowerPoint Presentation",
+    zip: "ZIP Archive",
+    rar: "RAR Archive",
+    mp4: "Video File",
+    mp3: "Audio File",
+    js: "JavaScript File",
+    py: "Python File",
+    html: "HTML File",
+    css: "CSS File",
+    json: "JSON File",
+  };
+
+  if (extension === "jpg" || extension === "jpeg" || extension === "png" || extension === "svg" || extension === "webp" || extension === "bmp") {
+    return `Image (${extension.toUpperCase()})`;
+  }
+
+  return fileTypes[extension] || "Unknown File";
+};
 
   return (
-    <div className="dashboard-container">
-      <main className="dashboard-main fade-in">
-
-        {/* Header */}
-        <div className="file-manager-header">
+    <div className="dashboard-container" style={{ position: 'relative', overflowX: 'hidden' }}>
+      <main className="dashboard-main" style={{ transition: 'none' }}>
+        <div className="file-manager-header" style={{ height: '100px', flexShrink: 0 }}>
           <div className="welcome-sectionfm">
             <div className="welcome-labelfm">Library</div>
             <h1 className="welcome-titlefm">My Files</h1>
@@ -147,11 +233,9 @@ export default function FileManagerPage() {
             /* CONDITIONAL LAYOUT WRAPPER */
             <div className={viewMode === 'grid' ? 'file-grid-inner' : 'file-list-card'}>
               {files.map((file) => {
-
-                // BACKEND BASE
-                const backendBase = "http://127.0.0.1:8001";
-                const rawUrl = file.file || file.file_url || file.url;
-                const fullUrl = rawUrl?.startsWith("http") ? rawUrl : `${backendBase}${rawUrl}`;
+                    
+                
+                
                 const extension = file.original_name?.split(".").pop()?.toLowerCase();
                 const isImage = ["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp"].includes(extension);
                 const isPDF = extension === "pdf";
@@ -159,19 +243,23 @@ export default function FileManagerPage() {
                 const isPreviewable = isImage || isPDF || isText;
 
                 return (
+                
                   <div
                     key={file.id}
                     className={viewMode === 'grid' ? 'file-grid-item' : 'file-row-item'}
-                    onClick={() => setSelectedFile(file)} // Click to show details
-                  >
+                    onClick={() => {
+                      
+                      setSelectedFile(file);
+                    }}
 
-
-                    {/* ICON / PREVIEW BOX */}
+                    >               
+                       
                     {/* ICON / PREVIEW BOX */}
                     <div className={viewMode === 'grid' ? 'file-preview-container' : 'file-icon-square'}>
+                      
                       {isImage ? (
                         <img
-                          src={fullUrl}
+                          src={file.url}
                           alt={file.original_name}
                           className="file-image-preview"
                           onError={(e) => {
@@ -180,16 +268,18 @@ export default function FileManagerPage() {
                           }}
                         />
                       ) : isPDF ? (
-                        <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                          <embed
-                            src={`${fullUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-                            type="application/pdf"
-                            width="100%"
-                            height="100%"
-                            className="pdf-embed-no-scroll"
-                          />
+                      <div className="pdf-preview-container" style={{ overflow: 'hidden', pointerEvents: 'none' }}>
+                        <iframe
+                          src={`${file.url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                          type="application/pdf"
+                          width="100%"
+                          height="100%"
+                          title="PDF Preview"
+                          style={{ border: 'none' }}
+                          className="pdf-embed-no-scroll"
+                        />
+                      </div>
 
-                        </div>
                       ) : isText ? (
                         <div
                           className="file-type-preview"
@@ -203,10 +293,51 @@ export default function FileManagerPage() {
                       )}
                     </div>
                     {/* FILE INFO */}
+                   {/* FILE INFO STACK */}
                     <div className="file-info-stack">
-                      <div className="file-name-main" title={file.original_name}>{file.original_name}</div>
-                      <div className="file-meta-sub">
+                      <div className="file-name-container" style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <div className="file-name-main" title={file.original_name}>
+                          {file.original_name}
+                        </div>
+                        
+                        {/* GRID VIEW STAR (Right side of name) */}
+                        {viewMode === 'grid' && (
+                          <Star 
+                            size={16} 
+                            className="star-trigger" // Matches the check in the onClick above
+                            onClick={(e) => { 
+                              e.stopPropagation();
+                              handleToggleStar(file);
+                              
+                            }}
+                            fill={file.is_starred ? "#fbbf24" : "none"} 
+                            color={file.is_starred ? "#fbbf24" : "#71717a"} 
+                          />
+                        )}
+                      </div>
+
+                      <div className="file-meta-sub" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {formatFileSize(file.file_size)} · {new Date(file.uploaded_at).toLocaleDateString('en-GB')}
+                        
+                        {/* LIST VIEW STAR (Beside the date) */}
+                        {viewMode === 'list' && (
+                          <>
+                            <span style={{ color: '#27272a' }}>•</span>
+                            <Star 
+                              size={14} 
+                              className={`star-icon ${file.is_starred ? 'is-active' : ''}`}
+                              onClick={(e) => { e.stopPropagation(); handleToggleStar(file); }}
+                              fill={file.is_starred ? "#fbbf24" : "none"} 
+                              color={file.is_starred ? "#fbbf24" : "#71717a"} 
+                              style={{ cursor: 'pointer' }}
+                            />
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -263,17 +394,16 @@ export default function FileManagerPage() {
                 const extension = selectedFile.original_name?.split(".").pop()?.toLowerCase();
                 const isImage = ["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp"].includes(extension);
                 const isPDF = extension === "pdf";
-                const backendBase = "http://127.0.0.1:8001";
-                const rawUrl = selectedFile.file || selectedFile.file_url || selectedFile.url;
-                const fullUrl = rawUrl?.startsWith("http") ? rawUrl : `${backendBase}${rawUrl}`;
+                
+
 
                 if (isImage) {
-                  return <img src={fullUrl} alt="Preview" className="sidebar-img-preview" />;
+                  return <img src={selectedFile?.url} alt="Preview" className="sidebar-img-preview" />;
                 }
                 if (isPDF) {
                   return (
                     <embed
-                      src={`${fullUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                      src={`${selectedFile?.url}`}
                       type="application/pdf"
                       width="100%"
                       height="100%"
@@ -286,7 +416,23 @@ export default function FileManagerPage() {
 
             <div className="detail-title-row">
               <h2 className="detail-filename">{selectedFile.original_name}</h2>
-              <Star size={18} className="star-icon" />
+              <Star 
+                  size={20} 
+                  className={`star-icon ${selectedFile.is_starred ? 'is-active' : ''}`} 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleStar(selectedFile);
+                  }}
+
+                  // 3. Conditional Fill (The actual "Color" change)
+                  fill={selectedFile.is_starred ? "#fbbf24" : "none"} 
+                  color={selectedFile.is_starred ? "#fbbf24" : "#71717a"} 
+                  
+                  style={{ 
+                    cursor: 'pointer',
+                    transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' 
+                  }}
+                />
             </div>
 
             <div className="detail-info-grid">
@@ -296,7 +442,7 @@ export default function FileManagerPage() {
               </div>
               <div className="info-group">
                 <label>Type</label>
-                <span>{selectedFile.file_type || 'Unknown'}</span>
+                <span>{getReadableFileType(selectedFile)}</span>
               </div>
               <div className="info-group">
                 <label>Uploaded</label>

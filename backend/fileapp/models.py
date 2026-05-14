@@ -57,8 +57,9 @@ class UserFile(models.Model):
     mime_type = models.CharField(max_length=100, blank=True)
     file_hash = models.CharField(max_length=32, blank=True) 
     uploaded_at = models.DateTimeField(auto_now_add=True)
-    is_deleted = models.BooleanField(default=False)      # 👈 add this
-    deleted_at = models.DateTimeField(null=True, blank=True)  # 👈 and this
+    is_deleted = models.BooleanField(default=False)      
+    deleted_at = models.DateTimeField(null=True, blank=True)  
+    is_starred = models.BooleanField(default=False)
 
 
     class Meta:

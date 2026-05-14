@@ -7,10 +7,17 @@ const authHeaders = () => ({
   Authorization: `Bearer ${localStorage.getItem('access_token')}`,
 })
 
-export const fetchFilesApi = (page = 1, pageSize = 10, search = '') =>
+
+
+export const fetchFilesApi = (page = 1, pageSize = 12, search = '', filters = {}) =>
   api.get(`${API_BASE}/`, {
     headers: authHeaders(),
-    params: { page, page_size: pageSize, search },
+    params: { 
+      page, 
+      page_size: pageSize, 
+      search, 
+      ...filters // This turns { is_starred: true } into ?is_starred=true
+    },
   })
 
 export const uploadFilesApi = (files) => {
@@ -21,18 +28,6 @@ export const uploadFilesApi = (files) => {
   })
 }
 
-
-// export const uploadFilesApi = (files, onUploadProgress) => {
-//   const formData = new FormData()
-//   files.forEach(f => formData.append('files', f))
-//   return api.post('/upload/', formData, {
-//     headers: { 'Content-Type': 'multipart/form-data' },
-//     onUploadProgress,
-//   })
-// }
-
-// export const deleteFileApi = (fileId) =>
-//   api.delete(`/${fileId}/delete/`, { headers: authHeaders() })
   
 export const deleteFileApi = (fileId) =>
    api.delete(`/${fileId}/delete/`)
@@ -46,16 +41,19 @@ export const downloadFileApi = (fileId) =>
 export const renameFileApi = (fileId, newName) =>
   api.patch(`/${fileId}/rename/`, { new_name: newName })
 
+export const toggleStarApi = (fileId) =>
+  api.post(`/files/${fileId}/star/`)
+
 export const storageSummaryApi = () =>
   api.get('/storage/')
 
-export const fetchSharesApi = (page = 1, pageSize = 10, search = '') =>
+export const fetchSharesApi = (page = 1, pageSize = 12, search = '') =>
   api.get('/shares/', { params: { page, page_size: pageSize, search: search || undefined } })
 
 export const createShareApi = (payload) =>
   api.post('/shares/', payload)
 
-export const fetchTrashApi = (page = 1, pageSize = 10, search = '') =>
+export const fetchTrashApi = (page = 1, pageSize = 12, search = '') =>
   api.get('/trash/', { params: { page, page_size: pageSize, search: search || undefined } })
 
 export const restoreTrashFileApi = (fileId) =>

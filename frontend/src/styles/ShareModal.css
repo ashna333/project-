@@ -184,3 +184,77 @@ input:-webkit-autofill:active {
 input:-webkit-autofill {
     transition: background-color 5000s ease-in-out 0s !important;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.email-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #3f3f46;
+  background: #18181b;
+  border-radius: 6px;
+  min-height: 45px;
+  align-items: center;
+  transition: border-color 0.2s;
+}
+
+.email-chips-container:focus-within {
+  border-color: #fb7185; /* Your rose color */
+}
+
+.email-chip {
+  display: flex;
+  align-items: center;
+  background: #27272a;
+  color: #e4e4e7;
+  padding: 4px 8px;
+  border-radius: 100px; /* Rounded pill style like Gmail */
+  font-size: 0.85rem;
+  border: 1px solid #3f3f46;
+}
+
+.remove-chip-icon {
+  margin-left: 6px;
+  cursor: pointer;
+  color: #a1a1aa;
+}
+
+.remove-chip-icon:hover {
+  color: #fb7185;
+}
+
+.chip-input {
+  flex: 1;
+  min-width: 120px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: white;
+  padding: 4px;
+}
+
+.modal-error-alert {
+  background: rgba(225, 29, 72, 0.1);
+  color: #fb7185;
+  padding: 8px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+}

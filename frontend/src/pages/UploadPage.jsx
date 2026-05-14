@@ -22,6 +22,7 @@ export default function UploadPage() {
   const [filesInQueue, setFilesInQueue] = useState([]);
   const [isUploadingGlobal, setIsUploadingGlobal] = useState(false);
   const fileInputRef = useRef(null);
+  const [dragActive, setDragActive] = useState(false);
 
   const formatSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
@@ -101,6 +102,34 @@ const startUpload = async () => {
 
   const clearAll = () => setFilesInQueue([]);
 
+  const handleDrag = (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.type === "dragenter" || e.type === "dragover") {
+    setDragActive(true);
+  } else if (e.type === "dragleave") {
+    setDragActive(false);
+  }
+};
+
+const handleDrop = (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  setDragActive(false);
+
+  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+    // Reuse your existing logic for processing files
+    const droppedFiles = Array.from(e.dataTransfer.files).map(file => ({
+      file,
+      id: `${file.name}-${file.lastModified}-${Date.now()}`,
+      progress: 0,
+      status: 'queued',
+      sizeString: formatSize(file.size)
+    }));
+    setFilesInQueue((prev) => [...prev, ...droppedFiles]);
+  }
+};
+
   // Sub-component for individual file item to manage its own layout
   const UploadItem = ({ fileObj, onRemove }) => {
     const { file, progress, status, sizeString, id } = fileObj;
@@ -160,12 +189,20 @@ const startUpload = async () => {
         </div>
 
         {/* Dropzone Area (Clickable to Browse) */}
-        <div className="dropzone-container" onClick={() => fileInputRef.current.click()}>
-          <input type="file" multiple hidden ref={fileInputRef} onChange={handleFileChange} />
-          <CloudUpload size={64} className="rose-text" style={{ opacity: 0.7 }} />
+        
+        <div className={`dropzone-container ${dragActive ? "drag-active" : ""}`} 
+  onClick={() => fileInputRef.current.click()}
+  onDragEnter={handleDrag}
+  onDragLeave={handleDrag}
+  onDragOver={handleDrag}
+  onDrop={handleDrop}
+  
+>
+  <input type="file" multiple hidden ref={fileInputRef} onChange={handleFileChange} />
+   <CloudUpload size={64} className="rose-text" style={{ opacity: 0.7 }} />
           <h2 style={{ fontSize: '24px', fontWeight: '600', marginTop: '20px', color: 'white' }}>Drag & drop your files</h2>
           <p style={{ color: '#71717a', marginTop: '8px', fontSize: '14px' }}>or click to browse</p>
-        </div>
+</div>
 
         {/* File Queue Section */}
         {filesInQueue.length > 0 && (

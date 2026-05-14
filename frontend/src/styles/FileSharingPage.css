@@ -1,8 +1,10 @@
 .outbox-container {
-  padding: 2rem;
+ 
   max-width: 1200px;
   margin: 0 auto;
   color: #ffffff;
+  padding: 120px 24px 60px !important; 
+
 }
 
 /* Header Styles */

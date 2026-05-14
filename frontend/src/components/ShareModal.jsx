@@ -1,12 +1,12 @@
-import React, { useState , useEffect} from 'react';
-import { Share2, X, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Share2, X, Loader2, UserPlus } from 'lucide-react';
 import { createShareApi } from '../store/fileApi';
 import '../styles/ShareModal.css';
 
 export default function ShareModal({ file, isOpen, onClose, onRefresh }) {
-  // Matches the state structure from your FileSharingPage
+  const [emails, setEmails] = useState([]); // Array of chips
+  const [inputValue, setInputValue] = useState(''); // Current typing text
   const [formData, setFormData] = useState({
-    recipient_email: '',
     expires_in_hours: 24,
     message: ''
   });
@@ -15,123 +15,137 @@ export default function ShareModal({ file, isOpen, onClose, onRefresh }) {
 
   if (!isOpen) return null;
 
+  // --- Chip Logic ---
+  const handleKeyDown = (e) => {
+    if (['Enter', 'Tab', ','].includes(e.key)) {
+      e.preventDefault();
+      addEmail(inputValue);
+    } else if (e.key === 'Backspace' && !inputValue && emails.length > 0) {
+      removeEmail(emails.length - 1);
+    }
+  };
+
+  const addEmail = (val) => {
+    const email = val.trim().replace(/,$/, ''); // Remove trailing comma
+    if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { // Basic regex check
+      if (!emails.includes(email)) {
+        setEmails([...emails, email]);
+      }
+      setInputValue('');
+      setError('');
+    } else if (email) {
+      setError('Invalid email format');
+    }
+  };
+
+  const removeEmail = (index) => {
+    setEmails(emails.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Add any remaining text as an email before submitting
+    if (inputValue) addEmail(inputValue);
+
+    if (emails.length === 0) {
+      setError("Please add at least one recipient.");
+      return;
+    }
+
     setLoading(true);
-    setError('');
-
     try {
-      // Backend expects: file_id, recipient_email, expires_in_hours, message
-      await createShareApi({
-        file_id: file.id,
-        recipient_email: formData.recipient_email,
-        expires_in_hours: Number(formData.expires_in_hours),
-        message: formData.message,
-      });
+      const sharePromises = emails.map(email => 
+        createShareApi({
+          file_id: file.id,
+          recipient_email: email,
+          expires_in_hours: Number(formData.expires_in_hours),
+          message: formData.message,
+        })
+      );
 
-      // Handle successful share
-      if (onRefresh) onRefresh(); // Triggers re-fetch in My Files if needed
-      onClose(); // Closes the modal
-      
-      // Optional: Reset form for next time
-      setFormData({ recipient_email: '', expires_in_hours: 24, message: '' });
-      
+      await Promise.all(sharePromises);
+      if (onRefresh) onRefresh();
+      handleClose();
     } catch (err) {
-      // Catch backend errors (e.g., "invalid email", "file not found")
-      const errorMessage = err.response?.data?.error || 'Failed to create share.';
-      setError(errorMessage);
+      setError(err.response?.data?.error || 'Failed to share.');
     } finally {
-       
       setLoading(false);
     }
   };
 
-
-
-  const resetForm = () => {
-  setFormData({
-    recipient_email: '',
-    expires_in_hours: 24,
-    message: ''
-  });
-  setError('');
+  const handleClose = () => {
+    setEmails([]);
+    setInputValue('');
+    setFormData({ expires_in_hours: 24, message: '' });
+    setError('');
+    onClose();
   };
 
-
   return (
-    <div className="modal-overlay"  onClick={() => {
-    resetForm();
-    onClose();
-  }}>
-      <div className="share-modal-card fade-in"  onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={handleClose}>
+      <div className="share-modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-title-row">
-            <Share2 size={18} className="text-rose" />
-            <h3>Share file</h3>
+            <UserPlus size={18} className="text-rose" />
+            <h3>Share with people</h3>
           </div>
-          <button className="close-x-btn"  onClick={() => {
-                        resetForm();
-                        onClose();
-                    }} 
-            aria-label="Close modal">
-            <X size={20} />
-          </button>
+          <button className="close-x-btn" onClick={handleClose}><X size={20} /></button>
         </div>
         
-        <p className="modal-subtitle">{file?.original_name}</p>
+        <p className="modal-subtitle">Sharing: <strong>{file?.original_name}</strong></p>
 
         {error && <div className="modal-error-alert">{error}</div>}
 
         <form onSubmit={handleSubmit} className="modal-form">
           <div className="input-group">
-            <label>Recipient email</label>
-            <input 
-              type="email" 
-              required
-              spellCheck="false"
-              className="modal-input accent-border" 
-              placeholder="email@example.com"
-              value={formData.recipient_email}
-              onChange={(e) => setFormData({...formData, recipient_email: e.target.value})}
-            />
+            <label>Recipients</label>
+            {/* --- Gmail Style Chip Container --- */}
+            <div className="email-chips-container">
+              {emails.map((email, index) => (
+                <div key={index} className="email-chip">
+                  <span>{email}</span>
+                  <X size={14} onClick={() => removeEmail(index)} className="remove-chip-icon" />
+                </div>
+              ))}
+              <input 
+                autoFocus
+                className="chip-input"
+                placeholder={emails.length === 0 ? "Add email..." : ""}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={() => addEmail(inputValue)}
+              />
+            </div>
           </div>
 
-          <div className="input-group">
-            <label>Expiration (hours)</label>
-            <input 
-              type="number" 
-              min="1"
-              max="720"
-              className="modal-input" 
-              value={formData.expires_in_hours}
-              onChange={(e) => setFormData({...formData, expires_in_hours: e.target.value})}
-            />
+          <div className="input-row" style={{ display: 'flex', gap: '15px', marginTop: '15px' }}>
+            <div className="input-group" style={{ flex: 1 }}>
+              <label>Expires in (hours)</label>
+              <input 
+                type="number" 
+                className="modal-input" 
+                value={formData.expires_in_hours}
+                onChange={(e) => setFormData({...formData, expires_in_hours: e.target.value})}
+              />
+            </div>
           </div>
 
-          <div className="input-group">
-            <label>Message (optional)</label>
+          <div className="input-group" style={{ marginTop: '15px' }}>
+            <label>Message</label>
             <textarea 
               className="modal-textarea"
-              placeholder="Note included in the email..."
+              placeholder="Add a message..."
               value={formData.message}
               onChange={(e) => setFormData({...formData, message: e.target.value})}
             ></textarea>
           </div>
 
           <div className="modal-footer">
-            <button type="button" className="cancel-btn"  onClick={() => {
-                resetForm();
-                onClose();
-            }} disabled={loading}>
-              Cancel
-            </button>
+            <button type="button" className="cancel-btn" onClick={handleClose}>Cancel</button>
             <button type="submit" className="share-submit-btn" disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 size={16} className="spinner" />
-                  Sharing...
-                </>
-              ) : 'Share'}
+              {loading ? <><Loader2 size={16} className="spinner" /> Sending...</> : `Share (${emails.length})`}
             </button>
           </div>
         </form>

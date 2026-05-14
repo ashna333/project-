@@ -19,6 +19,7 @@ import FileManagerPage from './pages/FileManagerPage'
 import FileSharingPage from './pages/FileSharingPage'
 import TrashPage from './pages/TrashPage'
 import UploadPage from './pages/UploadPage'
+import StarredPage from './pages/Starredpage'
 import ProfilePage from './pages/ProfilePage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
 import PublicShare from './pages/PublicShare'
@@ -56,6 +57,7 @@ export default function App() {
             <Route path="/files" element={<FileManagerPage />} />
             <Route path="/upload" element={<UploadPage />} />
             <Route path="/shared" element={<FileSharingPage />} />
+            <Route path="/starred" element={<StarredPage />} />
             <Route path="/trash" element={<TrashPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/settings" element={<ChangePasswordPage />} />

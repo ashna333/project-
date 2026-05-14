@@ -1,0 +1,34 @@
+
+
+.pdf-preview-overlay {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  z-index: 2;
+}
+
+
+.pdf-preview-container {
+  width: 100%;
+  height: 100%;
+  overflow: hidden; /* Clips the extra PDF area */
+  position: relative;
+  background: #18181b;
+  pointer-events: none;
+}
+
+
+
+.pdf-embed-no-scroll {
+  /* Make it slightly wider/taller to push scrollbars outside the clip area */
+  width: 110%; 
+  height: 110%;
+  border: none;
+  /* Re-center the PDF since we made it 110% */
+  margin-left: -5%; 
+  margin-top: -5%;
+  pointer-events: none; /* Prevents scrolling inside the small box */
+  border: none;
+  overflow: hidden !important;
+
+}

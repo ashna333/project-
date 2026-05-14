@@ -1,5 +1,5 @@
 import token
-from .models import FileShare
+from .models import FileShare, UserFile
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -96,10 +96,10 @@ class ChangePasswordView(APIView):
     permission_classes=[IsAuthenticated]
 
     def post(self,request):
-        if getattr(request.user, "auth_provider", "password") == "google":
+        if request.user.auth_provider == "google" and not request.user.has_usable_password():
             return Response(
                 {"error": "Password change is not available for Google-authenticated accounts."},
-                status=status.HTTP_403_FORBIDDEN,
+                status=status.HTTP_403_FORBIDDEN
             )
 
         serializer = ChangePasswordSerializer(data=request.data)
@@ -167,7 +167,7 @@ from .service import (
 
 
 class FilePagination(PageNumberPagination):
-    page_size = 5
+    page_size = 12
     page_size_query_param = "page_size"
     max_page_size = 100
 
@@ -202,16 +202,22 @@ class FileUploadView(APIView):
 
 
 class FileListView(APIView):
-    """
-    GET /api/files/?search=<term>&page=<n>&page_size=<n>
-    List all files for the authenticated user with pagination and search.
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         search = request.query_params.get("search", "").strip()
+        
+        # 1. GET THE PARAMETER FROM THE URL
+        is_starred = request.query_params.get('is_starred')
+
+        # 2. START WITH YOUR BASE FILES
         qs = list_user_files(request.user, search=search or None).filter(is_deleted=False)
 
+        # 3. APPLY THE STAR FILTER MANUALLY HERE
+        if is_starred == 'true':
+            qs = qs.filter(is_starred=True)
+
+        # 4. PAGINATE AND RETURN
         paginator = FilePagination()
         page = paginator.paginate_queryset(qs, request)
 
@@ -224,7 +230,6 @@ class FileListView(APIView):
                 "storage": storage,
             }
         )
-
 
 class FileDeleteView(APIView):
     """
@@ -304,6 +309,36 @@ class FileRenameView(APIView):
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+
+
+
+class FileToggleStarView(APIView):
+    """
+    POST /api/files/<id>/star/
+    Toggle the starred status of a file.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, file_id):
+        try:
+            # We filter by request.user to ensure users can only star their own files
+            user_file = list_user_files(request.user).get(id=file_id)
+            user_file.is_starred = not user_file.is_starred
+            user_file.save()
+            
+            return Response({
+                "id": user_file.id,
+                "is_starred": user_file.is_starred,
+                "message": "File status updated."
+            }, status=status.HTTP_200_OK)
+        except Exception: # Matches your logic for "File not found"
+            return Response(
+                {"error": "File not found or permission denied."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        
 class StorageSummaryView(APIView):
     """
     GET /api/files/storage/

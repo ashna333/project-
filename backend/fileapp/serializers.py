@@ -156,6 +156,7 @@ class UserFileSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "original_name",
+            "is_starred",
             "file_size",
             "file_size_display",
             "mime_type",
