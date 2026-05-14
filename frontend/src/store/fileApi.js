@@ -59,6 +59,13 @@ export const fetchTrashApi = (page = 1, pageSize = 12, search = '') =>
 export const restoreTrashFileApi = (fileId) =>
   api.post(`/trash/${fileId}/restore/`)
 
+
+export const restoreAllTrashFilesApi = () =>
+  api.post('/trash/restore-all/');
+
+export const deleteAllTrashFilesApi = () =>
+  api.delete('/trash/empty/');
+
 export const destroyTrashFileApi = (fileId) =>
   api.delete(`/trash/${fileId}/destroy/`)
 

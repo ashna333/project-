@@ -10,11 +10,12 @@ import {
   File as FileIcon,
   Trash
 } from 'lucide-react';
-import { fetchTrashApi, restoreTrashFileApi, destroyTrashFileApi } from '../store/fileApi';
+import { fetchTrashApi, restoreTrashFileApi, destroyTrashFileApi ,restoreAllTrashFilesApi,deleteAllTrashFilesApi} from '../store/fileApi';
 import { useToast } from '../components/ToastContext';
+import Pagination from '../components/Pagination';
 import '../styles/DashboardPage.css'; 
 
-const PAGE_SIZE = 8;
+
 
 export default function TrashPage() {
   const [files, setFiles] = useState([]);
@@ -23,6 +24,11 @@ export default function TrashPage() {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
   const { showToast } = useToast();
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 12;
+
 
   const getFileIcon = (file) => {
     const type = (file?.mime_type || "").toLowerCase();
@@ -36,22 +42,28 @@ export default function TrashPage() {
     return <FileIcon size={20} className="text-rose" />;
   };
 
-  const loadTrash = async (targetPage = page) => {
-    setLoading(true);
-    try {
-      const { data } = await fetchTrashApi(targetPage, PAGE_SIZE, '');
-      setFiles(data.results?.files || []);
-      setCount(data.count || 0);
-    } catch {
-      showToast('Failed to load trash.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loadTrash = async (targetPage = 1) => {
+  setLoading(true);
+  try {
+    const { data } = await fetchTrashApi(targetPage, pageSize, ''); 
+    setFiles(data.results?.files || []);
+    const totalCount = data.count || 0;
+    setCount(totalCount); 
+    const calculatedPages = Math.ceil(totalCount / pageSize);
+    setTotalPages(calculatedPages || 1);
+    setCurrentPage(targetPage);
+  } catch {
+    showToast('Failed to load trash.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => { loadTrash(page); }, [page]);
 
-  const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
+   const handlePageChange = (newPage) => {
+    loadTrash(newPage);
+  };
 
   const handleRestore = async (fileId) => {
     setActionLoading(fileId);
@@ -80,29 +92,37 @@ export default function TrashPage() {
     }
   };
 
-  const handleRestoreAll = async () => {
-    if (!files.length) return;
+const handleRestoreAll = async () => {
+    
+    if (count === 0) return; 
+    
     if (!window.confirm(`Restore all ${count} files to your library?`)) return;
+
     setActionLoading('bulk-restore');
     try {
-      // Assuming your backend doesn't have a bulk endpoint, we map current visible files
-      await Promise.all(files.map(f => restoreTrashFileApi(f.id)));
+      // 2. This hits the backend once. The backend handles ALL files for this user.
+      await restoreAllTrashFilesApi(); 
+      console.log('Restore all API response:', response); // Log the full response for debugging
+      
       showToast('All files restored.');
+      
+      // 3. Refresh the UI to show an empty trash and reset to page 1
       loadTrash(1);
       setPage(1);
-    } catch {
-      showToast('Failed to restore some files.');
+    } catch (error) {
+      showToast('Failed to restore files.');
     } finally {
       setActionLoading(null);
     }
-  };
-
+};
   const handleEmptyTrash = async () => {
-    if (!files.length) return;
+    if (count === 0) return; 
     if (!window.confirm(`Permanently delete ALL ${count} files?`)) return;
+
     setActionLoading('bulk-delete');
+    
     try {
-      await Promise.all(files.map(f => destroyTrashFileApi(f.id)));
+       await deleteAllTrashFilesApi();
       showToast('Trash emptied.');
       loadTrash(1);
       setPage(1);
@@ -202,32 +222,12 @@ export default function TrashPage() {
             </div>
           )}
 
-          {/* Consistent Pagination */}
-          {totalPages > 1 && (
-            <div className="pagination-wrapper">
-              <div className="page-info">
-                Page <span>{page}</span> of <span>{totalPages}</span>
-              </div>
-
-              <div className="pagination-btns">
-                <button
-                  className={`p-btn ${page === 1 ? 'disabled-btn' : 'active-btn'}`}
-                  onClick={() => setPage(p => p - 1)}
-                  disabled={page === 1}
-                >
-                  <ChevronLeft size={18} /> Previous
-                </button>
-
-                <button
-                  className={`p-btn ${page === totalPages ? 'disabled-btn' : 'active-btn'}`}
-                  onClick={() => setPage(p => p + 1)}
-                  disabled={page === totalPages}
-                >
-                  Next <ChevronRight size={18} />
-                </button>
-              </div>
-            </div>
-          )}
+          <Pagination 
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+            loading={loading}
+          />
         </section>
       </main>
     </div>

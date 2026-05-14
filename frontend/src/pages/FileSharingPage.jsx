@@ -3,6 +3,7 @@ import { Check, Copy, Trash2, Mail,XCircle } from "lucide-react";
 import { useToast } from '../components/ToastContext';
 import { fetchSharesApi ,deleteShareApi} from '../store/fileApi';
 import '../styles/FileSharingPage.css'; 
+import Pagination from '../components/Pagination';
 
 export default function FileSharingPage() {
   const [shares, setShares] = useState([]);
@@ -10,17 +11,32 @@ export default function FileSharingPage() {
   const [revokeTarget, setRevokeTarget] = useState(null);
   const { showToast } = useToast();
 
-  const loadShares = async () => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 12; 
+
+  const loadShares = async (page = 1) => {
     setLoading(true);
     try {
-      const { data } = await fetchSharesApi(1, 100, '');
+      // Pass page and pageSize to the API
+      const { data } = await fetchSharesApi(page, pageSize, '');
+      
       setShares(data.results?.shares || []);
-      console.log("Full Share Object Example:", data.results?.shares[0]);
+      
+      // Calculate total pages from the total count provided by Django
+      const totalCount = data.count || 0;
+      setTotalPages(Math.ceil(totalCount / pageSize) || 1);
+      setCurrentPage(page);
+      
     } catch (e) {
       showToast("Failed to load shares");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePageChange = (newPage) => {
+    loadShares(newPage);
   };
 
   useEffect(() => {
@@ -150,6 +166,12 @@ const handleRevoke = async () => {
           </div>
         )}
       </div>
+      <Pagination 
+  currentPage={currentPage}
+  totalPages={totalPages}
+  onPageChange={handlePageChange}
+  loading={loading}
+/>
 
       {/* Manual Modal (Replacing AlertDialog) */}
       {revokeTarget && (
@@ -165,5 +187,6 @@ const handleRevoke = async () => {
         </div>
       )}
     </div>
+    
   );
 }

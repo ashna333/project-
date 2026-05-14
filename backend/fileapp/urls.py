@@ -6,9 +6,11 @@ from .views import( RegisterView, LoginView,
                     FileDeleteView,
                     FileDownloadView,
                     FileRenameView,
-                    FileToggleStarView,
+                    FileToggleStarView, TrashDeleteAllPermanentView,
                     TrashListView,
                     TrashRestoreView,
+                    TrashRestoreAllView,
+                    TrashDeleteAllPermanentView,
                     TrashDeletePermanentView,
                     ProfileView,
                     GoogleAuthStartView,
@@ -35,6 +37,11 @@ urlpatterns = [
     path('reset-password/', ResetPasswordView.as_view()),
     path("upload/", FileUploadView.as_view(), name="file-upload"),
     path("", FileListView.as_view(), name="file-list"),
+
+    
+
+    path('trash/restore-all/', TrashRestoreAllView.as_view(), name='trash-restore-all'),
+    path('trash/empty/', TrashDeleteAllPermanentView.as_view(), name='trash-empty'),
 
 
     

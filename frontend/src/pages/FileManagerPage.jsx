@@ -14,7 +14,7 @@ import ShareModal from '../components/ShareModal';
 import RenameModal from '../components/RenameModal';
 import { deleteFileApi } from '../store/fileApi';
 import { useToast } from '../components/ToastContext';
-import { FILE_BASE_URL } from '../config';
+import Pagination from '../components/Pagination';
 
 export default function FileManagerPage() {
   const dispatch = useDispatch();
@@ -31,6 +31,9 @@ export default function FileManagerPage() {
   const [fileToDelete, setFileToDelete] = useState(null);
   const { showToast } = useToast();
   const [selectedFile, setSelectedFile] = useState(null); // For sidebar details
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 12; // Adjust this to match your preference
 
                 
   // --- Helpers ---
@@ -53,7 +56,7 @@ export default function FileManagerPage() {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
- const { currentPage, pageSize, count } = pagination;
+
   // --- Effects ---
 useEffect(() => {
   dispatch(
@@ -89,17 +92,36 @@ useEffect(() => {
       showToast("File moved to trash");
       dispatch(fetchFiles(pagination.currentPage, pagination.pageSize, searchQuery));
       setIsDeleteModalOpen(false);
+      setSelectedFile(null);
       setFileToDelete(null);
+
     } catch (err) {
       showToast("Failed to delete file");
     }
   };
+ 
 
   const handlePageChange = (newPage) => {
-  const totalPages = Math.ceil(count / pageSize) || 1; // Use destructured count/pageSize
-  if (newPage < 1 || newPage > totalPages) return;
-  dispatch(fetchFiles(newPage, pageSize, searchQuery));
-}
+  // Corrected: Dispatch fetchFiles instead of calling loadShares
+  dispatch(
+    fetchFiles(
+      newPage,
+      pageSize,
+      searchQuery,
+      showStarredOnly ? { is_starred: true } : {}
+    )
+  );
+  // Optional: Scroll to top when page changes
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+// Sync local pagination state with Redux store
+useEffect(() => {
+  if (pagination) {
+    setCurrentPage(pagination.currentPage || 1);
+    const total = Math.ceil((pagination.count || 0) / pageSize);
+    setTotalPages(total || 1);
+  }
+}, [pagination, pageSize]);
 
   const handleToggleStar = async (file) => {
   try {
@@ -118,7 +140,7 @@ useEffect(() => {
   }
 };
 
-  const totalPages = Math.ceil(pagination.count / pagination.pageSize) || 1;
+ 
   
   // ADD this helper near your other helper functions
 const getReadableFileType = (file) => {
@@ -355,15 +377,12 @@ const getReadableFileType = (file) => {
           )}
 
           {/* Pagination */}
-          {pagination.count > pagination.pageSize && (
-            <div className="pagination-wrapper">
-              <div className="page-info">Page <span>{currentPage}</span> of <span>{totalPages}</span></div>
-              <div className="pagination-btns">
-                <button className={`p-btn ${currentPage === 1 ? 'disabled-btn' : 'active-btn'}`} onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1}><ChevronLeft size={18} /> Previous</button>
-                <button className={`p-btn ${currentPage === totalPages ? 'disabled-btn' : 'active-btn'}`} onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages}>Next <ChevronRight size={18} /></button>
-              </div>
-            </div>
-          )}
+          <Pagination 
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+            loading={loading}
+          />
         </section>
 
         <footer className="fm-footer">CloudShare - Secure file sharing, built for teams.</footer>

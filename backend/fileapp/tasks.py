@@ -11,7 +11,7 @@ def purge_expired_trash():
     and removes them from the DB and the physical storage.
     """
     # Calculate 30 days ago
-    cutoff_date = timezone.now() - timedelta(days=1)
+    cutoff_date = timezone.now() - timedelta(minutes=2)
     
     # Filter files: must be in trash AND deleted_at must be older than 30 days
     expired_files = UserFile.objects.filter(

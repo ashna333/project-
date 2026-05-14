@@ -167,7 +167,7 @@ from .service import (
 
 
 class FilePagination(PageNumberPagination):
-    page_size = 12
+    page_size = 12  
     page_size_query_param = "page_size"
     max_page_size = 100
 
@@ -543,3 +543,55 @@ class FileShareDeleteView(APIView):
                 {"error": "Share not found or permission denied."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+        
+class TrashRestoreAllView(APIView):
+    """
+    POST /api/trash/restore-all/
+    Restores ALL files currently in the user's trash.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            trashed_files = UserFile.objects.filter(user=request.user, is_deleted=True)
+            count = trashed_files.count()
+            
+            if count == 0:
+                return Response({"message": "Trash is already empty."}, status=status.HTTP_200_OK)
+
+            trashed_files.update(is_deleted=False)
+            
+            return Response({
+                "message": f"Successfully restored {count} files.",
+                "restored_count": count
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            # Check your terminal/console for this output!
+            print(f"!!! RESTORE ALL ERROR: {str(e)}") 
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+class TrashDeleteAllPermanentView(APIView):
+    """
+    DELETE /api/trash/empty/
+    Permanently deletes ALL files currently in the user's trash.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        trashed_files = UserFile.objects.filter(user=request.user, is_deleted=True)
+        count = trashed_files.count()
+
+        if count == 0:
+            return Response({"message": "Trash is already empty."}, status=status.HTTP_200_OK)
+
+        # Physically delete files from storage and DB
+        for user_file in trashed_files:
+            if user_file.file:
+                user_file.file.delete(save=False) # Removes actual file from disk
+            user_file.delete() # Removes record from DB
+
+        return Response({
+            "message": f"Permanently deleted {count} files.",
+            "deleted_count": count
+        }, status=status.HTTP_200_OK)
