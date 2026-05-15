@@ -553,9 +553,54 @@
 /* =====================
    RESPONSIVE
 ===================== */
+/* Mobile Menu Toggle */
+.mobile-menu-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mobile Nav Links */
+.mobile-nav-links {
+  display: none;
+  flex-direction: column;
+  background: #09090b; /* Match header background */
+  position: absolute;
+  top: 72px; /* Header height */
+  left: 0;
+  right: 0;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 8px;
+  z-index: 1000;
+}
+
+.mobile-nav-links .nav-btn {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 12px;
+  font-size: 15px;
+}
+
 @media (max-width: 768px) {
   .nav-links {
     display: none;
+  }
+
+  .mobile-menu-btn {
+    display: flex;
+  }
+
+  .mobile-nav-links {
+    display: flex;
+  }
+
+  .user-details-text {
+    display: none !important;
   }
 
   .welcome-title {
@@ -1538,313 +1583,7 @@
 /* Sidebar Container */
 
 /* Container for the sidebar preview */
-.detail-preview-box {
-  width: 100%;
-  height: 200px;
-  background: #0d0d0f; /* Slightly darker than sidebar bg */
-  border: 1px solid #27272a;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 24px;
-  overflow: hidden;
-}
 
-/* Specific to images inside the sidebar */
-.sidebar-img-preview {
-  width: 100%;
-  height: 100%;
-  object-fit: contain; /* Shows entire image */
-  padding: 8px;
-}
-
-/* Force PDF embed to fill the container */
-.detail-preview-box embed {
-  border-radius: 8px;
-}
-
-/* Style for the Star icon to match screenshot */
-.star-icon {
-  color: #3f3f46; /* zinc-600 */
-  cursor: pointer;
-  transition: color 0.2s;
-  flex-shrink: 0;
-  margin-top: 4px;
-}
-
-.star-icon:hover {
-  color: #fbbf24; /* Amber-400 */
-}
-
-/* Sidebar action button specifically for Share */
-.sidebar-btn-share {
-  background: #e11d48 !important; /* Rose-600 */
-  color: white !important;
-  border: none !important;
-}
-
-.sidebar-btn-share:hover {
-  background: #be123c !important; /* Rose-700 */
-}
-.file-details-sidebar {
-  position: fixed;
-  top: 2px; /* Set this to the height of your CloudShare navbar */
-  right: 0;
-  width: 400px;
-  height: calc(100vh - 72px); /* Subtract navbar height */
-  background: #09090b;
-  border-left: 1px solid #27272a;
-  /* z-index: 1000; */
-  display: flex;
-  flex-direction: column;
-}
-
-.sidebar-header {
-  padding: 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-}
-
-.sidebar-label {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  color: #e11d48;
-  font-weight: 700;
-}
-
-.close-sidebar {
-  background: transparent;
-  border: none;
-  color: #71717a;
-  cursor: pointer;
-  transition: color 0.2s;
-}
-
-.close-sidebar:hover {
-  color: white;
-}
-
-.sidebar-content {
-  padding: 24px;
-  overflow-y: auto;
-}
-
-
-.detail-title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 30px;
-}
-
-.detail-filename {
-  font-size: 18px;
-  font-weight: 600;
-  color: white;
-  max-width: 85%;
-  line-height: 1.4;
-}
-
-.star-icon {
-  color: #3f3f46;
-  cursor: pointer;
-}
-
-.detail-info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  margin-bottom: 32px;
-}
-
-.info-group label {
-  display: block;
-  font-size: 10px;
-  text-transform: uppercase;
-  color: #e11d48;
-  font-weight: 700;
-  margin-bottom: 6px;
-}
-
-.info-group span {
-  font-size: 14px;
-  color: #f4f4f5;
-}
-
-/* Sidebar Action Buttons */
-.sidebar-actions-main {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-bottom: 40px;
-}
-
-.sidebar-actions-main button {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 8px;
-  border-radius: 10px;
-  border: 1px solid #27272a;
-  background: #18181b;
-  color: #a1a1aa;
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.sidebar-actions-main .sidebar-btn-share {
-  background: #e11d48;
-  color: white;
-  border-color: #e11d48;
-}
-
-.sidebar-actions-main button:hover {
-  border-color: #52525b;
-  color: white;
-}
-
-/* AI Insights Card */
-.ai-insights-card {
-  background: rgba(225, 29, 72, 0.03);
-  border: 1px solid rgba(225, 29, 72, 0.1);
-  border-radius: 12px;
-  padding: 16px;
-}
-
-.insights-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.insights-title {
-  color: #e11d48;
-  font-size: 12px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.insights-regen {
-  background: transparent;
-  border: none;
-  color: #71717a;
-  font-size: 10px;
-  cursor: pointer;
-}
-
-.insights-text {
-  font-size: 13px;
-  line-height: 1.6;
-  color: #a1a1aa;
-  margin-bottom: 12px;
-}
-
-.insight-tag {
-  display: inline-block;
-  padding: 4px 8px;
-  background: #27272a;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  color: white;
-}
-
-/* Animation for Sidebar */
-.fade-in-right {
-  animation: fadeInRight 0.3s ease-out;
-}
-
-@keyframes fadeInRight {
-  from { opacity: 0; transform: translateX(50px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-/* Highlighting the active row in the list */
-.active-row {
-  background-color: rgba(225, 29, 72, 0.05) !important;
-  border-left: 3px solid #e11d48 !important;
-}
-
-/* Adjust main content when sidebar is open on large screens */
-@media (min-width: 1400px) {
-  .details-active {
-    margin-right: 380px;
-    transition: margin-right 0.3s ease;
-  }
-}
-
-.sidebar-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6); /* Darkens the background */
-  backdrop-filter: blur(8px); /* The "Frosted Glass" effect */
-  -webkit-backdrop-filter: blur(8px);
-  z-index: 999; /* Higher than main content, lower than sidebar */
-  animation: fadeIn 0.2s ease-out;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* Ensure the sidebar stays above the blur */
-.file-details-sidebar {
-  z-index: 1000;
-  /* ... existing styles ... */
-}
-
-/* Ensure the sidebar starts AFTER the header */
-.file-details-sidebar {
-  position: fixed;
-  top: 72px; /* Height of your top CloudShare navbar */
-  right: 0;
-  width: 400px;
-  height: calc(100vh - 72px); 
-  background: #09090b;
-  border-left: 1px solid #27272a;
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
-}
-
-/* Fix the 'FILE DETAILS' label at the top */
-.sidebar-header {
-  padding: 24px; /* More padding for a premium look */
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #09090b;
-  position: sticky;
-  top: 0;
-}
-
-.sidebar-label {
-  font-size: 11px;
-  font-weight: 800;
-  color: #e11d48; /* Your theme Rose */
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-/* Ensure content doesn't hit the ceiling */
-.sidebar-content {
-  padding: 0 24px 24px 24px; /* Top padding is 0 because header provides it */
-  overflow-y: auto;
-}
 
 
 /* STAR ICON STYLING */

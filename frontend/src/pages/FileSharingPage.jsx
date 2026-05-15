@@ -13,7 +13,7 @@ export default function FileSharingPage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const pageSize = 12; 
+  const pageSize = 20; 
 
   const loadShares = async (page = 1) => {
     setLoading(true);

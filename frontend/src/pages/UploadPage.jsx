@@ -13,8 +13,9 @@ import {
 } from 'lucide-react';
 import '../styles/DashboardPage.css'; // Reusing your existing styles
 import { useNavigate } from 'react-router-dom'; // Add this import
+import {useDispatch} from 'react-redux';
 import axios from 'axios'; // Recommended for easy progress tracking
-import {uploadFilesApi} from '../store/fileApi'
+import { uploadFiles } from '../store/fileThunks'
 
 
 export default function UploadPage() {
@@ -48,39 +49,41 @@ export default function UploadPage() {
 
 
 // ... inside your UploadPage component
+const dispatch = useDispatch(); // Get the Redux dispatch function
 const navigate = useNavigate();
 
 const startUpload = async () => {
   if (filesInQueue.length === 0 || isUploadingGlobal) return;
+  
   setIsUploadingGlobal(true);
-
-  // 1. Mark all queued files as 'uploading'
-  setFilesInQueue(prev => prev.map(f => ({ ...f, status: 'uploading' })));
-
+  
   try {
-    // Extract the raw File objects from your state objects
     const rawFiles = filesInQueue.map(f => f.file);
     
-    // 2. Use your helper function
-    // Note: Since this sends ALL files in one request, we use one progress tracker
-    await uploadFilesApi(rawFiles, {
-      onUploadProgress: (progressEvent) => {
-        const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-        setFilesInQueue(prev => prev.map(f => ({ ...f, progress: percent })));
-      }
-    });
-
-    // 3. If successful, update state and redirect
-    setFilesInQueue(prev => prev.map(f => ({ ...f, status: 'completed', progress: 100 })));
+    // 1. Call the thunk
+const result = await dispatch(uploadFiles(rawFiles));
+console.log("Upload after Resussssslt:", result);
+if (result.success) {
+    // result.message is "Successfully uploaded X file(s)"
+    // result.skipped is the array of "already exists" strings
+    let alertMsg = result.message;
     
-    setTimeout(() => {
-      navigate('/files'); // Redirect to FileManager/Library view
-    }, 800);
+    if (result.skipped && result.skipped.length > 0) {
+        alertMsg += "\n\nNotice:\n" + result.skipped.join("\n");
+    }
 
+    alert(alertMsg); // This shows the backend messages perfectly
+    setFilesInQueue(prev => prev.map(f => ({ ...f, status: 'completed' })));
+    setTimeout(() => navigate('/files'), 1500);
+} else {
+    // This is where the "Folder cannot be uploaded" message will appear
+    // because it came from the 400 error caught by the Thunk
+    alert(result.error || "Upload failed.");
+    setIsUploadingGlobal(false);
+}
   } catch (error) {
-    // 4. If failed, show error icons and don't redirect
-    console.error("Upload failed:", error);
-    setFilesInQueue(prev => prev.map(f => ({ ...f, status: 'error' })));
+    // This catches unexpected code crashes
+    console.error("Critical Upload Error:", error);
     setIsUploadingGlobal(false);
   }
 };
@@ -198,7 +201,14 @@ const handleDrop = (e) => {
   onDrop={handleDrop}
   
 >
-  <input type="file" multiple hidden ref={fileInputRef} onChange={handleFileChange} />
+
+<input 
+  type="file" 
+  multiple 
+  hidden 
+  ref={fileInputRef} 
+  onChange={handleFileChange}
+/>
    <CloudUpload size={64} className="rose-text" style={{ opacity: 0.7 }} />
           <h2 style={{ fontSize: '24px', fontWeight: '600', marginTop: '20px', color: 'white' }}>Drag & drop your files</h2>
           <p style={{ color: '#71717a', marginTop: '8px', fontSize: '14px' }}>or click to browse</p>

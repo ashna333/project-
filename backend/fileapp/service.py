@@ -8,11 +8,11 @@ import json
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
-User= get_user_model()
 
+import hashlib
 from django.utils import timezone
 
-
+User= get_user_model()
 def register_user(data):
     user = User.objects.create_user(
         email=data.get("email"),
@@ -189,23 +189,41 @@ def get_user_storage_usage(user):
     return result["total"] or 0
 
 
-def upload_files(user, files):
-    """
-    Save a list of InMemoryUploadedFile objects for a user.
-    Returns list of created UserFile instances.
-    """
-    created = []
-    for f in files:
-        mime_type, _ = mimetypes.guess_type(f.name)
-        user_file = UserFile.objects.create(
+def calculate_file_hash(file_obj):
+    sha256_hash = hashlib.sha256()
+    for chunk in file_obj.chunks():
+        sha256_hash.update(chunk)
+    return sha256_hash.hexdigest()
+
+def upload_files(user, files, paths=None):
+    created_files = []
+    skipped_files = []
+
+    for file_obj in files:
+        # 1. Generate hash to check for duplicates
+        file_hash = calculate_file_hash(file_obj)
+        
+        # 2. Check if THIS user already has THIS exact file
+        exists = UserFile.objects.filter(user=user, file_hash=file_hash).exists()
+        
+        if exists:
+            skipped_files.append({
+                "name": file_obj.name,
+                "reason": "File already exists in your library"
+            })
+            continue
+
+        # 3. Create the file if not skipped
+        new_file = UserFile.objects.create(
             user=user,
-            file=f,
-            original_name=f.name,
-            file_size=f.size,
-            mime_type=mime_type or "application/octet-stream",
+            file=file_obj,
+            original_name=file_obj.name,
+            file_hash=file_hash, # Ensure you add this field to your Model!
+            file_size=file_obj.size
         )
-        created.append(user_file)
-    return created
+        created_files.append(new_file)
+        
+    return created_files, skipped_files
 
 
 def list_user_files(user, search=None):
@@ -281,6 +299,43 @@ def get_storage_summary(user):
         "remaining_bytes": MAX_STORAGE - used,
     }
 
+
+# service.py
+
+def toggle_file_star(user, file_id):
+    """
+    Toggles the is_starred status of a file.
+    Returns the file object if successful, None otherwise.
+    """
+    try:
+        user_file = UserFile.objects.get(id=file_id, user=user, is_deleted=False)
+        user_file.is_starred = not user_file.is_starred
+        user_file.save()
+        return user_file
+    except UserFile.DoesNotExist:
+        return None
+
+def restore_all_user_trash(user):
+    """
+    Restores all files from trash for a specific user.
+    """
+    trashed_files = UserFile.objects.filter(user=user, is_deleted=True)
+    count = trashed_files.count()
+    if count > 0:
+        trashed_files.update(is_deleted=False)
+    return count
+
+def empty_user_trash(user):
+    """
+    Permanently deletes all files in trash (Disk + DB).
+    """
+    trashed_files = UserFile.objects.filter(user=user, is_deleted=True)
+    count = trashed_files.count()
+    for user_file in trashed_files:
+        if user_file.file:
+            user_file.file.delete(save=False)
+        user_file.delete()
+    return count
 
 
 

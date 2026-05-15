@@ -55,7 +55,7 @@ class UserFile(models.Model):
     original_name = models.CharField(max_length=255)
     file_size = models.PositiveBigIntegerField()  # in bytes
     mime_type = models.CharField(max_length=100, blank=True)
-    file_hash = models.CharField(max_length=32, blank=True) 
+    file_hash = models.CharField(max_length=64, db_index=True, null=True, blank=True) 
     uploaded_at = models.DateTimeField(auto_now_add=True)
     is_deleted = models.BooleanField(default=False)      
     deleted_at = models.DateTimeField(null=True, blank=True)  
@@ -64,6 +64,7 @@ class UserFile(models.Model):
 
     class Meta:
         ordering = ["-uploaded_at"]
+        unique_together = ('user', 'file_hash')
 
     def __str__(self):
         return f"{self.user.email} — {self.original_name}"
@@ -92,6 +93,7 @@ class FileShare(models.Model):
         related_name="shares",
     )
     is_revoked = models.BooleanField(default=False)
+    is_accessed = models.BooleanField(default=False)
     recipient_email = models.EmailField()
     message = models.TextField()
 

@@ -1,3 +1,4 @@
+from datetime import timezone
 import token
 from .models import FileShare, UserFile
 from rest_framework.views import APIView
@@ -20,9 +21,13 @@ from .service import (
     login_with_google_code,
     change_user_password,
     send_password_reset_email,
-    reset_user_password
+    reset_user_password,
+    restore_all_user_trash,
+    empty_user_trash,
+    toggle_file_star,
 )
 from django.conf import settings
+from django.utils import timezone
 
 class RegisterView(APIView):
     def post(self, request):
@@ -173,32 +178,27 @@ class FilePagination(PageNumberPagination):
 
 
 class FileUploadView(APIView):
-    """
-    POST /api/files/upload/
-    Upload one or more files (multipart/form-data).
-    Field name: files (can repeat for multiple files)
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = FileUploadSerializer(
-            data={"files": request.FILES.getlist("files")},
-            context={"request": request},
-        )
-        if serializer.is_valid():
-            created, skipped = upload_files(request.user, serializer.validated_data["files"])  # 👈 unpack both
-            response_serializer = UserFileSerializer(
-                created, many=True, context={"request": request}
-            )
-            return Response(
-                {
-                    "message": f"{len(created)} file(s) uploaded successfully.",
-                    "skipped_duplicates": skipped,  # 👈 new
-                    "files": response_serializer.data,
-                },
-                status=status.HTTP_201_CREATED,
-            )
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer = FileUploadSerializer(data=request.data, context={'request': request})
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        files = request.FILES.getlist('files')
+        created, skipped = upload_files(request.user, files)
+
+        # We use a dynamic message based on the result
+        if len(created) > 0:
+            msg = f"Successfully uploaded {len(created)} file(s)."
+        else:
+            msg = "No new files were uploaded."
+
+        return Response({
+            "message": msg,
+            "skipped": skipped, # Use 'skipped' to keep it simple for the frontend
+            "created_count": len(created)
+        }, status=status.HTTP_201_CREATED)
 
 
 class FileListView(APIView):
@@ -314,30 +314,22 @@ class FileRenameView(APIView):
 
 
 class FileToggleStarView(APIView):
-    """
-    POST /api/files/<id>/star/
-    Toggle the starred status of a file.
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request, file_id):
-        try:
-            # We filter by request.user to ensure users can only star their own files
-            user_file = list_user_files(request.user).get(id=file_id)
-            user_file.is_starred = not user_file.is_starred
-            user_file.save()
-            
-            return Response({
-                "id": user_file.id,
-                "is_starred": user_file.is_starred,
-                "message": "File status updated."
-            }, status=status.HTTP_200_OK)
-        except Exception: # Matches your logic for "File not found"
+        user_file = toggle_file_star(request.user, file_id) # Call Service
+        if not user_file:
             return Response(
                 {"error": "File not found or permission denied."},
                 status=status.HTTP_404_NOT_FOUND
             )
         
+        return Response({
+            "id": user_file.id,
+            "is_starred": user_file.is_starred,
+            "message": "File status updated."
+        }, status=status.HTTP_200_OK)
+    
         
 class StorageSummaryView(APIView):
     """
@@ -463,14 +455,17 @@ class PublicShareDetailView(APIView):
 
             # Check if it was revoked or expired
             if share.is_revoked:
-                return Response({"error": "This link has been revoked."}, status=403)
-            
-            if share.is_expired: # Assuming you have an expiry check
-                return Response({"error": "This link has expired."}, status=410)
+                return Response({"error": "Link revoked"}, status=403)
+            if share.is_expired:
+                return Response({"error": "Link expired"}, status=410)
 
-            mark_share_accessed(share)
-            
-            # Use your PublicFileShareSerializer to send file info to the frontend
+
+            if not share.is_accessed:
+                share.is_accessed = True
+                share.accessed_at = timezone.now() # Good practice to track WHEN
+                share.save()
+
+            # 4. Return data to frontend
             serializer = PublicFileShareSerializer(share, context={"request": request})
             return Response(serializer.data, status=status.HTTP_200_OK)
             
@@ -480,6 +475,14 @@ class PublicShareDetailView(APIView):
 
 
 
+
+            # 3. TRIGGER STATUS CHANGE HERE
+            # This runs whether they clicked the email OR pasted the link.
+           
+            return Response(serializer.data)
+
+        except FileShare.DoesNotExist:
+            return Response({"error": "Invalid link"}, status=404)
         
 class PublicShareDownloadView(APIView):
     """
@@ -545,53 +548,21 @@ class FileShareDeleteView(APIView):
             )
         
 class TrashRestoreAllView(APIView):
-    """
-    POST /api/trash/restore-all/
-    Restores ALL files currently in the user's trash.
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        try:
-            trashed_files = UserFile.objects.filter(user=request.user, is_deleted=True)
-            count = trashed_files.count()
-            
-            if count == 0:
-                return Response({"message": "Trash is already empty."}, status=status.HTTP_200_OK)
-
-            trashed_files.update(is_deleted=False)
-            
-            return Response({
-                "message": f"Successfully restored {count} files.",
-                "restored_count": count
-            }, status=status.HTTP_200_OK)
-        except Exception as e:
-            # Check your terminal/console for this output!
-            print(f"!!! RESTORE ALL ERROR: {str(e)}") 
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+        count = restore_all_user_trash(request.user) # Call Service
+        return Response({
+            "message": f"Successfully restored {count} files.",
+            "restored_count": count
+        })
 
 class TrashDeleteAllPermanentView(APIView):
-    """
-    DELETE /api/trash/empty/
-    Permanently deletes ALL files currently in the user's trash.
-    """
     permission_classes = [IsAuthenticated]
 
     def delete(self, request):
-        trashed_files = UserFile.objects.filter(user=request.user, is_deleted=True)
-        count = trashed_files.count()
-
-        if count == 0:
-            return Response({"message": "Trash is already empty."}, status=status.HTTP_200_OK)
-
-        # Physically delete files from storage and DB
-        for user_file in trashed_files:
-            if user_file.file:
-                user_file.file.delete(save=False) # Removes actual file from disk
-            user_file.delete() # Removes record from DB
-
+        count = empty_user_trash(request.user) # Call Service
         return Response({
             "message": f"Permanently deleted {count} files.",
             "deleted_count": count
-        }, status=status.HTTP_200_OK)
+        })

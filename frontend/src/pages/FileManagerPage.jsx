@@ -389,118 +389,99 @@ const getReadableFileType = (file) => {
       </main>
 
       {/* --- FILE DETAILS SIDEBAR --- */}
-      {selectedFile && (
-        <div
-          className="sidebar-backdrop"
-          onClick={() => setSelectedFile(null)}
-        />
-      )}
+{/* --- FILE DETAILS MODAL --- */}
+{selectedFile && (
+  <div className="modal-overlay" onClick={() => setSelectedFile(null)}>
+    <div 
+      className="file-details-modal fade-in-up" 
+      onClick={(e) => e.stopPropagation()} /* Prevents closing when clicking inside */
+    >
+      {/* HEADER */}
+      <div className="modal-header-section">
+        <span className="sidebar-label">File Details</span>
+        <button className="close-sidebar" onClick={() => setSelectedFile(null)}>
+          <X size={24} />
+        </button>
+      </div>
 
-      {/* --- FILE DETAILS SIDEBAR --- */}
-      {selectedFile && (
-        <aside className="file-details-sidebar fade-in-right">
-          <div className="sidebar-header">
-            <span className="sidebar-label">File Details</span>
-            <button className="close-sidebar" onClick={() => setSelectedFile(null)}>
-              <X size={20} />
-            </button>
+      <div className="modal-body-content">
+        {/* PREVIEW AREA */}
+        <div className="modal-preview-box">
+          {(() => {
+            const extension = selectedFile.original_name?.split(".").pop()?.toLowerCase();
+            const isImage = ["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp"].includes(extension);
+            const isPDF = extension === "pdf";
+
+            if (isImage) return <img src={selectedFile?.url} alt="Preview" className="modal-img-preview" />;
+            if (isPDF) return <embed src={selectedFile?.url} type="application/pdf" width="100%" height="100%" />;
+            return <div className="modal-icon-placeholder">{getFileIcon(selectedFile)}</div>;
+          })()}
+        </div>
+
+        {/* TITLE & STAR */}
+        <div className="detail-title-row">
+          <h2 className="detail-filename">{selectedFile.original_name}</h2>
+          <Star 
+            size={22} 
+            className={`star-icon ${selectedFile.is_starred ? 'is-active' : ''}`} 
+            onClick={() => handleToggleStar(selectedFile)}
+            fill={selectedFile.is_starred ? "#fbbf24" : "none"} 
+            color={selectedFile.is_starred ? "#fbbf24" : "#71717a"} 
+            style={{ cursor: 'pointer' }}
+          />
+        </div>
+
+        {/* INFO GRID (Reusing your existing grid CSS) */}
+        <div className="detail-info-grid">
+          <div className="info-group">
+            <label>Size</label>
+            <span>{formatFileSize(selectedFile.file_size)}</span>
           </div>
-
-          <div className="sidebar-content">
-            {/* PREVIEW AREA */}
-            <div className="detail-preview-box">
-              {(() => {
-                const extension = selectedFile.original_name?.split(".").pop()?.toLowerCase();
-                const isImage = ["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp"].includes(extension);
-                const isPDF = extension === "pdf";
-                
-
-
-                if (isImage) {
-                  return <img src={selectedFile?.url} alt="Preview" className="sidebar-img-preview" />;
-                }
-                if (isPDF) {
-                  return (
-                    <embed
-                      src={`${selectedFile?.url}`}
-                      type="application/pdf"
-                      width="100%"
-                      height="100%"
-                    />
-                  );
-                }
-                return getFileIcon(selectedFile);
-              })()}
-            </div>
-
-            <div className="detail-title-row">
-              <h2 className="detail-filename">{selectedFile.original_name}</h2>
-              <Star 
-                  size={20} 
-                  className={`star-icon ${selectedFile.is_starred ? 'is-active' : ''}`} 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggleStar(selectedFile);
-                  }}
-
-                  // 3. Conditional Fill (The actual "Color" change)
-                  fill={selectedFile.is_starred ? "#fbbf24" : "none"} 
-                  color={selectedFile.is_starred ? "#fbbf24" : "#71717a"} 
-                  
-                  style={{ 
-                    cursor: 'pointer',
-                    transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' 
-                  }}
-                />
-            </div>
-
-            <div className="detail-info-grid">
-              <div className="info-group">
-                <label>Size</label>
-                <span>{formatFileSize(selectedFile.file_size)}</span>
-              </div>
-              <div className="info-group">
-                <label>Type</label>
-                <span>{getReadableFileType(selectedFile)}</span>
-              </div>
-              <div className="info-group">
-                <label>Uploaded</label>
-                <span>
-                  {new Date(selectedFile.uploaded_at).toLocaleDateString('en-GB', {
-                    day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                  })}
-                </span>
-              </div>
-            </div>
-
-            <div className="sidebar-actions-main">
-              <button className="sidebar-btn-download" onClick={() => dispatch(downloadFile(selectedFile.id, selectedFile.original_name))}>
-                <Download size={18} /> Download
-              </button>
-              <button className="sidebar-btn-share" onClick={() => { setActiveFile(selectedFile); setIsModalOpen(true); }}>
-                <Share2 size={18} /> Share
-              </button>
-              <button className="sidebar-btn-delete" onClick={() => handleDeleteTrigger(selectedFile)}>
-                <Trash2 size={18} /> Delete
-              </button>
-            </div>
-
-            <div className="ai-insights-card">
-              <div className="insights-header">
-                <div className="insights-title"><Zap size={14} /> AI Insights</div>
-                <button className="insights-regen">Regenerate</button>
-              </div>
-              <p className="insights-text">
-                A {selectedFile.file_type || 'document'} named '{selectedFile.original_name}'.
-                {selectedFile.file_size > 1000000 ? " This is a large file." : " Optimized for quick sharing."}
-              </p>
-              <div className="insight-tag">
-                {selectedFile.original_name?.split(".").pop()?.toUpperCase() || "FILE"}
-              </div>
-            </div>
+          <div className="info-group">
+            <label>Type</label>
+            <span>{getReadableFileType(selectedFile)}</span>
           </div>
-        </aside>
-      )}
+          <div className="info-group">
+            <label>Uploaded</label>
+            <span>
+              {new Date(selectedFile.uploaded_at).toLocaleDateString('en-GB', {
+                day: 'numeric', month: 'long', year: 'numeric'
+              })}
+            </span>
+          </div>
+        </div>
+
+        {/* ACTIONS (Reusing your existing actions CSS) */}
+        <div className="sidebar-actions-main">
+          <button onClick={() => {dispatch(downloadFile(selectedFile.id, selectedFile.original_name)); setSelectedFile(null);}}>
+            <Download size={18} /> Download
+          </button>
+          <button className="sidebar-btn-share" onClick={() => { setActiveFile(selectedFile); setIsModalOpen(true); setSelectedFile(null); }}>
+            <Share2 size={18} /> Share
+          </button>
+          <button onClick={() => handleDeleteTrigger(selectedFile)}>
+            <Trash2 size={18} /> Delete
+          </button>
+        </div>
+
+        {/* AI INSIGHTS (Reusing your existing insights CSS) */}
+        <div className="ai-insights-card">
+          <div className="insights-header">
+            <div className="insights-title"><Zap size={14} /> AI Insights</div>
+            <button className="insights-regen">Regenerate</button>
+          </div>
+          <p className="insights-text">
+            A {selectedFile.file_type || 'document'} named '{selectedFile.original_name}'.
+            {selectedFile.file_size > 1000000 ? " This is a large file." : " Optimized for quick sharing."}
+          </p>
+          <div className="insight-tag">
+            {selectedFile.original_name?.split(".").pop()?.toUpperCase() || "FILE"}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Modals */}
       <ShareModal file={activeFile} isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setActiveFile(null); }} onRefresh={() => dispatch(fetchFiles(pagination.currentPage, pagination.pageSize, searchQuery))} />

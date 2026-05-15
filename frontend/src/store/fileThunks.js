@@ -39,25 +39,36 @@ export const fetchFiles = (page = 1, pageSize = 12, search = '', filters = {}) =
     dispatch(fetchFilesFailure('Failed to fetch files.'))
   }
 }
-export const uploadFiles = (files) => async (dispatch) => {
-  dispatch(uploadStart())
+// yourActions.js
+export const uploadFiles = (files, options = {}) => async (dispatch) => {
+  dispatch(uploadStart());
   try {
-    const { data } = await uploadFilesApi(files)
-    dispatch(uploadSuccess({ message: data.message }))
-    // Refresh file list after upload
-    dispatch(fetchFiles())
-    return { success: true, skipped: data.skipped_duplicates || [] }
-  } catch (err) {
-    const errors = err.response?.data
-    let message = 'Upload failed.'
+    // Pass the options (containing the progress listener) to the API
+    const { data } = await uploadFilesApi(files, options); 
+    console.log("Data:", data.message);
+    dispatch(uploadSuccess({ message: data.message }));
+    dispatch(fetchFiles());
+    return { 
+        success: true, 
+        message: data.message,
+        skipped: data.skipped_duplicates || [],
+        createdCount: data.created_count
+      };
+ } catch (err) {
+    const errors = err.response?.data;
+    let message = 'Upload failed.';
+    
     if (errors) {
-      const msgs = Object.values(errors).flat().join(' ')
-      if (msgs) message = msgs
+      // If Django returns {"files": ["error message"]}, this flattens it
+      message = Object.values(errors).flat().join(' ');
     }
-    dispatch(uploadFailure(message))
-    return { success: false }
-  }
+    
+    dispatch(uploadFailure(message));
+    // Return the message so the component can use it
+    return { success: false, error: message }; 
 }
+};
+
 
 export const deleteFile = (fileId) => async (dispatch) => {
   try {

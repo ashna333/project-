@@ -201,7 +201,18 @@ X_FRAME_OPTIONS = 'ALLOWALL'
 # settings.py
 CELERY_BEAT_SCHEDULE = {
     'clear_trash_daily': {
-        'task': 'fileapp.tasks.purge_expired_trash',
+        'task': 'fileapp.tasks.purge_expired_records',
         'schedule': 86400.0, # Every 24 hours (in seconds)
     },
 }
+
+
+DATA_UPLOAD_MAX_NUMBER_FILES = 1000
+
+# Celery Settings
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC' # Or your local timezone

@@ -20,14 +20,23 @@ export const fetchFilesApi = (page = 1, pageSize = 12, search = '', filters = {}
     },
   })
 
-export const uploadFilesApi = (files) => {
-  const formData = new FormData()
-  files.forEach(f => formData.append('files', f))
-  return api.post(`${API_BASE}/upload/`, formData, {
-    headers: { ...authHeaders(), 'Content-Type': 'multipart/form-data' },
-  })
-}
 
+
+// fileApi.js
+export const uploadFilesApi = async (files, options = {}) => { // Default to empty object
+  const formData = new FormData();
+  files.forEach((file) => {
+    formData.append('files', file); 
+  });
+
+  return api.post('/upload/', formData, {
+    // Only attach listener if it exists
+    ...(options?.onUploadProgress && { onUploadProgress: options.onUploadProgress }),
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+};
   
 export const deleteFileApi = (fileId) =>
    api.delete(`/${fileId}/delete/`)

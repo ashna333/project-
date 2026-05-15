@@ -28,10 +28,15 @@ export default function PublicSharePage() {
         const response = await fetchPublicShareApi(token);
         setFileData(response.data);
       } catch (err) {
-        const status = err?.response?.status;
-        if (status === 404) setError("This share link does not exist.");
-        else if (status === 410) setError("This share link has expired.");
-        else setError("Could not load share.");
+        // 1. Try to get the specific error message from the backend
+        // 2. Fall back to a generic message if the backend didn't provide one
+        const backendError = err?.response?.data?.error || err?.response?.data?.detail;
+        
+        if (backendError) {
+          setError(backendError);
+        } else {
+          setError("An unexpected error occurred while loading the share.");
+        }
       }
     };
     getFileData();
@@ -70,8 +75,8 @@ export default function PublicSharePage() {
         {error ? (
           <div className="public-card error-card">
             <AlertCircle size={56} className="icon-rose mb-4" />
-            <h1 className="card-title">Unable to access</h1>
-            <p className="card-sub">{error}</p>
+            <h1 className="card-title">{error}</h1>
+           
           </div>
         ) : !fileData ? (
           <div className="public-card loading-card">Loading...</div>

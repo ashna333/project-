@@ -181,40 +181,20 @@ class UserFileSerializer(serializers.ModelSerializer):
 
 
 class FileUploadSerializer(serializers.Serializer):
-    """Write serializer — used for uploading files."""
-    files = serializers.ListField(
-        child=serializers.FileField(),
-        allow_empty=False,
-    )
+    files = serializers.ListField(child=serializers.FileField())
 
-    def validate_files(self, files):
-        for f in files:
+    def validate_files(self, value):
+        for f in value:
+            # 1. Size Check
             if f.size > MAX_FILE_SIZE:
+                raise serializers.ValidationError(f"{f.name} is too large.")
+            
+            # 2. Folder Check (Directories usually have 0 size in these uploads)
+            if f.size == 0:
                 raise serializers.ValidationError(
-                    f"'{f.name}' exceeds the 100 MB per-file limit "
-                    f"(size: {f.size / (1024*1024):.1f} MB)."
+                    f"'{f.name}' appears to be a folder. Please upload files only."
                 )
-        return files
-
-    def validate(self, attrs):
-        """Check that total upload won't exceed 1 GB storage quota."""
-        request = self.context.get("request")
-        user = request.user
-
-        from django.db.models import Sum
-        current_usage = (
-            UserFile.objects.filter(user=user)
-            .aggregate(total=Sum("file_size"))["total"] or 0
-        )
-        incoming_size = sum(f.size for f in attrs["files"])
-
-        if current_usage + incoming_size > MAX_STORAGE_PER_USER:
-            used_gb = current_usage / (1024 ** 3)
-            raise serializers.ValidationError(
-                f"Upload would exceed your 1 GB storage limit. "
-                f"Currently using {used_gb:.2f} GB."
-            )
-        return attrs
+        return value
     
 class FileRenameSerializer(serializers.Serializer):
     new_name = serializers.CharField(max_length=255, trim_whitespace=True)

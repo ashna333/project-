@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { CloudUpload, Files, Share2, LogOut, Layers, KeyRound, Trash2 ,Star,User, Settings, ChevronDown} from 'lucide-react';
+import { CloudUpload, Files, Share2, LogOut, Layers, KeyRound, Trash2 ,Star,User, Settings, ChevronDown, Menu, X } from 'lucide-react';
 import '../styles/DashboardPage.css';
 import { useEffect, useRef, useState } from 'react';
 
@@ -13,6 +13,7 @@ export default function AppShell() {
   
   const rawUser = JSON.parse(localStorage.getItem('auth_user')) || {};
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const menuRef = React.useRef(null);
   const cleanName = (name) => {
     if (!name) return 'User';
@@ -72,6 +73,14 @@ export default function AppShell() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             
+            {/* Mobile Menu Toggle */}
+            <button 
+              className="mobile-menu-btn" 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              {isMobileMenuOpen ? <X size={24} color="white" /> : <Menu size={24} color="white" />}
+            </button>
+
             <div className="user-dropdown-container" ref={menuRef}>
                 {/* Trigger */}
                 <div 
@@ -79,7 +88,7 @@ export default function AppShell() {
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                 >
                   
-                  <div style={{ textAlign: 'right' }}>
+                  <div style={{ textAlign: 'right' }} className="user-details-text">
               <div style={{ fontSize: '14px', fontWeight: '500', color: 'white' }}>
                 {firstName} {lastName}
               </div>
@@ -111,6 +120,30 @@ export default function AppShell() {
             </div>
           </div>
         </div>
+        
+        {/* Mobile Navigation Menu */}
+        {isMobileMenuOpen && (
+          <nav className="mobile-nav-links fade-in">
+            <button className={`nav-btn ${isActive('/dashboard')}`} onClick={() => { navigate('/dashboard'); setIsMobileMenuOpen(false); }}>
+              <Layers size={18} /> Dashboard
+            </button>
+            <button className={`nav-btn ${isActive('/files')}`} onClick={() => { navigate('/files'); setIsMobileMenuOpen(false); }}>
+              <Files size={18} /> My Files
+            </button>
+            <button className={`nav-btn ${isActive('/upload')}`} onClick={() => { navigate('/upload'); setIsMobileMenuOpen(false); }}>
+              <CloudUpload size={18} /> Upload
+            </button>
+            <button className={`nav-btn ${isActive('/shared')}`} onClick={() => { navigate('/shared'); setIsMobileMenuOpen(false); }}>
+              <Share2 size={18} /> Shared
+            </button>
+            <button className={`nav-btn ${isActive('/starred')}`} onClick={() => { navigate('/starred'); setIsMobileMenuOpen(false); }}>
+              <Star size={18} /> Starred
+            </button>
+            <button className={`nav-btn ${isActive('/trash')}`} onClick={() => { navigate('/trash'); setIsMobileMenuOpen(false); }}>
+              <Trash2 size={18} /> Trash
+            </button>
+          </nav>
+        )}
       </header>
 
       <main className="shell-content">

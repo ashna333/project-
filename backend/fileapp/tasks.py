@@ -1,28 +1,33 @@
 # your_app_name/tasks.py
 from celery import shared_task
-from django.utils import timezone
-from datetime import timedelta
-from .models import UserFile
+@shared_task(name='fileapp.tasks.purge_expired_records')
+def purge_expired_records():
+    # Import what we need inside the task to avoid circular imports
+    from django.db.models import Q
+    from django.utils import timezone
+    from datetime import timedelta
+    from .models import FileShare, UserFile
 
-@shared_task
-def purge_expired_trash():
-    """
-    Finds files marked as deleted more than 30 days ago 
-    and removes them from the DB and the physical storage.
-    """
-    # Calculate 30 days ago
-    cutoff_date = timezone.now() - timedelta(minutes=2)
+    now = timezone.now()
     
-    # Filter files: must be in trash AND deleted_at must be older than 30 days
-    expired_files = UserFile.objects.filter(
-        is_deleted=True, 
-        deleted_at__lte=cutoff_date
-    )
+    # 1. Purge FileShare records
+    # Logic: Delete if (it is expired) OR (it is revoked)
+    # We use a 1-minute grace period for testing so you can see it happen
+    link_cutoff = now - timedelta(days=7) 
     
-    count = expired_files.count()
+    deleted_links, _ = FileShare.objects.filter(
+        Q(expires_at__lte=now) | Q(is_revoked=True),
+        created_at__lte=link_cutoff
+    ).delete()
+
+    # 2. Purge trashed files (older than 30 days for testing)
+    file_cutoff = now - timedelta(days=30)
+    expired_files = UserFile.objects.filter(is_deleted=True, deleted_at__lte=file_cutoff)
     
-    for user_file in expired_files:
-        # This calls your model's delete() which handles os.remove()
-        user_file.delete() 
-        
-    return f"Purged {count} expired files from trash."
+    file_count = expired_files.count()
+    for f in expired_files:
+        # We loop and call delete() so that if you have custom logic 
+        # (like deleting the actual file from disk), it runs.
+        f.delete() 
+
+    return f"Purged {deleted_links} shares and {file_count} files."
