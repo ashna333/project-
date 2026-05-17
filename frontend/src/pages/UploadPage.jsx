@@ -15,7 +15,8 @@ import '../styles/DashboardPage.css'; // Reusing your existing styles
 import { useNavigate } from 'react-router-dom'; // Add this import
 import {useDispatch} from 'react-redux';
 import axios from 'axios'; // Recommended for easy progress tracking
-import { uploadFiles } from '../store/fileThunks'
+import { uploadFiles, checkUploadConflicts } from '../store/fileThunks';
+import DuplicateFileDialog from '../components/DuplicateFileDialog';
 
 
 export default function UploadPage() {
@@ -24,6 +25,7 @@ export default function UploadPage() {
   const [isUploadingGlobal, setIsUploadingGlobal] = useState(false);
   const fileInputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
+  const [conflicts, setConflicts] = useState(null);
 
   const formatSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
@@ -52,41 +54,48 @@ export default function UploadPage() {
 const dispatch = useDispatch(); // Get the Redux dispatch function
 const navigate = useNavigate();
 
-const startUpload = async () => {
-  if (filesInQueue.length === 0 || isUploadingGlobal) return;
-  
-  setIsUploadingGlobal(true);
-  
-  try {
-    const rawFiles = filesInQueue.map(f => f.file);
-    
-    // 1. Call the thunk
-const result = await dispatch(uploadFiles(rawFiles));
-console.log("Upload after Resussssslt:", result);
-if (result.success) {
-    // result.message is "Successfully uploaded X file(s)"
-    // result.skipped is the array of "already exists" strings
-    let alertMsg = result.message;
-    
-    if (result.skipped && result.skipped.length > 0) {
-        alertMsg += "\n\nNotice:\n" + result.skipped.join("\n");
+  const performUpload = async (rawFiles, resolutions = null) => {
+    setIsUploadingGlobal(true);
+    try {
+      const result = await dispatch(uploadFiles(rawFiles, resolutions ? { resolutions } : {}));
+      if (result.success) {
+        let alertMsg = result.message;
+        if (result.skipped?.length > 0) {
+          const skippedNames = result.skipped.map((s) =>
+            typeof s === 'string' ? s : `${s.name} (${s.reason || 'skipped'})`
+          );
+          alertMsg += '\n\nSkipped:\n' + skippedNames.join('\n');
+        }
+        alert(alertMsg);
+        setFilesInQueue((prev) => prev.map((f) => ({ ...f, status: 'completed' })));
+        setTimeout(() => navigate('/files'), 1500);
+      } else {
+        alert(result.error || 'Upload failed.');
+        setIsUploadingGlobal(false);
+      }
+    } catch (error) {
+      console.error('Critical Upload Error:', error);
+      setIsUploadingGlobal(false);
     }
+  };
 
-    alert(alertMsg); // This shows the backend messages perfectly
-    setFilesInQueue(prev => prev.map(f => ({ ...f, status: 'completed' })));
-    setTimeout(() => navigate('/files'), 1500);
-} else {
-    // This is where the "Folder cannot be uploaded" message will appear
-    // because it came from the 400 error caught by the Thunk
-    alert(result.error || "Upload failed.");
-    setIsUploadingGlobal(false);
-}
-  } catch (error) {
-    // This catches unexpected code crashes
-    console.error("Critical Upload Error:", error);
-    setIsUploadingGlobal(false);
-  }
-};
+  const startUpload = async () => {
+    if (filesInQueue.length === 0 || isUploadingGlobal) return;
+    const rawFiles = filesInQueue.map((f) => f.file);
+
+    const check = await dispatch(checkUploadConflicts(rawFiles));
+    if (check.success && check.has_conflicts && check.conflicts?.length > 0) {
+      setConflicts(check.conflicts);
+      return;
+    }
+    await performUpload(rawFiles);
+  };
+
+  const handleDuplicateConfirm = async (resolutions) => {
+    setConflicts(null);
+    const rawFiles = filesInQueue.map((f) => f.file);
+    await performUpload(rawFiles, resolutions);
+  };
 
   // Turn off global upload state when all files finish
   useEffect(() => {
@@ -241,6 +250,14 @@ const handleDrop = (e) => {
 
         <footer className="footer-text">CloudShare - Secure file sharing, built for teams.</footer>
       </main>
+
+      {conflicts && (
+        <DuplicateFileDialog
+          conflicts={conflicts}
+          onConfirm={handleDuplicateConfirm}
+          onCancel={() => { setConflicts(null); setIsUploadingGlobal(false); }}
+        />
+      )}
     </div>
   );
 }

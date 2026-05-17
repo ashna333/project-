@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { CloudUpload, Files, Share2, LogOut, Layers, KeyRound, Trash2 ,Star,User, Settings, ChevronDown, Menu, X } from 'lucide-react';
+import { CloudUpload, Files, Share2, LogOut, Layers, Trash2, Star, User, ChevronDown, Menu, X, Inbox, Shield } from 'lucide-react';
 import '../styles/DashboardPage.css';
 import { useEffect, useRef, useState } from 'react';
 
@@ -61,7 +61,13 @@ export default function AppShell() {
               <CloudUpload size={18} /> Upload
             </button>
             <button className={`nav-btn ${isActive('/shared')}`} onClick={() => navigate('/shared')}>
-              <Share2 size={18} /> Shared
+              <Share2 size={18} /> Public
+            </button>
+            <button className={`nav-btn ${isActive('/private-shares/inbox')}`} onClick={() => navigate('/private-shares/inbox')}>
+              <Inbox size={18} /> Shared With Me
+            </button>
+            <button className={`nav-btn ${isActive('/private-shares/owned')}`} onClick={() => navigate('/private-shares/owned')}>
+              <Shield size={18} /> Shared By Me
             </button>
             <button className={`nav-btn ${isActive('/starred')}`} onClick={() => navigate('/starred')}>
               <Star size={18} /> Starred
@@ -134,7 +140,13 @@ export default function AppShell() {
               <CloudUpload size={18} /> Upload
             </button>
             <button className={`nav-btn ${isActive('/shared')}`} onClick={() => { navigate('/shared'); setIsMobileMenuOpen(false); }}>
-              <Share2 size={18} /> Shared
+              <Share2 size={18} /> Public
+            </button>
+            <button className={`nav-btn ${isActive('/private-shares/inbox')}`} onClick={() => { navigate('/private-shares/inbox'); setIsMobileMenuOpen(false); }}>
+              <Inbox size={18} /> Shared With Me
+            </button>
+            <button className={`nav-btn ${isActive('/private-shares/owned')}`} onClick={() => { navigate('/private-shares/owned'); setIsMobileMenuOpen(false); }}>
+              <Shield size={18} /> Shared By Me
             </button>
             <button className={`nav-btn ${isActive('/starred')}`} onClick={() => { navigate('/starred'); setIsMobileMenuOpen(false); }}>
               <Star size={18} /> Starred

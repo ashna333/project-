@@ -51,17 +51,20 @@ const useAuthStore = create((set) => ({
       const errors = err.response?.data
       let message = 'Registration failed. Please try again.'
       if (errors) {
-        // Format Django serializer errors (field: [msg, ...])
-        const msgs = Object.entries(errors)
-          .map(([field, val]) => {
-            const label = field === 'non_field_errors' ? '' : `${field}: `
-            return label + (Array.isArray(val) ? val.join(', ') : val)
-          })
-          .join(' | ')
-        if (msgs) message = msgs
+        if (errors.email) {
+          message = Array.isArray(errors.email) ? errors.email[0] : errors.email
+        } else {
+          const msgs = Object.entries(errors)
+            .map(([field, val]) => {
+              const label = field === 'non_field_errors' ? '' : `${field.replace(/_/g, ' ')}: `
+              return label + (Array.isArray(val) ? val.join(', ') : val)
+            })
+            .join(' | ')
+          if (msgs) message = msgs
+        }
       }
       set({ loading: false, error: message })
-      return { success: false }
+      return { success: false, error: message }
     }
   },
 

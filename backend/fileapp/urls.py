@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import( RegisterView, LoginView, 
                    ChangePasswordView,ForgotPasswordView,
-                   ResetPasswordView, FileUploadView,
+                   ResetPasswordView, FileUploadView, UploadCheckView,
                     FileListView,
                     FileDeleteView,
                     FileDownloadView,
@@ -20,6 +20,21 @@ from .views import( RegisterView, LoginView,
                     PublicShareDetailView,
                     PublicShareDownloadView,
                     FileShareDeleteView)
+from .private_share_views import (
+    PrivateShareCreateView,
+    PrivateShareOwnerListView,
+    PrivateShareInboxView,
+    PrivateShareDetailView,
+    PrivateShareDownloadView,
+    PrivateShareRevokeView,
+    PrivateShareRecipientRevokeView,
+    PrivateShareTransferView,
+    PrivateShareCommentsView,
+    PrivateShareAuditView,
+    PrivateShareAnalyticsView,
+    PrivateShareVersionView,
+    UserLookupView,
+)
 
 urlpatterns = [
     # REGISTER
@@ -35,6 +50,7 @@ urlpatterns = [
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
     path('forgot-password/', ForgotPasswordView.as_view()),
     path('reset-password/', ResetPasswordView.as_view()),
+    path("upload/check/", UploadCheckView.as_view(), name="upload-check"),
     path("upload/", FileUploadView.as_view(), name="file-upload"),
     path("", FileListView.as_view(), name="file-list"),
 
@@ -62,5 +78,20 @@ urlpatterns = [
     path("public/shares/<str:token>/", PublicShareDetailView.as_view(), name="public-share-detail"),
     path("public/shares/<str:token>/download/", PublicShareDownloadView.as_view(), name="public-share-download"),
     path("shares/<int:share_id>/delete/", FileShareDeleteView.as_view()),
+
+    # Private file sharing
+    path("private-shares/", PrivateShareCreateView.as_view(), name="private-share-create"),
+    path("private-shares/owned/", PrivateShareOwnerListView.as_view(), name="private-share-owned"),
+    path("private-shares/inbox/", PrivateShareInboxView.as_view(), name="private-share-inbox"),
+    path("private-shares/lookup/", UserLookupView.as_view(), name="private-share-lookup"),
+    path("private-shares/<int:share_id>/", PrivateShareDetailView.as_view(), name="private-share-detail"),
+    path("private-shares/<int:share_id>/download/", PrivateShareDownloadView.as_view(), name="private-share-download"),
+    path("private-shares/<int:share_id>/revoke/", PrivateShareRevokeView.as_view(), name="private-share-revoke"),
+    path("private-shares/<int:share_id>/recipients/<int:recipient_id>/revoke/", PrivateShareRecipientRevokeView.as_view()),
+    path("private-shares/<int:share_id>/comments/", PrivateShareCommentsView.as_view()),
+    path("private-shares/<int:share_id>/audit/", PrivateShareAuditView.as_view()),
+    path("private-shares/<int:share_id>/analytics/", PrivateShareAnalyticsView.as_view()),
+    path("files/<int:file_id>/transfer/", PrivateShareTransferView.as_view()),
+    path("files/<int:file_id>/version/", PrivateShareVersionView.as_view()),
 ]
 

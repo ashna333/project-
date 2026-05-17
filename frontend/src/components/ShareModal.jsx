@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Share2, X, Loader2, UserPlus } from 'lucide-react';
+import { Share2, X, Loader2, UserPlus, Shield, Link } from 'lucide-react';
 import { createShareApi } from '../store/fileApi';
+import PrivateShareModal from './PrivateShareModal';
 import '../styles/ShareModal.css';
 
 export default function ShareModal({ file, isOpen, onClose, onRefresh }) {
+  const [mode, setMode] = useState('public'); // public | private
   const [emails, setEmails] = useState([]); // Array of chips
   const [inputValue, setInputValue] = useState(''); // Current typing text
   const [formData, setFormData] = useState({
@@ -14,6 +16,17 @@ export default function ShareModal({ file, isOpen, onClose, onRefresh }) {
   const [error, setError] = useState('');
 
   if (!isOpen) return null;
+
+  if (mode === 'private') {
+    return (
+      <PrivateShareModal
+        file={file}
+        isOpen={isOpen}
+        onClose={() => { setMode('public'); onClose(); }}
+        onSuccess={onRefresh}
+      />
+    );
+  }
 
   // --- Chip Logic ---
   const handleKeyDown = (e) => {
@@ -93,6 +106,14 @@ export default function ShareModal({ file, isOpen, onClose, onRefresh }) {
           <button className="close-x-btn" onClick={handleClose}><X size={20} /></button>
         </div>
         
+        <div className="share-mode-tabs">
+          <button type="button" className="share-mode-tab active" disabled>
+            <Link size={14} /> Public link
+          </button>
+          <button type="button" className="share-mode-tab" onClick={() => setMode('private')}>
+            <Shield size={14} /> Private share
+          </button>
+        </div>
         <p className="modal-subtitle">Sharing: <strong>{file?.original_name}</strong></p>
 
         {error && <div className="modal-error-alert">{error}</div>}

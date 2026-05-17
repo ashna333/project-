@@ -72,10 +72,12 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
     def validate_email(self, value):
-     value = value.lower().strip()   # USER@EMAIL.COM → user@email.com
-     if User.objects.filter(email=value).exists():
-        raise serializers.ValidationError("Email already exists")
-     return value
+        value = value.lower().strip()
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError(
+                "An account with this email already exists. Please sign in instead."
+            )
+        return value
     
     def validate_password(self,value):
          return validate_password_strength(value)
@@ -90,7 +92,10 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         data = validated_data.copy()
         data.pop('confirm_password')
-        return register_user(data)
+        try:
+            return register_user(data)
+        except ValueError as exc:
+            raise serializers.ValidationError({"email": [str(exc)]}) from exc
            
     
     
@@ -277,3 +282,125 @@ class PublicFileShareSerializer(serializers.ModelSerializer):
                 f"/api/public/shares/{obj.token}/download/"
             )
         return f"/api/public/shares/{obj.token}/download/"
+
+
+# ─── Private sharing serializers ─────────────────────────────────────────────
+
+from .models import PrivateShare, PrivateShareRecipient, ShareComment, ShareAccessLog
+
+
+class PrivateShareCreateSerializer(serializers.Serializer):
+    file_id = serializers.IntegerField(min_value=1)
+    recipient_emails = serializers.ListField(child=serializers.EmailField(), min_length=1)
+    recipient_permissions = serializers.DictField(required=False, default=dict)
+    message = serializers.CharField(allow_blank=True, default="")
+    expires_at = serializers.DateTimeField(required=False, allow_null=True)
+    password = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    one_time_access = serializers.BooleanField(default=False)
+    max_downloads = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+    inactivity_revoke_days = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+    time_windows = serializers.ListField(required=False, default=list)
+
+
+class PrivateShareRecipientSerializer(serializers.ModelSerializer):
+    recipient_email = serializers.EmailField(source="recipient.email", read_only=True)
+    recipient_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PrivateShareRecipient
+        fields = [
+            "id", "recipient_email", "recipient_name",
+            "can_view", "can_download", "can_reshare", "can_comment",
+            "download_count", "view_count", "last_accessed_at",
+            "is_revoked", "individual_expires_at",
+        ]
+
+    def get_recipient_name(self, obj):
+        return f"{obj.recipient.first_name} {obj.recipient.last_name}".strip()
+
+
+class PrivateShareOwnerSerializer(serializers.ModelSerializer):
+    file_name = serializers.CharField(source="user_file.original_name", read_only=True)
+    file_id = serializers.IntegerField(source="user_file.id", read_only=True)
+    recipients = PrivateShareRecipientSerializer(many=True, read_only=True)
+    is_expired = serializers.SerializerMethodField()
+    analytics = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PrivateShare
+        fields = [
+            "id", "file_id", "file_name", "message", "token",
+            "expires_at", "one_time_access", "max_downloads", "download_count",
+            "inactivity_revoke_days", "time_windows", "is_revoked", "revoked_at",
+            "is_expired", "created_at", "last_accessed_at", "recipients", "analytics",
+        ]
+
+    def get_is_expired(self, obj):
+        return obj.is_expired
+
+    def get_analytics(self, obj):
+        from .service import get_share_analytics
+        return get_share_analytics(obj)
+
+
+class PrivateShareInboxSerializer(serializers.ModelSerializer):
+    share_id = serializers.IntegerField(source="private_share.id", read_only=True)
+    file_name = serializers.CharField(source="private_share.user_file.original_name", read_only=True)
+    file_id = serializers.IntegerField(source="private_share.user_file.id", read_only=True)
+    shared_by = serializers.SerializerMethodField()
+    shared_by_email = serializers.EmailField(source="private_share.owner.email", read_only=True)
+    message = serializers.CharField(source="private_share.message", read_only=True)
+    expires_at = serializers.DateTimeField(source="private_share.expires_at", read_only=True)
+    is_expired = serializers.SerializerMethodField()
+    access_status = serializers.SerializerMethodField()
+    requires_password = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PrivateShareRecipient
+        fields = [
+            "id", "share_id", "file_id", "file_name",
+            "shared_by", "shared_by_email", "message",
+            "can_view", "can_download", "can_reshare", "can_comment",
+            "expires_at", "individual_expires_at", "is_expired",
+            "access_status", "requires_password",
+            "download_count", "view_count", "last_accessed_at", "created_at",
+        ]
+
+    def get_shared_by(self, obj):
+        o = obj.private_share.owner
+        return f"{o.first_name} {o.last_name}".strip() or o.email
+
+    def get_is_expired(self, obj):
+        if obj.individual_expires_at and timezone.now() >= obj.individual_expires_at:
+            return True
+        return obj.private_share.is_expired
+
+    def get_access_status(self, obj):
+        from .service import _share_is_accessible
+        ok, err = _share_is_accessible(obj.private_share, obj)
+        return "accessible" if ok else err
+
+    def get_requires_password(self, obj):
+        return bool(obj.private_share.password_hash)
+
+
+class ShareCommentSerializer(serializers.ModelSerializer):
+    author_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ShareComment
+        fields = [
+            "id", "content", "page_number", "highlight_text",
+            "author_name", "parent", "created_at",
+        ]
+
+    def get_author_name(self, obj):
+        return f"{obj.author.first_name} {obj.author.last_name}".strip()
+
+
+class ShareAccessLogSerializer(serializers.ModelSerializer):
+    actor_email = serializers.EmailField(source="actor.email", read_only=True, allow_null=True)
+
+    class Meta:
+        model = ShareAccessLog
+        fields = ["id", "action", "actor_email", "ip_address", "metadata", "created_at"]

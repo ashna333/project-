@@ -225,3 +225,17 @@
 .empty-text {
   color: rgb(113 113 122); /* zinc-500 */
 }
+
+@media (max-width: 768px) {
+  .outbox-container {
+    padding: 100px 12px 40px !important;
+  }
+  .outbox-title {
+    font-size: 1.5rem;
+  }
+  .share-table-wrapper,
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}

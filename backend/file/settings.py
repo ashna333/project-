@@ -40,11 +40,13 @@ EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 
 EMAIL_USE_TLS = env("EMAIL_USE_TLS", default=True, cast=bool)
 EMAIL_USE_SSL = env("EMAIL_USE_SSL", default=False, cast=bool)
-EMAIL_BACKEND = (
-    "django.core.mail.backends.smtp.EmailBackend"
-    if EMAIL_HOST
-    else "django.core.mail.backends.console.EmailBackend"
-)
+EMAIL_FILE_PATH = str(BASE_DIR / "sent_emails")
+
+if EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+else:
+    # Saves .txt copies under backend/sent_emails/ AND prints in the runserver terminal
+    EMAIL_BACKEND = "fileapp.email_backends.FileConsoleEmailBackend"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

@@ -23,18 +23,23 @@ export const fetchFilesApi = (page = 1, pageSize = 12, search = '', filters = {}
 
 
 // fileApi.js
-export const uploadFilesApi = async (files, options = {}) => { // Default to empty object
+export const checkUploadConflictsApi = async (files) => {
   const formData = new FormData();
-  files.forEach((file) => {
-    formData.append('files', file); 
+  files.forEach((file) => formData.append('files', file));
+  return api.post('/upload/check/', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
   });
+};
 
+export const uploadFilesApi = async (files, options = {}) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append('files', file));
+  if (options.resolutions) {
+    formData.append('resolutions', JSON.stringify(options.resolutions));
+  }
   return api.post('/upload/', formData, {
-    // Only attach listener if it exists
     ...(options?.onUploadProgress && { onUploadProgress: options.onUploadProgress }),
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    headers: { 'Content-Type': 'multipart/form-data' },
   });
 };
   
@@ -89,3 +94,43 @@ export const downloadPublicFileApi = (token) =>
   axios.get(`${API_BASE}/public/shares/${token}/download/`, {
     responseType: 'blob',
   });
+
+// Private sharing APIs
+export const createPrivateShareApi = (payload) =>
+  api.post('/private-shares/', payload);
+
+export const fetchPrivateSharesOwnedApi = (page = 1, status = '') =>
+  api.get('/private-shares/owned/', { params: { page, page_size: 12, status: status || undefined } });
+
+export const fetchPrivateSharesInboxApi = (page = 1) =>
+  api.get('/private-shares/inbox/', { params: { page, page_size: 12 } });
+
+export const lookupUsersApi = (emails) =>
+  api.post('/private-shares/lookup/', { emails });
+
+export const downloadPrivateShareApi = (shareId, password = '') =>
+  api.get(`/private-shares/${shareId}/download/`, {
+    params: password ? { password } : {},
+    responseType: 'blob',
+  });
+
+export const revokePrivateShareApi = (shareId) =>
+  api.delete(`/private-shares/${shareId}/revoke/`);
+
+export const revokePrivateRecipientApi = (shareId, recipientId) =>
+  api.delete(`/private-shares/${shareId}/recipients/${recipientId}/revoke/`);
+
+export const fetchPrivateShareAuditApi = (shareId) =>
+  api.get(`/private-shares/${shareId}/audit/`);
+
+export const fetchPrivateShareAnalyticsApi = (shareId) =>
+  api.get(`/private-shares/${shareId}/analytics/`);
+
+export const postPrivateShareCommentApi = (shareId, payload) =>
+  api.post(`/private-shares/${shareId}/comments/`, payload);
+
+export const fetchPrivateShareCommentsApi = (shareId) =>
+  api.get(`/private-shares/${shareId}/comments/`);
+
+export const transferFileOwnershipApi = (fileId, newOwnerEmail) =>
+  api.post(`/files/${fileId}/transfer/`, { new_owner_email: newOwnerEmail });

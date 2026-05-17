@@ -45,7 +45,8 @@ export default function Registeauthage() {
     const errs = {}
     if (!form.first_name.trim()) errs.first_name = 'Required'
     if (!form.last_name.trim()) errs.last_name = 'Required'
-    if (!form.email.includes('@')) errs.email = 'Enter a valid email'
+    const emailNorm = form.email.trim().toLowerCase()
+    if (!emailNorm.includes('@') || !emailNorm.includes('.')) errs.email = 'Enter a valid email'
     if (form.password.length < 8) errs.password = 'At least 8 characters'
     if (form.password !== form.confirm_password) errs.confirm_password = 'Passwords do not match'
     if (!form.dob) errs.dob = 'Date of birth is required'
@@ -56,9 +57,11 @@ export default function Registeauthage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validate()) return
-    const res = await register(form)
+    const res = await register({ ...form, email: form.email.trim().toLowerCase() })
     if (res.success) {
       setTimeout(() => navigate('/login'), 1500)
+    } else if (res.error?.toLowerCase().includes('already exists')) {
+      setFieldErrors((prev) => ({ ...prev, email: 'This email is already registered. Sign in instead.' }))
     }
   }
 

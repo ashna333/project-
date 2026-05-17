@@ -8,7 +8,7 @@ import {
   setOperationFailure,
 } from './fileSlice'
 import {
-  fetchFilesApi, uploadFilesApi, deleteFileApi,
+  fetchFilesApi, uploadFilesApi, checkUploadConflictsApi, deleteFileApi,
   downloadFileApi, renameFileApi,
   fetchPublicShareApi, downloadPublicFileApi ,toggleStarApi
 } from './fileApi'
@@ -40,18 +40,25 @@ export const fetchFiles = (page = 1, pageSize = 12, search = '', filters = {}) =
   }
 }
 // yourActions.js
+export const checkUploadConflicts = (files) => async () => {
+  try {
+    const { data } = await checkUploadConflictsApi(files);
+    return { success: true, ...data };
+  } catch (err) {
+    return { success: false, error: 'Failed to check for duplicates.' };
+  }
+};
+
 export const uploadFiles = (files, options = {}) => async (dispatch) => {
   dispatch(uploadStart());
   try {
-    // Pass the options (containing the progress listener) to the API
-    const { data } = await uploadFilesApi(files, options); 
-    console.log("Data:", data.message);
+    const { data } = await uploadFilesApi(files, options);
     dispatch(uploadSuccess({ message: data.message }));
     dispatch(fetchFiles());
-    return { 
-        success: true, 
+    return {
+        success: true,
         message: data.message,
-        skipped: data.skipped_duplicates || [],
+        skipped: data.skipped || [],
         createdCount: data.created_count
       };
  } catch (err) {

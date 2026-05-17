@@ -17,6 +17,8 @@ import AppShell from './components/AppShell'; // Ensure this matches your filena
 import DashboardOverviewPage from './pages/DashboardOverviewPage'
 import FileManagerPage from './pages/FileManagerPage'
 import FileSharingPage from './pages/FileSharingPage'
+import SharedWithMePage from './pages/SharedWithMePage'
+import PrivateSharesByMePage from './pages/PrivateSharesByMePage'
 import TrashPage from './pages/TrashPage'
 import UploadPage from './pages/UploadPage'
 import StarredPage from './pages/Starredpage'
@@ -57,6 +59,8 @@ export default function App() {
             <Route path="/files" element={<FileManagerPage />} />
             <Route path="/upload" element={<UploadPage />} />
             <Route path="/shared" element={<FileSharingPage />} />
+            <Route path="/private-shares/inbox" element={<SharedWithMePage />} />
+            <Route path="/private-shares/owned" element={<PrivateSharesByMePage />} />
             <Route path="/starred" element={<StarredPage />} />
             <Route path="/trash" element={<TrashPage />} />
             <Route path="/profile" element={<ProfilePage />} />

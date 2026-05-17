@@ -33,10 +33,19 @@ class RegisterView(APIView):
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()  
+            try:
+                serializer.save()
+            except Exception as exc:
+                from django.db import IntegrityError
+                if isinstance(exc, IntegrityError):
+                    return Response(
+                        {"email": ["An account with this email already exists. Please sign in instead."]},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                raise
             return Response(
                 {"message": "User registered successfully"},
-                status=status.HTTP_201_CREATED
+                status=status.HTTP_201_CREATED,
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
@@ -160,6 +169,7 @@ from rest_framework import status
 from .serializers import FileUploadSerializer, UserFileSerializer,FileRenameSerializer
 from .service import (
     upload_files,
+    check_upload_conflicts,
     list_user_files,
     delete_user_file,
     get_user_file,
@@ -177,6 +187,23 @@ class FilePagination(PageNumberPagination):
     max_page_size = 100
 
 
+class UploadCheckView(APIView):
+    """POST /api/upload/check/ — detect duplicate files before upload."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data, context={"request": request})
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        files = request.FILES.getlist("files")
+        conflicts = check_upload_conflicts(request.user, files)
+        return Response({
+            "has_conflicts": len(conflicts) > 0,
+            "conflicts": conflicts,
+            "total_files": len(files),
+        })
+
+
 class FileUploadView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -186,9 +213,14 @@ class FileUploadView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         files = request.FILES.getlist('files')
-        created, skipped = upload_files(request.user, files)
+        resolutions = {}
+        raw_resolutions = request.data.get("resolutions")
+        if raw_resolutions:
+            import json
+            resolutions = json.loads(raw_resolutions) if isinstance(raw_resolutions, str) else raw_resolutions
 
-        # We use a dynamic message based on the result
+        created, skipped = upload_files(request.user, files, resolutions=resolutions)
+
         if len(created) > 0:
             msg = f"Successfully uploaded {len(created)} file(s)."
         else:
@@ -196,7 +228,7 @@ class FileUploadView(APIView):
 
         return Response({
             "message": msg,
-            "skipped": skipped, # Use 'skipped' to keep it simple for the frontend
+            "skipped": skipped,
             "created_count": len(created)
         }, status=status.HTTP_201_CREATED)
 
