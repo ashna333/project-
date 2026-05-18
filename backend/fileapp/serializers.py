@@ -300,7 +300,7 @@ class PrivateShareCreateSerializer(serializers.Serializer):
     max_downloads = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     inactivity_revoke_days = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     time_windows = serializers.ListField(required=False, default=list)
-
+    parent_share_id = serializers.IntegerField(required=False, allow_null=True)
 
 class PrivateShareRecipientSerializer(serializers.ModelSerializer):
     recipient_email = serializers.EmailField(source="recipient.email", read_only=True)
@@ -317,6 +317,31 @@ class PrivateShareRecipientSerializer(serializers.ModelSerializer):
 
     def get_recipient_name(self, obj):
         return f"{obj.recipient.first_name} {obj.recipient.last_name}".strip()
+
+
+
+class PrivateShareTreeSerializer(serializers.ModelSerializer):
+    owner_email = serializers.EmailField(source="owner.email", read_only=True)
+    owner_name = serializers.SerializerMethodField()
+    recipients = PrivateShareRecipientSerializer(many=True, read_only=True)
+    child_shares = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PrivateShare
+        fields = [
+            "id", "owner_email", "owner_name", "expires_at", "is_revoked", "revoked_at",
+            "recipients", "child_shares", "created_at"
+        ]
+
+    def get_owner_name(self, obj):
+        return f"{obj.owner.first_name} {obj.owner.last_name}".strip()
+
+    def get_child_shares(self, obj):
+        # Recursively serialize child shares
+        children = obj.child_shares.all()
+        return PrivateShareTreeSerializer(children, many=True).data
+
+
 
 
 class PrivateShareOwnerSerializer(serializers.ModelSerializer):

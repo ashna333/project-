@@ -9,6 +9,9 @@ export default function Layout() {
   const user = JSON.parse(localStorage.getItem('user')) || { first_name: 'User', last_name: '', email: '' };
 
   const handleLogout = () => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('auth_user');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     navigate('/login');

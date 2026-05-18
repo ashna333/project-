@@ -188,7 +188,7 @@ const handleDrop = (e) => {
   };
 
   return (
-    <div className="dashboard-container">
+    <>
       {/* Header (reusing old design) */}
      
 
@@ -258,6 +258,6 @@ const handleDrop = (e) => {
           onCancel={() => { setConflicts(null); setIsUploadingGlobal(false); }}
         />
       )}
-    </div>
+    </>
   );
 }

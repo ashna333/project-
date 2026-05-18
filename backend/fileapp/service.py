@@ -623,11 +623,36 @@ def create_private_share(
     inactivity_revoke_days=None,
     time_windows=None,
     request=None,
+    parent_share_id=None,
 ):
-    try:
-        user_file = UserFile.objects.get(id=file_id, user=owner, is_deleted=False)
-    except UserFile.DoesNotExist:
-        return None, "File not found."
+    if parent_share_id:
+        try:
+            parent_share = PrivateShare.objects.get(id=parent_share_id)
+            grant = PrivateShareRecipient.objects.get(private_share=parent_share, recipient=owner, is_revoked=False)
+            if not grant.can_reshare:
+                return None, "Re-sharing not permitted."
+            
+            # Additional validation against parent permissions
+            for raw_email, perms in recipient_permissions.items():
+                if perms.get("can_download") and not grant.can_download:
+                    return None, "Cannot grant download permission."
+                if perms.get("can_reshare") and not grant.can_reshare:
+                    return None, "Cannot grant reshare permission."
+                if perms.get("can_comment") and not grant.can_comment:
+                    return None, "Cannot grant comment permission."
+            
+            if expires_at and parent_share.expires_at and expires_at > parent_share.expires_at:
+                return None, "Expiry cannot exceed parent share expiry."
+            
+            user_file = parent_share.user_file
+        except (PrivateShare.DoesNotExist, PrivateShareRecipient.DoesNotExist):
+            return None, "Invalid parent share or no access."
+    else:
+        try:
+            user_file = UserFile.objects.get(id=file_id, user=owner, is_deleted=False)
+            parent_share = None
+        except UserFile.DoesNotExist:
+            return None, "File not found."
 
     password_hash = make_password(password) if password else ""
 
@@ -665,6 +690,7 @@ def create_private_share(
             max_downloads=max_downloads,
             inactivity_revoke_days=inactivity_revoke_days,
             time_windows=time_windows or [],
+            parent_share=parent_share,
         )
         created_recipients = []
         emails_sent = 0
@@ -727,7 +753,7 @@ def list_private_shares_by_owner(user, status_filter=None):
 def list_private_shares_for_recipient(user):
     return PrivateShareRecipient.objects.select_related(
         "private_share", "private_share__user_file", "private_share__owner"
-    ).filter(recipient=user, is_revoked=False, private_share__is_revoked=False)
+    ).filter(recipient=user)
 
 
 def get_recipient_grant(user, share_id):
@@ -792,14 +818,30 @@ def _notify_owner_read_receipt(share, recipient, action):
     )
 
 
+def cascade_revoke_share(share, request_user=None):
+    share.is_revoked = True
+    share.revoked_at = timezone.now()
+    share.save(update_fields=["is_revoked", "revoked_at"])
+    
+    # Revoke all direct recipients of this share
+    share.recipients.filter(is_revoked=False).update(is_revoked=True, revoked_at=timezone.now())
+    
+    if request_user:
+        _log_share_access(share, request_user, ShareAccessLog.ACTION_REVOKE, metadata={"cascade": True})
+
+    # Find all child shares and revoke them recursively
+    child_shares = share.child_shares.filter(is_revoked=False)
+    for child in child_shares:
+        cascade_revoke_share(child, request_user)
+
+
 def revoke_private_share(owner, share_id):
     try:
         share = PrivateShare.objects.get(id=share_id, owner=owner)
     except PrivateShare.DoesNotExist:
         return False
-    share.is_revoked = True
-    share.revoked_at = timezone.now()
-    share.save(update_fields=["is_revoked", "revoked_at"])
+    
+    cascade_revoke_share(share, owner)
     _log_share_access(share, owner, ShareAccessLog.ACTION_REVOKE)
     return True
 
@@ -811,9 +853,18 @@ def revoke_private_share_recipient(owner, share_id, recipient_id):
         )
     except PrivateShareRecipient.DoesNotExist:
         return False
+
     grant.is_revoked = True
     grant.revoked_at = timezone.now()
     grant.save(update_fields=["is_revoked", "revoked_at"])
+    
+    _log_share_access(grant.private_share, owner, ShareAccessLog.ACTION_REVOKE, metadata={"recipient": grant.recipient.email})
+    
+    # Cascade to all child shares created by this recipient based on this parent share
+    child_shares = PrivateShare.objects.filter(parent_share=grant.private_share, owner=grant.recipient, is_revoked=False)
+    for cs in child_shares:
+        cascade_revoke_share(cs, owner)
+
     return True
 
 

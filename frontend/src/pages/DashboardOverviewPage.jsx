@@ -38,7 +38,7 @@ export default function DashboardOverviewPage() {
   }, []);
 
   return (
-    <div className="dashboard-container">
+    <>
       <main className="dashboard-main fade-in">
         <div className="welcome-section">
           <div className="welcome-label">Welcome back</div>
@@ -121,6 +121,6 @@ export default function DashboardOverviewPage() {
           </div>
         </div>
       </main>
-    </div>
+    </>
   );
 }

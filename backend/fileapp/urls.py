@@ -31,10 +31,14 @@ from .private_share_views import (
     PrivateShareTransferView,
     PrivateShareCommentsView,
     PrivateShareAuditView,
-    PrivateShareAnalyticsView,
     PrivateShareVersionView,
     UserLookupView,
+    PrivateShareTreeView,
+    PrivateShareApproveView,
+    PrivateShareAnalyticsView
 )
+
+from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
     # REGISTER
@@ -42,6 +46,7 @@ urlpatterns = [
 
     # LOGIN
     path('login/', LoginView.as_view(), name='login'),
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('me/', ProfileView.as_view(), name='profile'),
     path('auth/google/', GoogleAuthStartView.as_view(), name='google-auth-start'),
     path('auth/google/callback/', GoogleAuthCallbackView.as_view(), name='google-auth-callback'),
@@ -91,6 +96,8 @@ urlpatterns = [
     path("private-shares/<int:share_id>/comments/", PrivateShareCommentsView.as_view()),
     path("private-shares/<int:share_id>/audit/", PrivateShareAuditView.as_view()),
     path("private-shares/<int:share_id>/analytics/", PrivateShareAnalyticsView.as_view()),
+    path("private-shares/<int:share_id>/tree/", PrivateShareTreeView.as_view()),
+    path("private-shares/<int:share_id>/approve/", PrivateShareApproveView.as_view()),
     path("files/<int:file_id>/transfer/", PrivateShareTransferView.as_view()),
     path("files/<int:file_id>/version/", PrivateShareVersionView.as_view()),
 ]

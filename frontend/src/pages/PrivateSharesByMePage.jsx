@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Shield, Ban, BarChart2, Users } from 'lucide-react';
+import { Shield, Ban, BarChart2, Users, MessageSquare, Network } from 'lucide-react';
 import {
   fetchPrivateSharesOwnedApi,
   revokePrivateShareApi,
   fetchPrivateShareAuditApi,
+  fetchPrivateShareCommentsApi,
+  postPrivateShareCommentApi,
 } from '../store/fileApi';
+import ShareTreeModal from '../components/ShareTreeModal';
 import '../styles/PrivateSharePages.css';
 
 export default function PrivateSharesByMePage() {
@@ -12,6 +15,10 @@ export default function PrivateSharesByMePage() {
   const [filter, setFilter] = useState('active');
   const [loading, setLoading] = useState(true);
   const [auditLogs, setAuditLogs] = useState(null);
+  const [commentsOpen, setCommentsOpen] = useState(null);
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState('');
+  const [treeOpen, setTreeOpen] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -37,6 +44,28 @@ export default function PrivateSharesByMePage() {
   const viewAudit = async (id) => {
     const { data } = await fetchPrivateShareAuditApi(id);
     setAuditLogs({ id, logs: data });
+  };
+
+  const openComments = async (shareId) => {
+    setCommentsOpen(shareId);
+    try {
+      const { data } = await fetchPrivateShareCommentsApi(shareId);
+      setComments(data);
+    } catch (error) {
+      console.error('Failed to fetch comments', error);
+      setComments([]);
+    }
+  };
+
+  const submitComment = async () => {
+    if (!newComment.trim()) return;
+    try {
+      await postPrivateShareCommentApi(commentsOpen, { content: newComment });
+      setNewComment('');
+      setCommentsOpen(null);
+    } catch (error) {
+      console.error('Failed to post comment', error);
+    }
   };
 
   return (
@@ -84,7 +113,13 @@ export default function PrivateSharesByMePage() {
                 ))}
               </div>
               <div className="ps-card-actions">
+                <button type="button" className="ps-btn-text" onClick={() => setTreeOpen(s.id)}>
+                  <Network size={14} style={{ marginRight: '4px' }} /> Tree
+                </button>
                 <button type="button" className="ps-btn-text" onClick={() => viewAudit(s.id)}>Audit log</button>
+                <button type="button" className="ps-btn-text" onClick={() => openComments(s.id)}>
+                  <MessageSquare size={14} style={{ marginRight: '4px' }} /> Comments
+                </button>
                 {!s.is_revoked && (
                   <button type="button" className="ps-btn-revoke" onClick={() => revoke(s.id)}>
                     <Ban size={14} /> Revoke
@@ -112,6 +147,32 @@ export default function PrivateSharesByMePage() {
           </div>
         </div>
       )}
+
+      {commentsOpen && (
+        <div className="modal-overlay" onClick={() => setCommentsOpen(null)}>
+          <div className="ps-comments-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Comments</h3>
+            <div className="comments-list">
+              {comments.map((c) => (
+                <div key={c.id} className="comment-item">
+                  <strong>{c.author_name}</strong>
+                  <p>{c.content}</p>
+                  {c.highlight_text && <em>Highlight: {c.highlight_text}</em>}
+                </div>
+              ))}
+            </div>
+            <textarea className="modal-textarea" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Add a comment..." />
+            <button type="button" className="share-submit-btn" onClick={submitComment}>Post</button>
+          </div>
+        </div>
+      )}
+
+      <ShareTreeModal
+        shareId={treeOpen}
+        isOpen={!!treeOpen}
+        onClose={() => setTreeOpen(null)}
+        onRefresh={() => load()}
+      />
     </div>
   );
 }

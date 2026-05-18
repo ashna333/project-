@@ -62,6 +62,7 @@ class PrivateShareCreateView(APIView):
             inactivity_revoke_days=data.get("inactivity_revoke_days"),
             time_windows=data.get("time_windows", []),
             request=request,
+            parent_share_id=data.get("parent_share_id"),
         )
         if result[0] is None:
             err = result[1]
@@ -161,7 +162,14 @@ class PrivateShareDownloadView(APIView):
         if not verify_private_share_password(grant.private_share, password):
             return Response({"error": "Invalid password."}, status=403)
 
-        ok, err = record_private_share_download(grant, request)
+        is_preview = request.query_params.get("preview") == "true"
+        if is_preview:
+            ok, err = record_private_share_view(grant, request)
+            as_attachment = False
+        else:
+            ok, err = record_private_share_download(grant, request)
+            as_attachment = True
+
         if not ok:
             return Response({"error": err}, status=status.HTTP_403_FORBIDDEN)
 
@@ -172,7 +180,7 @@ class PrivateShareDownloadView(APIView):
         file_path = apply_watermark_to_file(user_file, request.user)
         response = FileResponse(
             open(file_path, "rb"),
-            as_attachment=True,
+            as_attachment=as_attachment,
             filename=user_file.original_name,
         )
         response["Content-Type"] = user_file.mime_type or "application/octet-stream"
@@ -212,28 +220,74 @@ class PrivateShareCommentsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, share_id):
-        grant = get_recipient_grant(request.user, share_id)
-        if not grant:
-            return Response({"error": "Access denied."}, status=404)
-        comments = ShareComment.objects.filter(private_share_id=share_id, parent__isnull=True)
+        try:
+            share = PrivateShare.objects.get(id=share_id)
+        except PrivateShare.DoesNotExist:
+            return Response({"error": "Not found."}, status=404)
+            
+        is_owner = share.owner_id == request.user.id
+        if not is_owner:
+            grant = get_recipient_grant(request.user, share_id)
+            if not grant:
+                return Response({"error": "Access denied."}, status=404)
+                
+        # Find the root of the share tree
+        root_share = share
+        while root_share.parent_share:
+            root_share = root_share.parent_share
+            
+        def get_all_child_ids(s):
+            ids = [s.id]
+            for c in s.child_shares.all():
+                ids.extend(get_all_child_ids(c))
+            return ids
+            
+        tree_ids = get_all_child_ids(root_share)
+                
+        comments = ShareComment.objects.filter(private_share_id__in=tree_ids, parent__isnull=True)
         return Response(ShareCommentSerializer(comments, many=True).data)
 
     def post(self, request, share_id):
-        grant = get_recipient_grant(request.user, share_id)
-        if not grant:
-            return Response({"error": "Access denied."}, status=404)
+        try:
+            share = PrivateShare.objects.get(id=share_id)
+        except PrivateShare.DoesNotExist:
+            return Response({"error": "Not found."}, status=404)
+            
+        is_owner = share.owner_id == request.user.id
+        grant = None
+        if not is_owner:
+            grant = get_recipient_grant(request.user, share_id)
+            if not grant:
+                return Response({"error": "Access denied."}, status=404)
+                
         content = request.data.get("content", "").strip()
         if not content:
             return Response({"error": "Content required."}, status=400)
-        comment, err = add_share_comment(
-            grant,
-            content,
-            page_number=request.data.get("page_number"),
-            highlight_text=request.data.get("highlight_text", ""),
-            parent_id=request.data.get("parent_id"),
-        )
-        if err:
-            return Response({"error": err}, status=403)
+            
+        if is_owner:
+            parent = None
+            parent_id = request.data.get("parent_id")
+            if parent_id:
+                parent = ShareComment.objects.filter(id=parent_id, private_share=share).first()
+            comment = ShareComment.objects.create(
+                private_share=share,
+                author=request.user,
+                content=content,
+                page_number=request.data.get("page_number"),
+                highlight_text=request.data.get("highlight_text", ""),
+                parent=parent,
+            )
+        else:
+            comment, err = add_share_comment(
+                grant,
+                content,
+                page_number=request.data.get("page_number"),
+                highlight_text=request.data.get("highlight_text", ""),
+                parent_id=request.data.get("parent_id"),
+            )
+            if err:
+                return Response({"error": err}, status=403)
+                
         return Response(ShareCommentSerializer(comment).data, status=201)
 
 
@@ -283,3 +337,24 @@ class UserLookupView(APIView):
     def post(self, request):
         emails = request.data.get("emails", [])
         return Response(lookup_users_by_email(emails))
+
+
+from .serializers import PrivateShareTreeSerializer
+
+class PrivateShareTreeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, share_id):
+        try:
+            share = PrivateShare.objects.get(id=share_id, owner=request.user)
+        except PrivateShare.DoesNotExist:
+            return Response({"error": "Not found"}, status=404)
+        serializer = PrivateShareTreeSerializer(share)
+        return Response(serializer.data)
+
+class PrivateShareApproveView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, share_id):
+        # Placeholder for strict mode approval
+        return Response({"status": "approved"})

@@ -15,7 +15,7 @@ export default function StarredPage() {
   }, [dispatch]);
 
   return (
-    <div className="dashboard-container">
+    <>
       <main className="dashboard-main">
         <div className="file-manager-header">
           <div className="welcome-sectionfm">
@@ -68,6 +68,6 @@ export default function StarredPage() {
   )}
 </section>
       </main>
-    </div>
+    </>
   );
 }

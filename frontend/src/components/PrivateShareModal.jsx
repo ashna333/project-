@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, X, Loader2, UserPlus, Clock, Lock, CheckCircle } from 'lucide-react';
+import { Shield, X, Loader2, UserPlus, Clock, Lock, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { createPrivateShareApi, lookupUsersApi } from '../store/fileApi';
 import '../styles/ShareModal.css';
 
@@ -15,13 +15,15 @@ const WEEKDAYS = [
   { v: 3, l: 'Thu' }, { v: 4, l: 'Fri' }, { v: 5, l: 'Sat' }, { v: 6, l: 'Sun' },
 ];
 
-export default function PrivateShareModal({ file, isOpen, onClose, onSuccess }) {
+export default function PrivateShareModal({ file, parentShare, isOpen, onClose, onSuccess }) {
   const [emails, setEmails] = useState([]);
   const [verifiedEmails, setVerifiedEmails] = useState({});
   const [inputValue, setInputValue] = useState('');
   const [message, setMessage] = useState('');
   const [expiresInHours, setExpiresInHours] = useState(72);
+  const [enablePassword, setEnablePassword] = useState(false);
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [oneTime, setOneTime] = useState(false);
   const [maxDownloads, setMaxDownloads] = useState('');
   const [inactivityDays, setInactivityDays] = useState('');
@@ -30,7 +32,10 @@ export default function PrivateShareModal({ file, isOpen, onClose, onSuccess }) 
   const [windowEnd, setWindowEnd] = useState('17:00');
   const [windowDays, setWindowDays] = useState([0, 1, 2, 3, 4]);
   const [defaultPerms, setDefaultPerms] = useState({
-    can_view: true, can_download: true, can_reshare: false, can_comment: false,
+    can_view: true, 
+    can_download: parentShare ? parentShare.can_download : true, 
+    can_reshare: false, 
+    can_comment: parentShare ? parentShare.can_comment : false,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -92,11 +97,20 @@ export default function PrivateShareModal({ file, isOpen, onClose, onSuccess }) 
       setError('Add at least one registered recipient email.');
       return;
     }
+    if (enablePassword && !password.trim()) {
+      setError('Please enter a password for protection.');
+      return;
+    }
     setLoading(true);
     setError('');
     setSuccessInfo('');
     try {
-      const expiresAt = new Date(Date.now() + Number(expiresInHours) * 3600000).toISOString();
+      let expiresAt = new Date(Date.now() + Number(expiresInHours) * 3600000).toISOString();
+      if (parentShare && parentShare.individual_expires_at) {
+        if (new Date(expiresAt) > new Date(parentShare.individual_expires_at)) {
+          expiresAt = parentShare.individual_expires_at;
+        }
+      }
       const recipient_permissions = {};
       emails.forEach((email) => {
         recipient_permissions[email] = { ...defaultPerms };
@@ -111,7 +125,8 @@ export default function PrivateShareModal({ file, isOpen, onClose, onSuccess }) 
         recipient_permissions,
         message,
         expires_at: expiresAt,
-        password: password || undefined,
+        parent_share_id: parentShare ? parentShare.share_id : undefined,
+        password: enablePassword && password ? password : undefined,
         one_time_access: oneTime,
         max_downloads: maxDownloads ? Number(maxDownloads) : null,
         inactivity_revoke_days: inactivityDays ? Number(inactivityDays) : null,
@@ -141,10 +156,19 @@ export default function PrivateShareModal({ file, isOpen, onClose, onSuccess }) 
         <div className="modal-header">
           <div className="modal-title-row">
             <Shield size={18} className="text-rose" />
-            <h3>Private share</h3>
+            <h3>{parentShare ? "Re-share" : "Private share"}</h3>
           </div>
           <button type="button" className="close-x-btn" onClick={onClose}><X size={20} /></button>
         </div>
+        <div className="ps-modal-body">
+          <div className="ps-info-box">
+            <Shield size={16} className="shield-icon" />
+            <div>
+              <strong>{parentShare ? "Re-share" : "Private Share"}: {file?.original_name || file?.file_name}</strong>
+              <p>Only verified recipients will be able to access this file.</p>
+              {parentShare && <p className="text-rose" style={{marginTop: '4px'}}>Sharing options are limited by your own access.</p>}
+            </div>
+          </div>
 
         <p className="modal-subtitle">
           Share <strong>{file?.original_name}</strong> with another <strong>registered</strong> CloudShare user.
@@ -184,19 +208,23 @@ export default function PrivateShareModal({ file, isOpen, onClose, onSuccess }) 
             </div>
           </div>
 
-          <div className="perm-grid">
-            <label>Default permissions</label>
-            <div className="perm-toggles">
-              {PERMS.map((p) => (
-                <label key={p.key} className="perm-toggle">
-                  <input
-                    type="checkbox"
-                    checked={defaultPerms[p.key]}
-                    onChange={(e) => setDefaultPerms({ ...defaultPerms, [p.key]: e.target.checked })}
-                  />
-                  {p.label}
-                </label>
-              ))}
+          <div className="ps-form-group">
+            <label>Permissions (applies to all)</label>
+            <div className="ps-perms-grid">
+              {PERMS.map((p) => {
+                const disabled = parentShare && !parentShare[p.key];
+                return (
+                  <label key={p.key} className={`ps-perm-label ${disabled ? 'disabled-label' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={defaultPerms[p.key]}
+                      disabled={disabled || p.key === 'can_view'}
+                      onChange={(e) => setDefaultPerms({ ...defaultPerms, [p.key]: e.target.checked })}
+                    />
+                    <span>{p.label}</span>
+                  </label>
+                );
+              })}
             </div>
           </div>
 
@@ -207,9 +235,26 @@ export default function PrivateShareModal({ file, isOpen, onClose, onSuccess }) 
                 onChange={(e) => setExpiresInHours(e.target.value)} />
             </div>
             <div className="input-group" style={{ flex: 1 }}>
-              <label><Lock size={14} /> Password (optional)</label>
-              <input type="password" className="modal-input" value={password} placeholder="Extra layer"
-                onChange={(e) => setPassword(e.target.value)} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input 
+                  type="checkbox" 
+                  checked={enablePassword} 
+                  onChange={(e) => {
+                    setEnablePassword(e.target.checked);
+                    if (!e.target.checked) setPassword('');
+                  }} 
+                />
+                <Lock size={14} /> Password protect?
+              </label>
+              {enablePassword && (
+                <div className="password-input-container" style={{ marginTop: '8px', position: 'relative' }}>
+                  <input type={showPassword ? "text" : "password"} className="modal-input" value={password} placeholder="••••••••"
+                    onChange={(e) => setPassword(e.target.value)} style={{ width: '100%', paddingRight: '40px' }} />
+                  <div className="eye-icon" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#a1a1aa' }}>
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -231,6 +276,7 @@ export default function PrivateShareModal({ file, isOpen, onClose, onSuccess }) 
           </div>
         </form>
       </div>
+    </div>
     </div>
   );
 }

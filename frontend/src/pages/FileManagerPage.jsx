@@ -203,7 +203,7 @@ const getReadableFileType = (file) => {
 };
 
   return (
-    <div className="dashboard-container" style={{ position: 'relative', overflowX: 'hidden' }}>
+    <>
       <main className="dashboard-main" style={{ transition: 'none' }}>
         <div className="file-manager-header" style={{ height: '100px', flexShrink: 0 }}>
           <div className="welcome-sectionfm">
@@ -499,6 +499,6 @@ const getReadableFileType = (file) => {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

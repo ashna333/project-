@@ -108,9 +108,12 @@ export const fetchPrivateSharesInboxApi = (page = 1) =>
 export const lookupUsersApi = (emails) =>
   api.post('/private-shares/lookup/', { emails });
 
-export const downloadPrivateShareApi = (shareId, password = '') =>
+export const downloadPrivateShareApi = (shareId, password = '', preview = false) =>
   api.get(`/private-shares/${shareId}/download/`, {
-    params: password ? { password } : {},
+    params: {
+      ...(password ? { password } : {}),
+      ...(preview ? { preview: 'true' } : {})
+    },
     responseType: 'blob',
   });
 
@@ -131,6 +134,12 @@ export const postPrivateShareCommentApi = (shareId, payload) =>
 
 export const fetchPrivateShareCommentsApi = (shareId) =>
   api.get(`/private-shares/${shareId}/comments/`);
+
+export const fetchPrivateShareTreeApi = (shareId) =>
+  api.get(`/private-shares/${shareId}/tree/`);
+
+export const approvePrivateShareApi = (shareId) =>
+  api.post(`/private-shares/${shareId}/approve/`);
 
 export const transferFileOwnershipApi = (fileId, newOwnerEmail) =>
   api.post(`/files/${fileId}/transfer/`, { new_owner_email: newOwnerEmail });

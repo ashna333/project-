@@ -175,6 +175,9 @@ class PrivateShare(models.Model):
       FileVersion, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
   )
   use_latest_version = models.BooleanField(default=True)
+  parent_share = models.ForeignKey(
+      "self", on_delete=models.CASCADE, null=True, blank=True, related_name="child_shares"
+  )
 
   is_revoked = models.BooleanField(default=False)
   revoked_at = models.DateTimeField(null=True, blank=True)

@@ -136,7 +136,7 @@ const handleRestoreAll = async () => {
 
 
   return (
-    <div className="dashboard-container">
+    <>
       <main className="dashboard-main fade-in">
         <div className="file-manager-header">
           <div className="welcome-sectionfm">
@@ -230,6 +230,6 @@ const handleRestoreAll = async () => {
           />
         </section>
       </main>
-    </div>
+    </>
   );
 }
