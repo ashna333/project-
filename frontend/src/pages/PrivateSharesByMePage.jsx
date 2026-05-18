@@ -95,7 +95,7 @@ export default function PrivateSharesByMePage() {
           {shares.map((s) => (
             <div key={s.id} className="ps-card">
               <div className="ps-card-top">
-                <h3>{s.file_name}</h3>
+                <h3 title={s.file_name}>{s.file_name}</h3>
                 <span className={`status-pill ${s.is_revoked ? 'inactive' : s.is_expired ? 'inactive' : 'active'}`}>
                   {s.is_revoked ? 'Revoked' : s.is_expired ? 'Expired' : 'Active'}
                 </span>
@@ -117,9 +117,11 @@ export default function PrivateSharesByMePage() {
                   <Network size={14} style={{ marginRight: '4px' }} /> Tree
                 </button>
                 <button type="button" className="ps-btn-text" onClick={() => viewAudit(s.id)}>Audit log</button>
-                <button type="button" className="ps-btn-text" onClick={() => openComments(s.id)}>
-                  <MessageSquare size={14} style={{ marginRight: '4px' }} /> Comments
-                </button>
+                {!s.is_revoked && (
+                  <button type="button" className="ps-btn-text" onClick={() => openComments(s.id)}>
+                    <MessageSquare size={14} style={{ marginRight: '4px' }} /> Comments
+                  </button>
+                )}
                 {!s.is_revoked && (
                   <button type="button" className="ps-btn-revoke" onClick={() => revoke(s.id)}>
                     <Ban size={14} /> Revoke
@@ -136,13 +138,22 @@ export default function PrivateSharesByMePage() {
           <div className="ps-audit-modal" onClick={(e) => e.stopPropagation()}>
             <h3>Audit log (permanent)</h3>
             <div className="audit-list">
-              {auditLogs.logs.map((log) => (
-                <div key={log.id} className="audit-row">
-                  <span className="audit-action">{log.action}</span>
-                  <span>{log.actor_email || '—'}</span>
-                  <span className="ps-muted">{new Date(log.created_at).toLocaleString()}</span>
-                </div>
-              ))}
+              {auditLogs.logs.length === 0 ? (
+                <p className="audit-empty">No activity recorded yet for this file.</p>
+              ) : (
+                auditLogs.logs.map((log) => (
+                  <div key={log.id} className="audit-row">
+                    <span className="audit-action">{log.action_label || log.action}</span>
+                    <span>
+                      {log.actor_name || log.actor_email || '—'}
+                      {log.actor_email && log.actor_name && (
+                        <span className="audit-meta">{log.actor_email}</span>
+                      )}
+                    </span>
+                    <span className="ps-muted">{new Date(log.created_at).toLocaleString()}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -161,8 +172,12 @@ export default function PrivateSharesByMePage() {
                 </div>
               ))}
             </div>
-            <textarea className="modal-textarea" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Add a comment..." />
-            <button type="button" className="share-submit-btn" onClick={submitComment}>Post</button>
+            {!shares.find((s) => s.id === commentsOpen)?.is_revoked && (
+              <>
+                <textarea className="modal-textarea" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Add a comment..." />
+                <button type="button" className="share-submit-btn" onClick={submitComment}>Post</button>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -137,9 +137,15 @@ class ResetPasswordSerializer(serializers.Serializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    display_name = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ["id", "first_name", "last_name", "email", "dob", "auth_provider"]
+        fields = ["id", "first_name", "last_name", "email", "dob", "auth_provider", "display_name"]
+
+    def get_display_name(self, obj):
+        from .service import get_user_display_name
+        return get_user_display_name(obj)
 
 
 
@@ -272,8 +278,8 @@ class PublicFileShareSerializer(serializers.ModelSerializer):
         fields = ['file_name', 'file_size', 'expires_at', 'message', 'sender',"download_url"]
 
     def get_sender(self, obj):
-        full_name = f"{obj.owner.first_name} {obj.owner.last_name}".strip()
-        return full_name or obj.owner.email
+        from .service import get_user_display_name
+        return get_user_display_name(obj.owner) or obj.owner.email
 
     def get_download_url(self, obj):
         request = self.context.get("request")
@@ -316,7 +322,8 @@ class PrivateShareRecipientSerializer(serializers.ModelSerializer):
         ]
 
     def get_recipient_name(self, obj):
-        return f"{obj.recipient.first_name} {obj.recipient.last_name}".strip()
+        from .service import get_user_display_name
+        return get_user_display_name(obj.recipient)
 
 
 
@@ -334,7 +341,8 @@ class PrivateShareTreeSerializer(serializers.ModelSerializer):
         ]
 
     def get_owner_name(self, obj):
-        return f"{obj.owner.first_name} {obj.owner.last_name}".strip()
+        from .service import get_user_display_name
+        return get_user_display_name(obj.owner)
 
     def get_child_shares(self, obj):
         # Recursively serialize child shares
@@ -392,8 +400,9 @@ class PrivateShareInboxSerializer(serializers.ModelSerializer):
         ]
 
     def get_shared_by(self, obj):
+        from .service import get_user_display_name
         o = obj.private_share.owner
-        return f"{o.first_name} {o.last_name}".strip() or o.email
+        return get_user_display_name(o) or o.email
 
     def get_is_expired(self, obj):
         if obj.individual_expires_at and timezone.now() >= obj.individual_expires_at:
@@ -420,12 +429,39 @@ class ShareCommentSerializer(serializers.ModelSerializer):
         ]
 
     def get_author_name(self, obj):
-        return f"{obj.author.first_name} {obj.author.last_name}".strip()
+        from .service import get_user_display_name
+        return get_user_display_name(obj.author)
 
 
 class ShareAccessLogSerializer(serializers.ModelSerializer):
     actor_email = serializers.EmailField(source="actor.email", read_only=True, allow_null=True)
+    actor_name = serializers.SerializerMethodField()
+    action_label = serializers.SerializerMethodField()
 
     class Meta:
         model = ShareAccessLog
-        fields = ["id", "action", "actor_email", "ip_address", "metadata", "created_at"]
+        fields = [
+            "id", "action", "action_label", "actor_email", "actor_name",
+            "ip_address", "metadata", "created_at",
+        ]
+
+    def get_actor_name(self, obj):
+        from .service import get_user_display_name
+        if not obj.actor:
+            return "—"
+        return get_user_display_name(obj.actor) or obj.actor.email
+
+    def get_action_label(self, obj):
+        labels = {
+            "view": "Viewed",
+            "download": "Downloaded",
+            "comment": "Commented",
+            "revoke": "Revoked",
+            "reshare": "Re-shared",
+            "create": "Shared",
+            "transfer": "Transferred",
+        }
+        label = labels.get(obj.action, obj.action)
+        if obj.action == "view" and obj.metadata.get("preview"):
+            return "Previewed"
+        return label

@@ -28,11 +28,12 @@ from .service import (
     add_share_comment,
     get_share_access_logs,
     get_share_analytics,
+    _log_share_access,
     upload_file_version,
     apply_watermark_to_file,
     lookup_users_by_email,
 )
-from .models import PrivateShare, ShareComment
+from .models import PrivateShare, ShareComment, ShareAccessLog
 
 
 class FilePagination(PageNumberPagination):
@@ -164,7 +165,7 @@ class PrivateShareDownloadView(APIView):
 
         is_preview = request.query_params.get("preview") == "true"
         if is_preview:
-            ok, err = record_private_share_view(grant, request)
+            ok, err = record_private_share_view(grant, request, preview=True)
             as_attachment = False
         else:
             ok, err = record_private_share_download(grant, request)
@@ -265,6 +266,8 @@ class PrivateShareCommentsView(APIView):
             return Response({"error": "Content required."}, status=400)
             
         if is_owner:
+            if share.is_revoked:
+                return Response({"error": "Cannot comment on a revoked share."}, status=403)
             parent = None
             parent_id = request.data.get("parent_id")
             if parent_id:
@@ -277,6 +280,7 @@ class PrivateShareCommentsView(APIView):
                 highlight_text=request.data.get("highlight_text", ""),
                 parent=parent,
             )
+            _log_share_access(share, request.user, ShareAccessLog.ACTION_COMMENT, request)
         else:
             comment, err = add_share_comment(
                 grant,
@@ -345,11 +349,16 @@ class PrivateShareTreeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, share_id):
+        from .service import get_private_share_tree_root, user_can_view_private_share_tree
+
         try:
-            share = PrivateShare.objects.get(id=share_id, owner=request.user)
+            share = PrivateShare.objects.get(id=share_id)
         except PrivateShare.DoesNotExist:
             return Response({"error": "Not found"}, status=404)
-        serializer = PrivateShareTreeSerializer(share)
+        if not user_can_view_private_share_tree(request.user, share):
+            return Response({"error": "Not found"}, status=404)
+        root = get_private_share_tree_root(share)
+        serializer = PrivateShareTreeSerializer(root)
         return Response(serializer.data)
 
 class PrivateShareApproveView(APIView):

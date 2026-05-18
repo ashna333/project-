@@ -102,6 +102,7 @@ class GoogleAuthCallbackView(APIView):
             "first_name": user["first_name"],
             "last_name": user["last_name"],
             "dob": user["dob"],
+            "display_name": user.get("display_name", ""),
         })
         return redirect(f"{settings.FRONTEND_APP_URL}/auth/google/callback?{query}")
 

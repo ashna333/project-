@@ -104,64 +104,90 @@ export default function SharedWithMePage() {
       ) : (
         <div className="ps-table-wrap">
           <table className="ps-table">
+            <colgroup>
+              <col className="ps-col-file" />
+              <col className="ps-col-shared" />
+              <col className="ps-col-perms" />
+              <col className="ps-col-expires" />
+              <col className="ps-col-status" />
+              <col className="ps-col-actions" />
+            </colgroup>
             <thead>
               <tr>
-                <th>File</th>
-                <th>Shared by</th>
-                <th>Permissions</th>
-                <th>Expires</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th className="ps-col-file">File</th>
+                <th className="ps-col-shared">Shared by</th>
+                <th className="ps-col-perms">Permissions</th>
+                <th className="ps-col-expires">Expires</th>
+                <th className="ps-col-status">Status</th>
+                <th className="ps-col-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
               {shares.map((s) => (
                 <tr key={s.id}>
-                  <td>
-                    <strong>{s.file_name}</strong>
-                    {s.message && <div className="ps-muted" style={{ marginTop: '4px', fontSize: '12px' }}>Note: {s.message}</div>}
+                  <td className="ps-col-file">
+                    <strong className="ps-file-name">{s.file_name}</strong>
+                    {s.message && <div className="ps-file-note">Note: {s.message}</div>}
                   </td>
-                  <td>{s.shared_by}<br /><span className="ps-muted">{s.shared_by_email}</span></td>
-                  <td className="perm-badges">
-                    {s.can_view && <span>View</span>}
-                    {s.can_download && <span>Download</span>}
-                    {s.can_reshare && <span>Re-share</span>}
-                    {s.can_comment && <span>Comment</span>}
+                  <td className="ps-col-shared">
+                    <span className="ps-shared-name">{s.shared_by}</span>
+                    <span className="ps-muted ps-shared-email">{s.shared_by_email}</span>
                   </td>
-                  <td>{s.expires_at ? new Date(s.expires_at).toLocaleString() : '—'}</td>
-                  <td>
+                  <td className="ps-col-perms">
+                    <div className="perm-badges">
+                      {s.can_view && <span>View</span>}
+                      {s.can_download && <span>Download</span>}
+                      {s.can_reshare && <span>Re-share</span>}
+                      {s.can_comment && <span>Comment</span>}
+                    </div>
+                  </td>
+                  <td className="ps-col-expires ps-expires-cell">
+                    {s.expires_at ? new Date(s.expires_at).toLocaleString() : '—'}
+                  </td>
+                  <td className="ps-col-status">
                     <span className={`status-pill ${s.access_status === 'accessible' ? 'active' : 'inactive'}`}>
                       {s.access_status === 'accessible' ? 'Accessible' : (s.access_status ? s.access_status.charAt(0).toUpperCase() + s.access_status.slice(1) : 'Unknown')}
                     </span>
                   </td>
-                  <td className="ps-actions">
-                    {s.access_status === 'accessible' && (
-                      <>
-                        {s.requires_password && <Lock size={14} title="Password protected" />}
-                        {s.can_download && (
-                          <button type="button" className="ps-btn" onClick={() => handleDownload(s)} title="Download">
-                            <Download size={16} />
+                  <td className="ps-col-actions">
+                    <div className="ps-actions-toolbar">
+                      {s.access_status === 'accessible' ? (
+                        <>
+                          {s.requires_password && (
+                            <span className="ps-lock-badge" title="Password protected">
+                              <Lock size={14} />
+                            </span>
+                          )}
+                          {s.can_download && (
+                            <button type="button" className="ps-btn" onClick={() => handleDownload(s)} title="Download">
+                              <Download size={16} />
+                            </button>
+                          )}
+                          {s.can_reshare && (
+                            <button type="button" className="ps-btn" onClick={() => setReshareShare(s)} title="Re-share">
+                              <Share2 size={16} />
+                            </button>
+                          )}
+                          {s.can_comment && (
+                            <button type="button" className="ps-btn" onClick={() => openComments(s.share_id)} title="Comments">
+                              <MessageSquare size={16} />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="ps-btn ps-btn-views"
+                            onClick={s.can_view ? () => handlePreview(s) : undefined}
+                            disabled={!s.can_view}
+                            title={s.can_view ? 'Preview' : `Views: ${s.view_count ?? 0}`}
+                          >
+                            <Eye size={16} />
+                            <span className="ps-view-count">{s.view_count ?? 0}</span>
                           </button>
-                        )}
-                        {s.can_reshare && (
-                          <button type="button" className="ps-btn" onClick={() => setReshareShare(s)} title="Reshare">
-                            <Share2 size={16} />
-                          </button>
-                        )}
-                        {s.can_comment && (
-                          <button type="button" className="ps-btn" onClick={() => openComments(s.share_id)} title="Comments">
-                            <MessageSquare size={16} />
-                          </button>
-                        )}
-                        {s.can_view ? (
-                          <button type="button" className="ps-btn" onClick={() => handlePreview(s)} title="Preview">
-                            <Eye size={16} /> {s.view_count}
-                          </button>
-                        ) : (
-                          <button type="button" className="ps-btn" title="Views"><Eye size={16} /> {s.view_count}</button>
-                        )}
-                      </>
-                    )}
+                        </>
+                      ) : (
+                        <span className="ps-muted">—</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -174,22 +200,24 @@ export default function SharedWithMePage() {
         <div className="modal-overlay" onClick={() => { setPasswordPrompt(null); setPassword(''); setShowPassword(false); }}>
           <div className="ps-password-modal" onClick={(e) => e.stopPropagation()}>
             <h3>Enter share password</h3>
-            <div style={{ position: 'relative' }}>
+            <div className="ps-password-wrap">
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="modal-input"
                 placeholder="••••••••"
-                autoComplete="off"
-                style={{ width: '100%', paddingRight: '40px' }}
+                autoComplete="new-password"
+                name="private-share-access-password"
               />
-              <div
+              <button
+                type="button"
+                className="ps-password-eye"
                 onClick={() => setShowPassword(!showPassword)}
-                style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#a1a1aa' }}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </div>
+              </button>
             </div>
             <button type="button" className="share-submit-btn" style={{ marginTop: '12px' }} onClick={() => { 
                 if (passwordPrompt.action === 'download') {
@@ -227,24 +255,32 @@ export default function SharedWithMePage() {
       )}
 
       {previewFile && (
-        <div className="modal-overlay" onClick={() => setPreviewFile(null)}>
-          <div className="ps-comments-modal" style={{ maxWidth: '800px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div className="modal-overlay" onClick={() => { URL.revokeObjectURL(previewFile.url); setPreviewFile(null); }}>
+          <div className="ps-preview-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="ps-preview-header">
               <h3>Preview: {previewFile.file_name}</h3>
-              <button type="button" className="close-x-btn" onClick={() => setPreviewFile(null)} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}>
+              <button
+                type="button"
+                className="close-x-btn"
+                onClick={() => { URL.revokeObjectURL(previewFile.url); setPreviewFile(null); }}
+              >
                 <X size={20} />
               </button>
             </div>
-            <div className="modal-body-content" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px' }}>
-               {previewFile.isImage ? (
-                  <img src={previewFile.url} alt="Preview" style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }} />
-               ) : previewFile.isPDF ? (
-                  <iframe src={`${previewFile.url}#toolbar=0&navpanes=0`} type="application/pdf" width="100%" height="600px" style={{ border: 'none' }} title="PDF Preview" />
-               ) : (
-                  <div style={{ padding: '40px', textAlign: 'center', color: '#71717a' }}>
-                    Preview not available for this file type. Please download to view.
-                  </div>
-               )}
+            <div className="ps-preview-container">
+              {previewFile.isImage ? (
+                <img src={previewFile.url} alt="Preview" className="ps-preview-image" />
+              ) : previewFile.isPDF ? (
+                <iframe
+                  src={`${previewFile.url}#toolbar=0&navpanes=0&scrollbar=1`}
+                  className="ps-preview-pdf"
+                  title="PDF Preview"
+                />
+              ) : (
+                <div className="ps-preview-unavailable">
+                  Preview not available for this file type. Please download to view.
+                </div>
+              )}
             </div>
           </div>
         </div>

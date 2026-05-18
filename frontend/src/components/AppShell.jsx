@@ -3,6 +3,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { CloudUpload, Files, Share2, LogOut, Layers, Trash2, Star, User, ChevronDown, Menu, X, Inbox, Shield } from 'lucide-react';
 import '../styles/DashboardPage.css';
 import { useEffect, useRef, useState } from 'react';
+import { formatUserDisplayName, userInitials } from '../utils/userDisplay';
 
 // ... imports stay the same
 
@@ -15,14 +16,9 @@ export default function AppShell() {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const menuRef = React.useRef(null);
-  const cleanName = (name) => {
-    if (!name) return 'User';
-    return name.replace(/Google User/i, '').trim();
-  };
-
-  const firstName = cleanName(rawUser.first_name);
-  const lastName = cleanName(rawUser.last_name);
   const userEmail = rawUser.email || '';
+  const displayName = formatUserDisplayName(rawUser);
+  const initials = userInitials(rawUser);
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
@@ -121,13 +117,13 @@ export default function AppShell() {
                 <div className="user-profile-trigger" style={{ cursor: 'default' }}>
                   <div style={{ textAlign: 'right' }} className="user-details-text">
                     <div style={{ fontSize: '14px', fontWeight: '500', color: 'white' }}>
-                      {firstName} {lastName}
+                      {displayName}
                     </div>
                     <div style={{ fontSize: '11px', color: '#71717a' }}>{userEmail}</div>
                   </div>
                 </div>
                 <div className="avatar-circle">
-                    {firstName[0]}{lastName[0]}
+                    {initials}
                 </div>
             </div>
           </div>

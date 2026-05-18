@@ -33,7 +33,8 @@ export default function ShareTreeModal({ shareId, isOpen, onClose, onRefresh }) 
       loadTree();
       if (onRefresh) onRefresh();
     } catch (err) {
-      alert('Failed to revoke share.');
+      const msg = err.response?.data?.error || 'Failed to revoke share.';
+      alert(msg);
     }
   };
 

@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux';
 import { Mail, Save, UserCircle, Calendar, KeyRound, Lock, Eye, EyeOff } from 'lucide-react';
 import { updateProfile, changePasswordAction } from '../store/fileThunks';
 import '../styles/ProfilePge.css';
+import { cleanNamePart } from '../utils/userDisplay';
 
 export default function ProfilePage() {
   const dispatch = useDispatch();
@@ -10,7 +11,7 @@ export default function ProfilePage() {
   
   const [formData, setFormData] = useState({
     firstName: rawUser.first_name || '',
-    lastName: rawUser.last_name || '',
+    lastName: cleanNamePart(rawUser.last_name),
     email: rawUser.email || '',
     dob: rawUser.dob || '',
   });

@@ -15,10 +15,58 @@ from django.utils import timezone
 
 User= get_user_model()
 
+_PLACEHOLDER_LAST_NAMES = frozenset({"google", "google user", "user"})
+
+
+def _is_placeholder_last_name(last_name):
+    return (last_name or "").strip().lower() in _PLACEHOLDER_LAST_NAMES
+
+
+def get_user_display_name(user):
+    """Human-friendly name; never shows 'Google User' placeholders."""
+    if not user:
+        return ""
+    first = (user.first_name or "").strip()
+    last = (user.last_name or "").strip()
+    if _is_placeholder_last_name(last):
+        last = ""
+    parts = [p for p in (first, last) if p]
+    if parts:
+        return " ".join(parts)
+    if user.email:
+        return user.email.split("@")[0]
+    return "User"
+
+
+def _parse_google_profile(user_info):
+    email = (user_info.get("email") or "").strip().lower()
+    given = (user_info.get("given_name") or "").strip()
+    family = (user_info.get("family_name") or "").strip()
+    full = (user_info.get("name") or "").strip()
+
+    if not given and full:
+        parts = full.split(None, 1)
+        given = parts[0] if parts else ""
+        family = parts[1] if len(parts) > 1 else ""
+
+    if not given:
+        given = email.split("@")[0] if email else "User"
+
+    return given[:50], family[:50]
+
+
 def register_user(data):
     email = (data.get("email") or "").strip().lower()
-    if User.objects.filter(email__iexact=email).exists():
-        raise ValueError("A user with this email is already registered.")
+    existing = User.objects.filter(email__iexact=email).first()
+    if existing:
+        if existing.auth_provider == "google":
+            raise ValueError(
+                "This email is already linked to Google sign-in. "
+                "Use Continue with Google on the login page instead of registering again."
+            )
+        raise ValueError(
+            "A user with this email is already registered. Please sign in instead."
+        )
 
     user = User.objects.create_user(
         email=email,
@@ -119,21 +167,32 @@ def _google_fetch_userinfo(access_token):
 
 def _get_or_create_google_user(user_info):
     email = user_info["email"].strip().lower()
+    first_name, last_name = _parse_google_profile(user_info)
     user = User.objects.filter(email=email).first()
     if user:
-        if not user.first_name:
-            user.first_name = user_info.get("given_name") or email.split("@")[0][:50]
-        if not user.last_name:
-            user.last_name = user_info.get("family_name") or "Google"
-        user.auth_provider = "google"
-        user.save(update_fields=["first_name", "last_name", "auth_provider"])
+        update_fields = []
+        if not (user.first_name or "").strip():
+            user.first_name = first_name
+            update_fields.append("first_name")
+        if _is_placeholder_last_name(user.last_name):
+            user.last_name = last_name
+            update_fields.append("last_name")
+        elif not (user.last_name or "").strip() and last_name:
+            user.last_name = last_name
+            update_fields.append("last_name")
+        # Keep password-based accounts on password provider (same email, both methods).
+        if user.auth_provider != "password":
+            user.auth_provider = "google"
+            update_fields.append("auth_provider")
+        if update_fields:
+            user.save(update_fields=list(dict.fromkeys(update_fields)))
         return user
 
     default_dob = date.today() - timedelta(days=365 * 18)
     user = User.objects.create_user(
         email=email,
-        first_name=(user_info.get("given_name") or email.split("@")[0])[:50],
-        last_name=(user_info.get("family_name") or "Google User")[:50],
+        first_name=first_name,
+        last_name=last_name,
         dob=default_dob,
         password=uuid.uuid4().hex,
         auth_provider="google",
@@ -709,7 +768,8 @@ def create_private_share(
             created_recipients.append(grant)
             if _send_private_share_email(owner=owner, recipient=recipient, share=share, message=message):
                 emails_sent += 1
-        _log_share_access(share, owner, ShareAccessLog.ACTION_CREATE, request)
+        log_action = ShareAccessLog.ACTION_RESHARE if parent_share else ShareAccessLog.ACTION_CREATE
+        _log_share_access(share, owner, log_action, request)
 
     return share, {
         "recipients": created_recipients,
@@ -771,7 +831,7 @@ def verify_private_share_password(share, password):
     return check_password(password, share.password_hash)
 
 
-def record_private_share_view(grant, request=None):
+def record_private_share_view(grant, request=None, *, preview=False):
     share = grant.private_share
     ok, err = _share_is_accessible(share, grant)
     if not ok:
@@ -781,7 +841,8 @@ def record_private_share_view(grant, request=None):
     grant.save(update_fields=["view_count", "last_accessed_at"])
     share.last_accessed_at = timezone.now()
     share.save(update_fields=["last_accessed_at"])
-    _log_share_access(share, grant.recipient, ShareAccessLog.ACTION_VIEW, request)
+    metadata = {"preview": True} if preview else {}
+    _log_share_access(share, grant.recipient, ShareAccessLog.ACTION_VIEW, request, metadata=metadata)
     _notify_owner_read_receipt(share, grant.recipient, "viewed")
     return True, None
 
@@ -818,6 +879,34 @@ def _notify_owner_read_receipt(share, recipient, action):
     )
 
 
+def _user_owns_ancestor_share(user, share):
+    """True if user created any share in the parent chain (e.g. A can revoke B→C)."""
+    current = share.parent_share
+    while current:
+        if current.owner_id == user.id:
+            return True
+        current = current.parent_share
+    return False
+
+
+def user_can_revoke_private_share(user, share):
+    return share.owner_id == user.id or _user_owns_ancestor_share(user, share)
+
+
+def user_can_view_private_share_tree(user, share):
+    """View tree if user owns this share or an ancestor share."""
+    if share.owner_id == user.id:
+        return True
+    return _user_owns_ancestor_share(user, share)
+
+
+def get_private_share_tree_root(share):
+    root = share
+    while root.parent_share:
+        root = root.parent_share
+    return root
+
+
 def cascade_revoke_share(share, request_user=None):
     share.is_revoked = True
     share.revoked_at = timezone.now()
@@ -835,14 +924,16 @@ def cascade_revoke_share(share, request_user=None):
         cascade_revoke_share(child, request_user)
 
 
-def revoke_private_share(owner, share_id):
+def revoke_private_share(user, share_id):
     try:
-        share = PrivateShare.objects.get(id=share_id, owner=owner)
+        share = PrivateShare.objects.get(id=share_id)
     except PrivateShare.DoesNotExist:
         return False
-    
-    cascade_revoke_share(share, owner)
-    _log_share_access(share, owner, ShareAccessLog.ACTION_REVOKE)
+    if not user_can_revoke_private_share(user, share):
+        return False
+
+    cascade_revoke_share(share, user)
+    _log_share_access(share, user, ShareAccessLog.ACTION_REVOKE)
     return True
 
 
@@ -903,17 +994,28 @@ def add_share_comment(grant, content, page_number=None, highlight_text="", paren
     return comment, None
 
 
+def _share_ids_for_same_file(share):
+    """All private-share rows for the same underlying file (includes re-share chains)."""
+    return PrivateShare.objects.filter(user_file_id=share.user_file_id).values_list("id", flat=True)
+
+
 def get_share_access_logs(share, user):
-    if share.owner_id == user.id:
-        return share.access_logs.select_related("actor").all()
+    share_ids = _share_ids_for_same_file(share)
+    qs = ShareAccessLog.objects.filter(private_share_id__in=share_ids).select_related(
+        "actor", "private_share"
+    ).order_by("-created_at")
+
+    if share.user_file.user_id == user.id or share.owner_id == user.id:
+        return qs
     grant = get_recipient_grant(user, share.id)
     if grant:
-        return share.access_logs.filter(actor=user)
+        return qs.filter(actor=user)
     return ShareAccessLog.objects.none()
 
 
 def get_share_analytics(share):
-    logs = share.access_logs.all()
+    share_ids = _share_ids_for_same_file(share)
+    logs = ShareAccessLog.objects.filter(private_share_id__in=share_ids)
     viewers = logs.filter(action=ShareAccessLog.ACTION_VIEW).values("actor").distinct().count()
     downloads = logs.filter(action=ShareAccessLog.ACTION_DOWNLOAD).count()
     last = logs.first()
@@ -963,7 +1065,7 @@ def apply_watermark_to_file(user_file, recipient):
             img = Image.open(path).convert("RGBA")
             overlay = Image.new("RGBA", img.size, (255, 255, 255, 0))
             draw = ImageDraw.Draw(overlay)
-            text = f"{recipient.first_name} {recipient.last_name} | {recipient.email}"
+            text = f"{get_user_display_name(recipient)} | {recipient.email}"
             draw.text((20, img.height - 40), text, fill=(255, 0, 0, 128))
             combined = Image.alpha_composite(img, overlay)
             out_path = path + ".wm.png"
@@ -983,6 +1085,6 @@ def lookup_users_by_email(emails):
             "email": email,
             "registered": u is not None,
             "id": u.id if u else None,
-            "display_name": f"{u.first_name} {u.last_name}".strip() if u else None,
+            "display_name": get_user_display_name(u) if u else None,
         })
     return results
