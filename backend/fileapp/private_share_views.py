@@ -13,6 +13,9 @@ from .serializers import (
     PrivateShareInboxSerializer,
     ShareCommentSerializer,
     ShareAccessLogSerializer,
+    UserLookupSerializer,
+    ShareCommentCreateSerializer,
+    TransferOwnershipSerializer,
 )
 from .service import (
     create_private_share,
@@ -210,8 +213,12 @@ class PrivateShareTransferView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, file_id):
-        email = request.data.get("new_owner_email", "")
-        ok, msg = transfer_file_ownership(request.user, file_id, email)
+        serializer = TransferOwnershipSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        ok, msg = transfer_file_ownership(
+            request.user, file_id, serializer.validated_data["new_owner_email"]
+        )
         if not ok:
             return Response({"error": msg}, status=status.HTTP_400_BAD_REQUEST)
         return Response({"message": msg})
@@ -249,6 +256,10 @@ class PrivateShareCommentsView(APIView):
         return Response(ShareCommentSerializer(comments, many=True).data)
 
     def post(self, request, share_id):
+        serializer = ShareCommentCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             share = PrivateShare.objects.get(id=share_id)
         except PrivateShare.DoesNotExist:
@@ -261,23 +272,22 @@ class PrivateShareCommentsView(APIView):
             if not grant:
                 return Response({"error": "Access denied."}, status=404)
                 
-        content = request.data.get("content", "").strip()
-        if not content:
-            return Response({"error": "Content required."}, status=400)
+        content = serializer.validated_data["content"]
             
         if is_owner:
             if share.is_revoked:
                 return Response({"error": "Cannot comment on a revoked share."}, status=403)
             parent = None
-            parent_id = request.data.get("parent_id")
+            parent_id = serializer.validated_data.get("parent_id")
+            parent = None
             if parent_id:
                 parent = ShareComment.objects.filter(id=parent_id, private_share=share).first()
             comment = ShareComment.objects.create(
                 private_share=share,
                 author=request.user,
                 content=content,
-                page_number=request.data.get("page_number"),
-                highlight_text=request.data.get("highlight_text", ""),
+                page_number=serializer.validated_data.get("page_number"),
+                highlight_text=serializer.validated_data.get("highlight_text", ""),
                 parent=parent,
             )
             _log_share_access(share, request.user, ShareAccessLog.ACTION_COMMENT, request)
@@ -285,9 +295,9 @@ class PrivateShareCommentsView(APIView):
             comment, err = add_share_comment(
                 grant,
                 content,
-                page_number=request.data.get("page_number"),
-                highlight_text=request.data.get("highlight_text", ""),
-                parent_id=request.data.get("parent_id"),
+                page_number=serializer.validated_data.get("page_number"),
+                highlight_text=serializer.validated_data.get("highlight_text", ""),
+                parent_id=serializer.validated_data.get("parent_id"),
             )
             if err:
                 return Response({"error": err}, status=403)
@@ -339,8 +349,10 @@ class UserLookupView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        emails = request.data.get("emails", [])
-        return Response(lookup_users_by_email(emails))
+        serializer = UserLookupSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(lookup_users_by_email(serializer.validated_data["emails"]))
 
 
 from .serializers import PrivateShareTreeSerializer

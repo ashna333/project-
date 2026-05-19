@@ -13,6 +13,8 @@ import {
 import { fetchTrashApi, restoreTrashFileApi, destroyTrashFileApi ,restoreAllTrashFilesApi,deleteAllTrashFilesApi} from '../store/fileApi';
 import { useToast } from '../components/ToastContext';
 import Pagination from '../components/Pagination';
+import ConfirmModal from '../components/ConfirmModal';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import '../styles/DashboardPage.css'; 
 
 
@@ -28,6 +30,9 @@ export default function TrashPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 12;
+  const [confirmModal, setConfirmModal] = useState(null);
+
+  useBodyScrollLock(!!confirmModal);
 
 
   const getFileIcon = (file) => {
@@ -78,59 +83,70 @@ export default function TrashPage() {
     }
   };
 
-  const handleDelete = async (fileId) => {
-    if (!window.confirm('Permanently delete this file? This cannot be undone.')) return;
-    setActionLoading(fileId);
-    try {
-      await destroyTrashFileApi(fileId);
-      showToast('File permanently deleted.');
-      loadTrash(page);
-    } catch {
-      showToast('Failed to delete file.');
-    } finally {
-      setActionLoading(null);
-    }
+  const handleDelete = (fileId) => {
+    setConfirmModal({
+      title: 'Permanently delete?',
+      message: 'This file will be deleted forever. This cannot be undone.',
+      onConfirm: async () => {
+        setActionLoading(fileId);
+        try {
+          await destroyTrashFileApi(fileId);
+          showToast('File permanently deleted.');
+          loadTrash(page);
+        } catch {
+          showToast('Failed to delete file.');
+        } finally {
+          setActionLoading(null);
+          setConfirmModal(null);
+        }
+      },
+    });
   };
 
-const handleRestoreAll = async () => {
-    
-    if (count === 0) return; 
-    
-    if (!window.confirm(`Restore all ${count} files to your library?`)) return;
+  const handleRestoreAll = () => {
+    if (count === 0) return;
+    setConfirmModal({
+      title: 'Restore all files?',
+      message: `Restore all ${count} files to your library?`,
+      variant: 'primary',
+      confirmLabel: 'Restore All',
+      onConfirm: async () => {
+        setActionLoading('bulk-restore');
+        try {
+          await restoreAllTrashFilesApi();
+          showToast('All files restored.');
+          loadTrash(1);
+          setPage(1);
+        } catch {
+          showToast('Failed to restore files.');
+        } finally {
+          setActionLoading(null);
+          setConfirmModal(null);
+        }
+      },
+    });
+  };
 
-    setActionLoading('bulk-restore');
-    try {
-      // 2. This hits the backend once. The backend handles ALL files for this user.
-      await restoreAllTrashFilesApi(); 
-      console.log('Restore all API response:', response); // Log the full response for debugging
-      
-      showToast('All files restored.');
-      
-      // 3. Refresh the UI to show an empty trash and reset to page 1
-      loadTrash(1);
-      setPage(1);
-    } catch (error) {
-      showToast('Failed to restore files.');
-    } finally {
-      setActionLoading(null);
-    }
-};
-  const handleEmptyTrash = async () => {
-    if (count === 0) return; 
-    if (!window.confirm(`Permanently delete ALL ${count} files?`)) return;
-
-    setActionLoading('bulk-delete');
-    
-    try {
-       await deleteAllTrashFilesApi();
-      showToast('Trash emptied.');
-      loadTrash(1);
-      setPage(1);
-    } catch {
-      showToast('Failed to clear trash.');
-    } finally {
-      setActionLoading(null);
-    }
+  const handleEmptyTrash = () => {
+    if (count === 0) return;
+    setConfirmModal({
+      title: 'Empty trash?',
+      message: `Permanently delete ALL ${count} files? This cannot be undone.`,
+      onConfirm: async () => {
+        setActionLoading('bulk-delete');
+        try {
+          await deleteAllTrashFilesApi();
+          showToast('Trash emptied.');
+          loadTrash(1);
+          setPage(1);
+        } catch {
+          showToast('Failed to clear trash.');
+        } finally {
+          setActionLoading(null);
+          setConfirmModal(null);
+        }
+      },
+    });
   };
 
 
@@ -230,6 +246,17 @@ const handleRestoreAll = async () => {
           />
         </section>
       </main>
+
+      <ConfirmModal
+        open={!!confirmModal}
+        title={confirmModal?.title}
+        message={confirmModal?.message}
+        confirmLabel={confirmModal?.confirmLabel || 'Confirm'}
+        variant={confirmModal?.variant === 'primary' ? 'primary' : 'danger'}
+        loading={!!actionLoading}
+        onConfirm={confirmModal?.onConfirm}
+        onCancel={() => setConfirmModal(null)}
+      />
     </>
   );
 }

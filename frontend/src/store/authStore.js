@@ -28,6 +28,10 @@ const useAuthStore = create((set) => ({
 
   // Helpers 
   clearMessages: () => set({ error: null, successMessage: null }),
+  setUser: (user) => {
+    localStorage.setItem('auth_user', JSON.stringify(user))
+    set({ user, isAuthenticated: true })
+  },
   hydrateUser: async () => {
     const access = localStorage.getItem('access_token')
     const refresh = localStorage.getItem('refresh_token')

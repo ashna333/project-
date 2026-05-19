@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
+import { validatePassword, validatePasswordMatch } from '../utils/validation'
 import '../styles/Forgotpassword.css'
 
 const EyeIcon = ({ open }) => open ? (
@@ -45,18 +46,16 @@ export default function ResetPasswordPage() {
  const handleSubmit = async (e) => {
   e.preventDefault()
 
-  let errors = {}
-
-  if (!form.new_password) errors.new_password = "Enter password"
-  if (!form.confirm) errors.confirm = "Confirm password"
-
-  if (
-    form.new_password &&
-    form.confirm &&
-    form.new_password !== form.confirm
-  ) {
-    errors.confirm = "Passwords do not match"
+  if (!token) {
+    setFieldErrors({ token: 'Invalid or missing reset link. Request a new one.' })
+    return
   }
+
+  const errors = {}
+  const pwErr = validatePassword(form.new_password)
+  if (pwErr) errors.new_password = pwErr
+  const matchErr = validatePasswordMatch(form.new_password, form.confirm)
+  if (matchErr) errors.confirm = matchErr
 
   if (Object.keys(errors).length > 0) {
     setFieldErrors(errors)

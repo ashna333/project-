@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AlertTriangle, X, Copy, RefreshCw, Trash2 } from 'lucide-react';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import '../styles/DuplicateFileDialog.css';
 
 const ACTIONS = [
@@ -9,6 +10,7 @@ const ACTIONS = [
 ];
 
 export default function DuplicateFileDialog({ conflicts, onConfirm, onCancel }) {
+  useBodyScrollLock(!!conflicts?.length);
   const [choices, setChoices] = useState(() =>
     Object.fromEntries(conflicts.map((c) => [c.name, 'replace']))
   );

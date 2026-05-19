@@ -1,7 +1,27 @@
 .profile-wrapper {
-  max-width: 700px; /* Slimmer card for just text fields */
+  max-width: 700px;
   margin: 0 auto;
-  padding: 140px 24px 40px 24px; /* Deep padding to clear the fixed header */
+  padding: 24px 24px 40px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.profile-wrapper .field-error-text {
+  color: #fda4af;
+  font-size: 12px;
+}
+
+.profile-wrapper .input-error {
+  border-color: #e11d48 !important;
+}
+
+@media (max-width: 768px) {
+  .profile-wrapper {
+    padding: 16px 12px 32px;
+  }
+  .profile-content-card {
+    padding: 24px 16px !important;
+  }
 }
 
 .profile-content-card {

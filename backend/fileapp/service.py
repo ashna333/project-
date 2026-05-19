@@ -668,6 +668,17 @@ def _share_is_accessible(share, grant=None):
     return True, None
 
 
+def _get_upstream_owner_emails(parent_share):
+    """Emails of owners in the share chain — cannot be re-shared back to them."""
+    emails = set()
+    current = parent_share
+    while current:
+        if current.owner_id and current.owner.email:
+            emails.add(current.owner.email.strip().lower())
+        current = current.parent_share
+    return emails
+
+
 def create_private_share(
     *,
     owner,
@@ -718,9 +729,14 @@ def create_private_share(
     resolved = []
     unregistered = []
     skipped_self = []
+    blocked_upstream = []
+    upstream_blocked = _get_upstream_owner_emails(parent_share) if parent_share else set()
 
     for raw_email in recipient_emails:
         email = raw_email.strip().lower()
+        if parent_share and email in upstream_blocked:
+            blocked_upstream.append(email)
+            continue
         recipient = User.objects.filter(email__iexact=email).first()
         if not recipient:
             unregistered.append(email)
@@ -732,6 +748,10 @@ def create_private_share(
 
     if not resolved:
         msg = "No valid registered recipients."
+        if blocked_upstream:
+            msg += (
+                f" Cannot share back to the original sender(s): {', '.join(blocked_upstream)}."
+            )
         if unregistered:
             msg += f" Not registered on CloudShare: {', '.join(unregistered)}."
         if skipped_self:

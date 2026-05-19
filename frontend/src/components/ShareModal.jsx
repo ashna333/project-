@@ -2,9 +2,16 @@ import React, { useState } from 'react';
 import { Share2, X, Loader2, UserPlus, Shield, Link } from 'lucide-react';
 import { createShareApi } from '../store/fileApi';
 import PrivateShareModal from './PrivateShareModal';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
+import {
+  validateEmail,
+  validateExpiresInHours,
+  validateShareMessage,
+} from '../utils/validation';
 import '../styles/ShareModal.css';
 
 export default function ShareModal({ file, isOpen, onClose, onRefresh }) {
+  useBodyScrollLock(isOpen);
   const [mode, setMode] = useState('public'); // public | private
   const [emails, setEmails] = useState([]); // Array of chips
   const [inputValue, setInputValue] = useState(''); // Current typing text
@@ -39,16 +46,20 @@ export default function ShareModal({ file, isOpen, onClose, onRefresh }) {
   };
 
   const addEmail = (val) => {
-    const email = val.trim().replace(/,$/, ''); // Remove trailing comma
-    if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { // Basic regex check
-      if (!emails.includes(email)) {
-        setEmails([...emails, email]);
-      }
-      setInputValue('');
-      setError('');
-    } else if (email) {
-      setError('Invalid email format');
+    const email = val.trim().replace(/,$/, '').toLowerCase();
+    if (!email) return;
+    const err = validateEmail(email);
+    if (err) {
+      setError(err);
+      return;
     }
+    if (emails.includes(email)) {
+      setError('This email is already in the list.');
+      return;
+    }
+    setEmails([...emails, email]);
+    setInputValue('');
+    setError('');
   };
 
   const removeEmail = (index) => {
@@ -62,7 +73,18 @@ export default function ShareModal({ file, isOpen, onClose, onRefresh }) {
     if (inputValue) addEmail(inputValue);
 
     if (emails.length === 0) {
-      setError("Please add at least one recipient.");
+      setError('Please add at least one recipient.');
+      return;
+    }
+
+    const expiryErr = validateExpiresInHours(formData.expires_in_hours);
+    if (expiryErr) {
+      setError(expiryErr);
+      return;
+    }
+    const msgErr = validateShareMessage(formData.message);
+    if (msgErr) {
+      setError(msgErr);
       return;
     }
 

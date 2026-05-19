@@ -9,10 +9,12 @@ from django.shortcuts import redirect
 from urllib.parse import urlencode
 from .serializers import (
     RegisterSerializer,
+    LoginSerializer,
     ChangePasswordSerializer,
     ForgotPasswordSerializer,
     ResetPasswordSerializer,
     UserProfileSerializer,
+    UserProfileUpdateSerializer,
 )
 from .service import (
     register_user,
@@ -51,11 +53,18 @@ class RegisterView(APIView):
     
 
 class LoginView(APIView):
-    def post(self,request):
-       data = login_user(request.data.get("email"),request.data.get("password"))
+    def post(self, request):
+        serializer = LoginSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-       if not data :
-           return Response({"error":"Invalid credentials"},status=status.HTTP_400_BAD_REQUEST)
+        data = login_user(
+            serializer.validated_data["email"],
+            serializer.validated_data["password"],
+        )
+
+        if not data:
+            return Response({"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
        
 
        return Response({
@@ -71,6 +80,15 @@ class ProfileView(APIView):
 
     def get(self, request):
         return Response(UserProfileSerializer(request.user).data)
+
+    def patch(self, request):
+        serializer = UserProfileUpdateSerializer(
+            request.user, data=request.data, partial=True
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(UserProfileSerializer(request.user).data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class GoogleAuthStartView(APIView):

@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, X, Loader2, UserPlus, Clock, Lock, CheckCircle, Eye, EyeOff, DownloadCloud, Activity, CalendarClock } from 'lucide-react';
 import { createPrivateShareApi, lookupUsersApi } from '../store/fileApi';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
+import {
+  validateEmail,
+  validateExpiresInHours,
+  validateShareMessage,
+} from '../utils/validation';
 import '../styles/ShareModal.css';
 
 const PERMS = [
@@ -41,6 +47,8 @@ export default function PrivateShareModal({ file, parentShare, isOpen, onClose, 
   const [error, setError] = useState('');
   const [successInfo, setSuccessInfo] = useState('');
 
+  useBodyScrollLock(isOpen);
+
   useEffect(() => {
     if (isOpen) {
       setEnablePassword(false);
@@ -66,8 +74,9 @@ export default function PrivateShareModal({ file, parentShare, isOpen, onClose, 
   const addEmail = async (val) => {
     const email = val.trim().replace(/,$/, '').toLowerCase();
     if (!email) return;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError('Invalid email format');
+    const emailErr = validateEmail(email);
+    if (emailErr) {
+      setError(emailErr);
       return;
     }
     if (emails.includes(email)) return;
@@ -75,6 +84,14 @@ export default function PrivateShareModal({ file, parentShare, isOpen, onClose, 
     if (email === currentUserEmail) {
       setError('You cannot share a file with yourself. Use a different recipient account.');
       return;
+    }
+
+    if (parentShare) {
+      const upstream = (parentShare.shared_by_email || '').toLowerCase();
+      if (upstream && email === upstream) {
+        setError('You cannot share this file back to the person who shared it with you.');
+        return;
+      }
     }
 
     setError('');
@@ -109,9 +126,21 @@ export default function PrivateShareModal({ file, parentShare, isOpen, onClose, 
       setError('Add at least one registered recipient email.');
       return;
     }
-    if (enablePassword && !password.trim()) {
-      setError('Please enter a password for protection.');
+    if (enablePassword && password.trim().length < 4) {
+      setError('Share password must be at least 4 characters.');
       return;
+    }
+    const msgErr = validateShareMessage(message);
+    if (msgErr) {
+      setError(msgErr);
+      return;
+    }
+    if (!oneTime) {
+      const expErr = validateExpiresInHours(expiresInHours);
+      if (expErr) {
+        setError(expErr);
+        return;
+      }
     }
     setLoading(true);
     setError('');

@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Edit3, X, Loader2 } from 'lucide-react';
 import { renameFileApi } from '../store/fileApi';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
+import { validateFilename } from '../utils/validation';
 import '../styles/ShareModal.css';
 
 export default function RenameModal({ file, isOpen, onClose, onRefresh }) {
+  useBodyScrollLock(isOpen);
   const [baseName, setBaseName] = useState(''); // Just the name
   const [extension, setExtension] = useState(''); // Just the .ext
   const [loading, setLoading] = useState(false);
@@ -34,8 +37,14 @@ export default function RenameModal({ file, isOpen, onClose, onRefresh }) {
     // Combine baseName + extension
     const finalName = baseName.trim() + extension;
 
-    if (!baseName.trim() || finalName === file.original_name) {
+    if (finalName === file.original_name) {
       onClose();
+      return;
+    }
+
+    const nameErr = validateFilename(finalName);
+    if (nameErr) {
+      setError(nameErr);
       return;
     }
 

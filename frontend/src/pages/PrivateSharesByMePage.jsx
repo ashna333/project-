@@ -8,6 +8,9 @@ import {
   postPrivateShareCommentApi,
 } from '../store/fileApi';
 import ShareTreeModal from '../components/ShareTreeModal';
+import ConfirmModal from '../components/ConfirmModal';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
+import { useToast } from '../components/ToastContext';
 import '../styles/PrivateSharePages.css';
 
 export default function PrivateSharesByMePage() {
@@ -19,6 +22,10 @@ export default function PrivateSharesByMePage() {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [treeOpen, setTreeOpen] = useState(null);
+  const [revokeTarget, setRevokeTarget] = useState(null);
+  const { showToast } = useToast();
+
+  useBodyScrollLock(!!auditLogs || !!commentsOpen || !!treeOpen || !!revokeTarget);
 
   const load = async () => {
     setLoading(true);
@@ -35,10 +42,21 @@ export default function PrivateSharesByMePage() {
 
   useEffect(() => { load(); }, [filter]);
 
-  const revoke = async (id) => {
-    if (!window.confirm('Revoke this private share for all recipients?')) return;
-    await revokePrivateShareApi(id);
-    load();
+  const revoke = (id) => {
+    setRevokeTarget(id);
+  };
+
+  const confirmRevoke = async () => {
+    if (!revokeTarget) return;
+    try {
+      await revokePrivateShareApi(revokeTarget);
+      showToast('Share revoked');
+      load();
+    } catch {
+      showToast('Failed to revoke share');
+    } finally {
+      setRevokeTarget(null);
+    }
   };
 
   const viewAudit = async (id) => {
@@ -187,6 +205,15 @@ export default function PrivateSharesByMePage() {
         isOpen={!!treeOpen}
         onClose={() => setTreeOpen(null)}
         onRefresh={() => load()}
+      />
+
+      <ConfirmModal
+        open={!!revokeTarget}
+        title="Revoke private share?"
+        message="This will revoke access for all recipients on this share."
+        confirmLabel="Revoke"
+        onConfirm={confirmRevoke}
+        onCancel={() => setRevokeTarget(null)}
       />
     </div>
   );

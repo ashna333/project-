@@ -15,6 +15,7 @@ import RenameModal from '../components/RenameModal';
 import { deleteFileApi } from '../store/fileApi';
 import { useToast } from '../components/ToastContext';
 import Pagination from '../components/Pagination';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
 
 export default function FileManagerPage() {
   const dispatch = useDispatch();
@@ -33,9 +34,12 @@ export default function FileManagerPage() {
   const [selectedFile, setSelectedFile] = useState(null); // For sidebar details
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const pageSize = 12; // Adjust this to match your preference
+  const pageSize = 12;
 
-                
+  useBodyScrollLock(
+    !!selectedFile || isModalOpen || isRenameModalOpen || isDeleteModalOpen
+  );
+
   // --- Helpers ---
   const getFileIcon = (file) => {
     const type = (file?.file_type || "").toLowerCase();
@@ -123,27 +127,24 @@ useEffect(() => {
   }
 }, [pagination, pageSize]);
 
-  const handleToggleStar = async (file) => {
-  try {
-    const result = await dispatch(toggleFileStar(file.id));
-    
-    // Sync the main list in the Redux store
-    dispatch(updateFileSuccess({ 
-      id: file.id, 
-      updates: { is_starred: result.is_starred } 
-    }));
-
-    
-    showToast(result.is_starred ? "Added to Starred" : "Removed from Starred");
-  } catch (err) {
-    showToast("Failed to update star");
-  }
-};
+  const handleToggleStar = async (file, e) => {
+    if (e) e.stopPropagation();
+    try {
+      const result = await dispatch(toggleFileStar(file.id));
+      if (selectedFile?.id === file.id) {
+        setSelectedFile((prev) =>
+          prev ? { ...prev, is_starred: result.is_starred } : null
+        );
+      }
+      showToast(result.is_starred ? 'Added to Starred' : 'Removed from Starred');
+    } catch {
+      showToast('Failed to update star');
+    }
+  };
 
  
   
-  // ADD this helper near your other helper functions
-const getReadableFileType = (file) => {
+  const getReadableFileType = (file) => {
   // const mime =
   //   file?.file_type ||
   //   file?.mime_type ||
@@ -424,7 +425,7 @@ const getReadableFileType = (file) => {
           <Star 
             size={22} 
             className={`star-icon ${selectedFile.is_starred ? 'is-active' : ''}`} 
-            onClick={() => handleToggleStar(selectedFile)}
+            onClick={(e) => handleToggleStar(selectedFile, e)}
             fill={selectedFile.is_starred ? "#fbbf24" : "none"} 
             color={selectedFile.is_starred ? "#fbbf24" : "#71717a"} 
             style={{ cursor: 'pointer' }}

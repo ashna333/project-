@@ -117,6 +117,138 @@
   padding: 12px;
 }
 
+.detail-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.detail-filename {
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.35;
+  word-break: break-word;
+  flex: 1;
+  margin: 0;
+}
+
+.detail-title-row .star-icon {
+  flex-shrink: 0;
+  margin-top: 4px;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.detail-title-row .star-icon:hover {
+  transform: scale(1.1);
+}
+
+.detail-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 12px;
+}
+
+.detail-info-grid .info-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-info-grid .info-group label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #71717a;
+  font-weight: 600;
+}
+
+.detail-info-grid .info-group span {
+  color: #e4e4e7;
+  font-size: 14px;
+}
+
+.sidebar-actions-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.sidebar-actions-main button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid #3f3f46;
+  background: #18181b;
+  color: #e4e4e7;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.sidebar-actions-main button:hover {
+  background: #27272a;
+  border-color: #52525b;
+}
+
+.sidebar-actions-main .sidebar-btn-share {
+  background: rgba(225, 29, 72, 0.12);
+  border-color: rgba(225, 29, 72, 0.4);
+  color: #fda4af;
+}
+
+.sidebar-actions-main .sidebar-btn-share:hover {
+  background: rgba(225, 29, 72, 0.2);
+}
+
+.close-sidebar {
+  background: transparent;
+  border: none;
+  color: #71717a;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-sidebar:hover {
+  color: #fff;
+  background: #27272a;
+}
+
+.sidebar-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #71717a;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .detail-info-grid {
+    grid-template-columns: 1fr;
+  }
+  .file-details-modal {
+    max-height: 95vh;
+    border-radius: 16px 16px 0 0;
+  }
+}
+
 @media (max-width: 768px) {
   .files-toolbar,
   .file-toolbar {

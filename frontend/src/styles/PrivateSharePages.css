@@ -93,20 +93,26 @@
 }
 
 .ps-col-file { width: 20%; }
-.ps-col-shared { width: 14%; }
-.ps-col-perms { width: 17%; }
-.ps-col-expires { width: 15%; }
-.ps-col-status { width: 11%; }
-.ps-col-actions { width: 23%; min-width: 200px; }
+.ps-col-shared { width: 16%; }
+.ps-col-perms { width: 16%; }
+.ps-col-expires { width: 14%; }
+.ps-col-status { width: 16%; min-width: 120px; }
+.ps-col-actions { width: 22%; min-width: 200px; }
 
 .ps-col-status {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .ps-col-status .status-pill {
+  display: inline-flex;
+  align-items: center;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.35;
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 12px;
 }
 
 .ps-table th.ps-col-actions,
@@ -143,7 +149,21 @@
 .ps-shared-email {
   display: block;
   font-size: 12px;
-  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  line-height: 1.4;
+}
+
+.ps-password-error {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(225, 29, 72, 0.12);
+  border: 1px solid rgba(225, 29, 72, 0.35);
+  color: #fda4af;
+  font-size: 13px;
 }
 
 .perm-badges {

@@ -4,6 +4,7 @@ import { CloudUpload, Files, Share2, LogOut, Layers, Trash2, Star, User, Chevron
 import '../styles/DashboardPage.css';
 import { useEffect, useRef, useState } from 'react';
 import { formatUserDisplayName, userInitials } from '../utils/userDisplay';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
 
 // ... imports stay the same
 
@@ -19,6 +20,8 @@ export default function AppShell() {
   const userEmail = rawUser.email || '';
   const displayName = formatUserDisplayName(rawUser);
   const initials = userInitials(rawUser);
+
+  useBodyScrollLock(showLogoutConfirm);
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');

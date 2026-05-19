@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react' // 1. Added useEffect
 import { Link } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
+import { validateEmail } from '../utils/validation'
 import '../styles/Forgotpassword.css'
 
 export default function ForgotPasswordPage() {
@@ -21,12 +22,9 @@ export default function ForgotPasswordPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-     if (!email) {
-      setFieldError('Email cannot be empty')
-      return
-    }
-    if (!email.includes('@')) {
-      setFieldError('Enter a valid email address')
+    const err = validateEmail(email)
+    if (err) {
+      setFieldError(err)
       return
     }
     setFieldError('')

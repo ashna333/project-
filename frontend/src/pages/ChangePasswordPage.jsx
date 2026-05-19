@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import useAuthStore from '../store/authStore'
+import { validateChangePassword } from '../utils/validation'
 
 export default function ChangePasswordPage() {
   const navigate = useNavigate()
@@ -15,8 +16,9 @@ export default function ChangePasswordPage() {
     e.preventDefault()
     setError('')
     setMessage('')
-    if (form.new_password !== form.confirm_new_password) {
-      setError('Passwords do not match.')
+    const errs = validateChangePassword(form)
+    if (Object.keys(errs).length > 0) {
+      setError(Object.values(errs)[0])
       return
     }
     const result = await changePassword(form)

@@ -18,6 +18,9 @@ export const loginApi = (email, password) =>
 export const profileApi = () =>
   api.get('/me/')
 
+export const updateProfileApi = (data) =>
+  api.patch('/me/', data)
+
 /**
  * POST /api/change-password/   [protected]
  * Body: { old_password, new_password, confirm_new_password }

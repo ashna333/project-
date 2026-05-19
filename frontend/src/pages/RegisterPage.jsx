@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
+import { validateRegisterForm } from '../utils/validation'
+import AlertModal from '../components/AlertModal'
 
 const EyeIcon = ({ open }) => open ? (
   <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -26,11 +28,15 @@ export default function Registeauthage() {
   const [showPass, setShowPass] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [fieldErrors, setFieldErrors] = useState({})
+  const [alertModal, setAlertModal] = useState(null)
 
    const handleGoogleSignIn = () => {
     const googleAuthUrl = import.meta.env.VITE_GOOGLE_AUTH_URL
     if (!googleAuthUrl) {
-      window.alert('Google sign-in UI is added, but backend OAuth URL is not configured yet. Set VITE_GOOGLE_AUTH_URL after your backend Google auth endpoint is ready.')
+      setAlertModal({
+        title: 'Google sign-in unavailable',
+        message: 'Set VITE_GOOGLE_AUTH_URL in your environment after the backend Google auth endpoint is configured.',
+      })
       return
     }
     window.location.href = googleAuthUrl
@@ -42,14 +48,7 @@ export default function Registeauthage() {
   }
 
   const validate = () => {
-    const errs = {}
-    if (!form.first_name.trim()) errs.first_name = 'Required'
-    if (!form.last_name.trim()) errs.last_name = 'Required'
-    const emailNorm = form.email.trim().toLowerCase()
-    if (!emailNorm.includes('@') || !emailNorm.includes('.')) errs.email = 'Enter a valid email'
-    if (form.password.length < 8) errs.password = 'At least 8 characters'
-    if (form.password !== form.confirm_password) errs.confirm_password = 'Passwords do not match'
-    if (!form.dob) errs.dob = 'Date of birth is required'
+    const errs = validateRegisterForm(form)
     setFieldErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -202,6 +201,13 @@ export default function Registeauthage() {
           </div>
         </div>
       </div>
+
+      <AlertModal
+        open={!!alertModal}
+        title={alertModal?.title}
+        message={alertModal?.message}
+        onClose={() => setAlertModal(null)}
+      />
     </>
   )
 }

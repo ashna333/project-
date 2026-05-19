@@ -14,6 +14,7 @@ import {
 } from './fileApi'
 
 import api from '../api/axiosInstance';
+import { updateProfileApi } from '../api/authApi';
 
 // FIX THIS PART inside fetchFiles thunk
 
@@ -118,19 +119,13 @@ export const renameFile = (fileId, newName) => async (dispatch) => {
   }
 }
 
-export const toggleFileStar = (fileId) => async (dispatch, getState) => {
-  try {
-    const response = await toggleStarApi(fileId);
-    
-    // Option A: Refresh the whole list (Safest)
-    const { pagination, searchQuery } = getState().files;
-    dispatch(fetchFiles(pagination.currentPage, pagination.pageSize, searchQuery));
-    
-    return response.data;
-  } catch (error) {
-    console.error("Star toggle failed", error);
-    throw error;
-  }
+export const toggleFileStar = (fileId) => async (dispatch) => {
+  const response = await toggleStarApi(fileId);
+  dispatch(updateFileSuccess({
+    id: fileId,
+    updates: { is_starred: response.data.is_starred },
+  }));
+  return response.data;
 };
 
 export const downloadPublicFile = (token, fileName) => async () => {
@@ -153,21 +148,22 @@ export const downloadPublicFile = (token, fileName) => async () => {
 
 export const updateProfile = (userData) => async (dispatch) => {
   try {
-    dispatch(clearMessages());
-    const response = await axios.patch(`${API_BASE}/auth/profile/update/`, userData, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
+    const { data } = await updateProfileApi({
+      first_name: userData.firstName,
+      last_name: userData.lastName,
+      dob: userData.dob,
     });
-
-    // 1. Update Redux
-    dispatch(updateUserSuccess(response.data));
-
-    // 2. Update LocalStorage so AppShell header updates
-    const currentAuth = JSON.parse(localStorage.getItem('auth_user')) || {};
-    localStorage.setItem('auth_user', JSON.stringify({ ...currentAuth, ...response.data }));
-    
-    return { success: true };
+    dispatch(updateUserSuccess(data));
+    localStorage.setItem('auth_user', JSON.stringify(data));
+    return { success: true, data };
   } catch (err) {
-    const msg = err.response?.data?.detail || 'Failed to update profile';
+    const errors = err.response?.data;
+    let msg = 'Failed to update profile';
+    if (errors && typeof errors === 'object') {
+      msg = Object.entries(errors)
+        .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+        .join(' | ');
+    }
     dispatch(setOperationFailure(msg));
     return { success: false, error: msg };
   }

@@ -1,37 +1,33 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from datetime import date
-import re
 from .service import register_user
+from .validators import (
+    validate_name,
+    validate_email,
+    validate_password_strength,
+    validate_dob,
+    validate_filename,
+    validate_share_message,
+    validate_expires_in_hours,
+    MAX_FILE_SIZE,
+    MAX_FILES_PER_UPLOAD,
+    MAX_MESSAGE_LENGTH,
+)
 User = get_user_model()
-from django.core.mail import send_mail        # 👈 add this
-from django.conf import settings 
+from django.conf import settings
 
 
-def validate_name(value, field_name="Name", min_length=2):
-    value = value.strip()
-    if not re.match(r"^[a-zA-Z\s'\-]+$", value):
-        raise serializers.ValidationError(f"{field_name} should only contain letters, hyphens, or apostrophes")
-    if len(value) < min_length:
-        raise serializers.ValidationError(f"{field_name} must be at least {min_length} characters")
-    if len(value) > 50:
-        raise serializers.ValidationError(f"{field_name} cannot exceed 50 characters")
-    return value
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
 
-def validate_password_strength(value):
-    if len(value) < 8:
-        raise serializers.ValidationError("Password must be at least 8 characters")
-    if not re.search(r'[A-Z]', value):
-        raise serializers.ValidationError("Password must contain at least one uppercase letter")
-    if not re.search(r'[a-z]', value):
-        raise serializers.ValidationError("Password must contain at least one lowercase letter")
-    if not re.search(r'[0-9]', value):
-        raise serializers.ValidationError("Password must contain at least one number")
-    if not re.search(r'[!@#$%^&*()_+\-=;:"<>?/|]', value):
-        raise serializers.ValidationError("Password must contain at least one special character")
-    if value != value.strip():
-        raise serializers.ValidationError("Password cannot contain leading or trailing spaces")
-    return value
+    def validate_email(self, value):
+        return validate_email(value)
+
+    def validate_password(self, value):
+        if not value or not str(value).strip():
+            raise serializers.ValidationError("Password is required.")
+        return value
     
 
 
@@ -52,27 +48,11 @@ class RegisterSerializer(serializers.ModelSerializer):
      return validate_name(value, field_name="Last name", min_length=1)  # allows single letter
 
 
-    def validate_dob(self,value):
-
-        today =date.today()
-        if(value >= today):
-            raise serializers.ValidationError("Date of birth cannot be a future date")
-        
-        age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
-
-        if age < 13:
-            raise serializers.ValidationError("User must be at least 13 years old")
-        
-        if age > 120:
-           raise serializers.ValidationError("Please enter a valid date of birth")
-  
-        
-
-        return value
-
+    def validate_dob(self, value):
+        return validate_dob(value)
 
     def validate_email(self, value):
-        value = value.lower().strip()
+        value = validate_email(value)
         if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError(
                 "An account with this email already exists. Please sign in instead."
@@ -121,11 +101,19 @@ class ChangePasswordSerializer(serializers.Serializer):
 class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
+    def validate_email(self, value):
+        return validate_email(value)
+
 
 class ResetPasswordSerializer(serializers.Serializer):
-    token = serializers.CharField()
+    token = serializers.CharField(min_length=10)
     new_password = serializers.CharField(write_only=True)
     confirm_new_password = serializers.CharField(write_only=True)
+
+    def validate_token(self, value):
+        if not (value or "").strip():
+            raise serializers.ValidationError("Reset token is required.")
+        return value.strip()
 
     def validate_new_password(self, value):
         return validate_password_strength(value)
@@ -148,14 +136,25 @@ class UserProfileSerializer(serializers.ModelSerializer):
         return get_user_display_name(obj)
 
 
+class UserProfileUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["first_name", "last_name", "dob"]
+
+    def validate_first_name(self, value):
+        return validate_name(value, field_name="First name", min_length=2)
+
+    def validate_last_name(self, value):
+        return validate_name(value, field_name="Last name", min_length=1)
+
+    def validate_dob(self, value):
+        return validate_dob(value)
+
+
 
 
 from rest_framework import serializers
 from .models import UserFile
-
-MAX_FILE_SIZE = 100 * 1024 * 1024        # 100 MB per file
-MAX_STORAGE_PER_USER = 1 * 1024 * 1024 * 1024  # 1 GB total per user
-
 
 class UserFileSerializer(serializers.ModelSerializer):
     """Read serializer — used for listing/retrieving files."""
@@ -195,28 +194,35 @@ class FileUploadSerializer(serializers.Serializer):
     files = serializers.ListField(child=serializers.FileField())
 
     def validate_files(self, value):
+        if not value:
+            raise serializers.ValidationError("At least one file is required.")
+        if len(value) > MAX_FILES_PER_UPLOAD:
+            raise serializers.ValidationError(
+                f"You can upload at most {MAX_FILES_PER_UPLOAD} files at once."
+            )
         for f in value:
-            # 1. Size Check
             if f.size > MAX_FILE_SIZE:
-                raise serializers.ValidationError(f"{f.name} is too large.")
-            
-            # 2. Folder Check (Directories usually have 0 size in these uploads)
+                raise serializers.ValidationError(
+                    f'"{f.name}" exceeds the 100 MB per-file limit.'
+                )
             if f.size == 0:
                 raise serializers.ValidationError(
-                    f"'{f.name}' appears to be a folder. Please upload files only."
+                    f'"{f.name}" appears to be a folder. Please upload files only.'
                 )
+            try:
+                validate_filename(f.name)
+            except serializers.ValidationError as exc:
+                raise serializers.ValidationError(
+                    f'"{f.name}": {exc.detail[0] if isinstance(exc.detail, list) else exc.detail}'
+                ) from exc
         return value
-    
+
+
 class FileRenameSerializer(serializers.Serializer):
     new_name = serializers.CharField(max_length=255, trim_whitespace=True)
 
     def validate_new_name(self, value):
-        if not value.strip():
-            raise serializers.ValidationError("File name cannot be empty.")
-        # Block path traversal attacks
-        if "/" in value or "\\" in value:
-            raise serializers.ValidationError("File name cannot contain slashes.")
-        return value.strip()
+        return validate_filename(value)
 
 
 from django.utils import timezone
@@ -226,8 +232,17 @@ from .models import FileShare
 class FileShareCreateSerializer(serializers.Serializer):
     file_id = serializers.IntegerField(min_value=1)
     recipient_email = serializers.EmailField()
-    expires_in_hours = serializers.IntegerField(min_value=1, max_value=720)  # up to 30 days
-    message = serializers.CharField(allow_blank=True, trim_whitespace=True)
+    expires_in_hours = serializers.IntegerField(min_value=1, max_value=720)
+    message = serializers.CharField(allow_blank=True, trim_whitespace=True, max_length=MAX_MESSAGE_LENGTH)
+
+    def validate_recipient_email(self, value):
+        return validate_email(value)
+
+    def validate_expires_in_hours(self, value):
+        return validate_expires_in_hours(value)
+
+    def validate_message(self, value):
+        return validate_share_message(value)
 
 
 class FileShareListSerializer(serializers.ModelSerializer):
@@ -297,16 +312,71 @@ from .models import PrivateShare, PrivateShareRecipient, ShareComment, ShareAcce
 
 class PrivateShareCreateSerializer(serializers.Serializer):
     file_id = serializers.IntegerField(min_value=1)
-    recipient_emails = serializers.ListField(child=serializers.EmailField(), min_length=1)
+    recipient_emails = serializers.ListField(child=serializers.EmailField(), min_length=1, max_length=20)
     recipient_permissions = serializers.DictField(required=False, default=dict)
-    message = serializers.CharField(allow_blank=True, default="")
+    message = serializers.CharField(allow_blank=True, default="", max_length=MAX_MESSAGE_LENGTH)
     expires_at = serializers.DateTimeField(required=False, allow_null=True)
-    password = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    password = serializers.CharField(required=False, allow_blank=True, write_only=True, max_length=128)
     one_time_access = serializers.BooleanField(default=False)
-    max_downloads = serializers.IntegerField(required=False, allow_null=True, min_value=1)
-    inactivity_revoke_days = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+    max_downloads = serializers.IntegerField(required=False, allow_null=True, min_value=1, max_value=10000)
+    inactivity_revoke_days = serializers.IntegerField(required=False, allow_null=True, min_value=1, max_value=365)
     time_windows = serializers.ListField(required=False, default=list)
     parent_share_id = serializers.IntegerField(required=False, allow_null=True)
+
+    def validate_recipient_emails(self, value):
+        cleaned = []
+        for raw in value:
+            cleaned.append(validate_email(raw))
+        if len(cleaned) != len(set(cleaned)):
+            raise serializers.ValidationError("Duplicate recipient emails are not allowed.")
+        return cleaned
+
+    def validate_message(self, value):
+        return validate_share_message(value)
+
+    def validate_password(self, value):
+        if value and len(value) < 4:
+            raise serializers.ValidationError("Share password must be at least 4 characters.")
+        return value
+
+    def validate(self, data):
+        if data.get("expires_at"):
+            from django.utils import timezone
+            if data["expires_at"] <= timezone.now():
+                raise serializers.ValidationError({"expires_at": "Expiry must be in the future."})
+        return data
+
+
+class UserLookupSerializer(serializers.Serializer):
+    emails = serializers.ListField(
+        child=serializers.EmailField(),
+        min_length=1,
+        max_length=20,
+    )
+
+    def validate_emails(self, value):
+        return [validate_email(e) for e in value]
+
+
+class ShareCommentCreateSerializer(serializers.Serializer):
+    content = serializers.CharField(max_length=2000, trim_whitespace=True)
+    page_number = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+    highlight_text = serializers.CharField(required=False, allow_blank=True, max_length=500)
+    parent_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+
+    def validate_content(self, value):
+        if not (value or "").strip():
+            raise serializers.ValidationError("Comment cannot be empty.")
+        if len(value.strip()) > 2000:
+            raise serializers.ValidationError("Comment cannot exceed 2000 characters.")
+        return value.strip()
+
+
+class TransferOwnershipSerializer(serializers.Serializer):
+    new_owner_email = serializers.EmailField()
+
+    def validate_new_owner_email(self, value):
+        return validate_email(value)
 
 class PrivateShareRecipientSerializer(serializers.ModelSerializer):
     recipient_email = serializers.EmailField(source="recipient.email", read_only=True)

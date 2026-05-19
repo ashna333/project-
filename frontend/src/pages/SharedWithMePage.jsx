@@ -7,24 +7,52 @@ import {
   postPrivateShareCommentApi,
 } from '../store/fileApi';
 import PrivateShareModal from '../components/PrivateShareModal';
+import { useToast } from '../components/ToastContext';
+import AlertModal from '../components/AlertModal';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
+import { parseApiError } from '../utils/parseApiError';
 import '../styles/PrivateSharePages.css';
+
+function formatStatus(status) {
+  if (status === 'accessible') return { label: 'Accessible', className: 'active' };
+  if (!status) return { label: 'Unknown', className: 'inactive' };
+  const label = status.charAt(0).toUpperCase() + status.slice(1);
+  return { label, className: 'inactive', title: status };
+}
 
 export default function SharedWithMePage() {
   const [shares, setShares] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [passwordPrompt, setPasswordPrompt] = useState(null); // { share, action: 'download' | 'preview' }
+  const [passwordPrompt, setPasswordPrompt] = useState(null);
   const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(null);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [previewFile, setPreviewFile] = useState(null);
   const [reshareShare, setReshareShare] = useState(null);
+  const [alertModal, setAlertModal] = useState(null);
+  const { showToast } = useToast();
+
+  const anyModalOpen =
+    !!passwordPrompt ||
+    !!commentsOpen ||
+    !!previewFile ||
+    !!reshareShare ||
+    !!alertModal;
+
+  useBodyScrollLock(anyModalOpen);
+
   const load = async () => {
     setLoading(true);
     try {
       const { data } = await fetchPrivateSharesInboxApi();
-      const list = data.results?.shares ?? data.shares ?? (Array.isArray(data.results) ? data.results : []);
+      const list =
+        data.results?.shares ??
+        data.shares ??
+        (Array.isArray(data.results) ? data.results : []);
       setShares(list);
     } catch {
       setShares([]);
@@ -33,45 +61,105 @@ export default function SharedWithMePage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
-  const handleDownload = async (share, pwd = '') => {
-    try {
-      const { data } = await downloadPrivateShareApi(share.share_id, pwd);
-      const url = window.URL.createObjectURL(new Blob([data], { type: data.type || 'application/octet-stream' }));
+  const runProtectedAction = async (share, pwd, action) => {
+    const isPreview = action === 'preview';
+    const { data } = await downloadPrivateShareApi(share.share_id, pwd, isPreview);
+    const url = window.URL.createObjectURL(
+      new Blob([data], { type: data.type || 'application/octet-stream' })
+    );
+
+    if (isPreview) {
+      const extension = share.file_name.split('.').pop().toLowerCase();
+      const isImage = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp'].includes(extension);
+      const isPDF = extension === 'pdf';
+      setPreviewFile({ ...share, url, isImage, isPDF });
+    } else {
       const link = document.createElement('a');
       link.href = url;
       link.download = share.file_name;
       link.click();
       window.URL.revokeObjectURL(url);
-      load();
+    }
+    load();
+    return true;
+  };
+
+  const handleDownload = async (share, pwd = '', silent = false) => {
+    try {
+      await runProtectedAction(share, pwd, 'download');
+      if (!silent) showToast('Download started');
     } catch (err) {
-      if (err.response?.status === 403 && share.requires_password) {
-        setPasswordPrompt({ share, action: 'download' });
-      } else {
-        alert(err.response?.data?.error || 'Download failed.');
+      const msg = await parseApiError(err, 'Download failed.');
+      if (err.response?.status === 403) {
+        if (
+          share.requires_password ||
+          msg.toLowerCase().includes('password')
+        ) {
+          setPasswordError(msg);
+          setPasswordPrompt({ share, action: 'download' });
+          return;
+        }
       }
+      if (!silent) setAlertModal({ title: 'Download failed', message: msg, variant: 'error' });
+      throw err;
     }
   };
 
-  const handlePreview = async (share, pwd = '') => {
+  const handlePreview = async (share, pwd = '', silent = false) => {
     try {
-      const { data } = await downloadPrivateShareApi(share.share_id, pwd, true);
-      const url = window.URL.createObjectURL(new Blob([data], { type: data.type || 'application/octet-stream' }));
-      
-      const extension = share.file_name.split('.').pop().toLowerCase();
-      const isImage = ["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp"].includes(extension);
-      const isPDF = extension === "pdf";
-
-      setPreviewFile({ ...share, url, isImage, isPDF });
-      load();
+      await runProtectedAction(share, pwd, 'preview');
     } catch (err) {
-      if (err.response?.status === 403 && share.requires_password) {
-        setPasswordPrompt({ share, action: 'preview' });
-      } else {
-        alert(err.response?.data?.error || 'Preview failed.');
+      const msg = await parseApiError(err, 'Preview failed.');
+      if (err.response?.status === 403) {
+        if (
+          share.requires_password ||
+          msg.toLowerCase().includes('password')
+        ) {
+          setPasswordError(msg);
+          setPasswordPrompt({ share, action: 'preview' });
+          return;
+        }
       }
+      if (!silent) setAlertModal({ title: 'Preview failed', message: msg, variant: 'error' });
+      throw err;
     }
+  };
+
+  const submitPassword = async () => {
+    if (!password.trim()) {
+      setPasswordError('Please enter the password.');
+      return;
+    }
+    setPasswordSubmitting(true);
+    setPasswordError('');
+    try {
+      const { share, action } = passwordPrompt;
+      if (action === 'download') {
+        await handleDownload(share, password, true);
+      } else {
+        await handlePreview(share, password, true);
+      }
+      setPasswordPrompt(null);
+      setPassword('');
+      setShowPassword(false);
+      showToast(action === 'download' ? 'Download started' : 'Preview opened');
+    } catch (err) {
+      const msg = await parseApiError(err, 'Invalid password.');
+      setPasswordError(msg);
+    } finally {
+      setPasswordSubmitting(false);
+    }
+  };
+
+  const closePasswordModal = () => {
+    setPasswordPrompt(null);
+    setPassword('');
+    setPasswordError('');
+    setShowPassword(false);
   };
 
   const openComments = async (shareId) => {
@@ -85,6 +173,7 @@ export default function SharedWithMePage() {
     await postPrivateShareCommentApi(commentsOpen, { content: newComment });
     setNewComment('');
     setCommentsOpen(null);
+    showToast('Comment posted');
   };
 
   return (
@@ -123,92 +212,135 @@ export default function SharedWithMePage() {
               </tr>
             </thead>
             <tbody>
-              {shares.map((s) => (
-                <tr key={s.id}>
-                  <td className="ps-col-file">
-                    <strong className="ps-file-name">{s.file_name}</strong>
-                    {s.message && <div className="ps-file-note">Note: {s.message}</div>}
-                  </td>
-                  <td className="ps-col-shared">
-                    <span className="ps-shared-name">{s.shared_by}</span>
-                    <span className="ps-muted ps-shared-email">{s.shared_by_email}</span>
-                  </td>
-                  <td className="ps-col-perms">
-                    <div className="perm-badges">
-                      {s.can_view && <span>View</span>}
-                      {s.can_download && <span>Download</span>}
-                      {s.can_reshare && <span>Re-share</span>}
-                      {s.can_comment && <span>Comment</span>}
-                    </div>
-                  </td>
-                  <td className="ps-col-expires ps-expires-cell">
-                    {s.expires_at ? new Date(s.expires_at).toLocaleString() : '—'}
-                  </td>
-                  <td className="ps-col-status">
-                    <span className={`status-pill ${s.access_status === 'accessible' ? 'active' : 'inactive'}`}>
-                      {s.access_status === 'accessible' ? 'Accessible' : (s.access_status ? s.access_status.charAt(0).toUpperCase() + s.access_status.slice(1) : 'Unknown')}
-                    </span>
-                  </td>
-                  <td className="ps-col-actions">
-                    <div className="ps-actions-toolbar">
-                      {s.access_status === 'accessible' ? (
-                        <>
-                          {s.requires_password && (
-                            <span className="ps-lock-badge" title="Password protected">
-                              <Lock size={14} />
-                            </span>
-                          )}
-                          {s.can_download && (
-                            <button type="button" className="ps-btn" onClick={() => handleDownload(s)} title="Download">
-                              <Download size={16} />
+              {shares.map((s) => {
+                const statusInfo = formatStatus(s.access_status);
+                return (
+                  <tr key={s.id}>
+                    <td className="ps-col-file">
+                      <strong className="ps-file-name">{s.file_name}</strong>
+                      {s.message && <div className="ps-file-note">Note: {s.message}</div>}
+                    </td>
+                    <td className="ps-col-shared">
+                      <span className="ps-shared-name">{s.shared_by}</span>
+                      <span
+                        className="ps-muted ps-shared-email"
+                        title={s.shared_by_email}
+                      >
+                        {s.shared_by_email}
+                      </span>
+                    </td>
+                    <td className="ps-col-perms">
+                      <div className="perm-badges">
+                        {s.can_view && <span>View</span>}
+                        {s.can_download && <span>Download</span>}
+                        {s.can_reshare && <span>Re-share</span>}
+                        {s.can_comment && <span>Comment</span>}
+                      </div>
+                    </td>
+                    <td className="ps-col-expires ps-expires-cell">
+                      {s.expires_at ? new Date(s.expires_at).toLocaleString() : '—'}
+                    </td>
+                    <td className="ps-col-status">
+                      <span
+                        className={`status-pill ${statusInfo.className}`}
+                        title={statusInfo.title || statusInfo.label}
+                      >
+                        {statusInfo.label}
+                      </span>
+                    </td>
+                    <td className="ps-col-actions">
+                      <div className="ps-actions-toolbar">
+                        {s.access_status === 'accessible' ? (
+                          <>
+                            {s.requires_password && (
+                              <span className="ps-lock-badge" title="Password protected">
+                                <Lock size={14} />
+                              </span>
+                            )}
+                            {s.can_download && (
+                              <button
+                                type="button"
+                                className="ps-btn"
+                                onClick={() =>
+                                  s.requires_password
+                                    ? setPasswordPrompt({ share: s, action: 'download' })
+                                    : handleDownload(s)
+                                }
+                                title="Download"
+                              >
+                                <Download size={16} />
+                              </button>
+                            )}
+                            {s.can_reshare && (
+                              <button
+                                type="button"
+                                className="ps-btn"
+                                onClick={() => setReshareShare(s)}
+                                title="Re-share"
+                              >
+                                <Share2 size={16} />
+                              </button>
+                            )}
+                            {s.can_comment && (
+                              <button
+                                type="button"
+                                className="ps-btn"
+                                onClick={() => openComments(s.share_id)}
+                                title="Comments"
+                              >
+                                <MessageSquare size={16} />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="ps-btn ps-btn-views"
+                              onClick={() =>
+                                s.can_view
+                                  ? s.requires_password
+                                    ? setPasswordPrompt({ share: s, action: 'preview' })
+                                    : handlePreview(s)
+                                  : undefined
+                              }
+                              disabled={!s.can_view}
+                              title={s.can_view ? 'Preview' : `Views: ${s.view_count ?? 0}`}
+                            >
+                              <Eye size={16} />
+                              <span className="ps-view-count">{s.view_count ?? 0}</span>
                             </button>
-                          )}
-                          {s.can_reshare && (
-                            <button type="button" className="ps-btn" onClick={() => setReshareShare(s)} title="Re-share">
-                              <Share2 size={16} />
-                            </button>
-                          )}
-                          {s.can_comment && (
-                            <button type="button" className="ps-btn" onClick={() => openComments(s.share_id)} title="Comments">
-                              <MessageSquare size={16} />
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            className="ps-btn ps-btn-views"
-                            onClick={s.can_view ? () => handlePreview(s) : undefined}
-                            disabled={!s.can_view}
-                            title={s.can_view ? 'Preview' : `Views: ${s.view_count ?? 0}`}
-                          >
-                            <Eye size={16} />
-                            <span className="ps-view-count">{s.view_count ?? 0}</span>
-                          </button>
-                        </>
-                      ) : (
-                        <span className="ps-muted">—</span>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                          </>
+                        ) : (
+                          <span className="ps-muted">—</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
 
       {passwordPrompt && (
-        <div className="modal-overlay" onClick={() => { setPasswordPrompt(null); setPassword(''); setShowPassword(false); }}>
+        <div className="modal-overlay" onClick={closePasswordModal}>
           <div className="ps-password-modal" onClick={(e) => e.stopPropagation()}>
             <h3>Enter share password</h3>
+            <p className="ps-muted" style={{ marginBottom: '12px', fontSize: '13px' }}>
+              This file is password protected.
+            </p>
             <div className="ps-password-wrap">
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setPasswordError('');
+                }}
                 className="modal-input"
                 placeholder="••••••••"
                 autoComplete="new-password"
                 name="private-share-access-password"
+                onKeyDown={(e) => e.key === 'Enter' && submitPassword()}
               />
               <button
                 type="button"
@@ -219,18 +351,21 @@ export default function SharedWithMePage() {
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            <button type="button" className="share-submit-btn" style={{ marginTop: '12px' }} onClick={() => { 
-                if (passwordPrompt.action === 'download') {
-                  handleDownload(passwordPrompt.share, password); 
-                } else {
-                  handlePreview(passwordPrompt.share, password);
-                }
-                setPasswordPrompt(null); 
-                setPassword('');
-                setShowPassword(false);
-            }}>
-              Submit
-            </button>
+            {passwordError && <div className="ps-password-error">{passwordError}</div>}
+            <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+              <button type="button" className="cancel-btn" style={{ flex: 1 }} onClick={closePasswordModal}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="share-submit-btn"
+                style={{ flex: 1 }}
+                disabled={passwordSubmitting}
+                onClick={submitPassword}
+              >
+                {passwordSubmitting ? 'Checking...' : 'Submit'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -248,21 +383,37 @@ export default function SharedWithMePage() {
                 </div>
               ))}
             </div>
-            <textarea className="modal-textarea" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Add a comment..." />
-            <button type="button" className="share-submit-btn" onClick={submitComment}>Post</button>
+            <textarea
+              className="modal-textarea"
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Add a comment..."
+            />
+            <button type="button" className="share-submit-btn" onClick={submitComment}>
+              Post
+            </button>
           </div>
         </div>
       )}
 
       {previewFile && (
-        <div className="modal-overlay" onClick={() => { URL.revokeObjectURL(previewFile.url); setPreviewFile(null); }}>
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            URL.revokeObjectURL(previewFile.url);
+            setPreviewFile(null);
+          }}
+        >
           <div className="ps-preview-modal" onClick={(e) => e.stopPropagation()}>
             <div className="ps-preview-header">
               <h3>Preview: {previewFile.file_name}</h3>
               <button
                 type="button"
                 className="close-x-btn"
-                onClick={() => { URL.revokeObjectURL(previewFile.url); setPreviewFile(null); }}
+                onClick={() => {
+                  URL.revokeObjectURL(previewFile.url);
+                  setPreviewFile(null);
+                }}
               >
                 <X size={20} />
               </button>
@@ -292,9 +443,20 @@ export default function SharedWithMePage() {
           parentShare={reshareShare}
           isOpen={true}
           onClose={() => setReshareShare(null)}
-          onSuccess={() => load()}
+          onSuccess={() => {
+            load();
+            showToast('File re-shared successfully');
+          }}
         />
       )}
+
+      <AlertModal
+        open={!!alertModal}
+        title={alertModal?.title}
+        message={alertModal?.message}
+        variant={alertModal?.variant}
+        onClose={() => setAlertModal(null)}
+      />
     </div>
   );
 }

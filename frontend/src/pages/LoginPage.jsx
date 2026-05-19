@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
+import { validateLogin } from '../utils/validation'
 import '../styles/AuthStyles.css'
 import { useToast } from '../components/ToastContext'
 import { CloudUpload, Lock, Mail } from "lucide-react"
@@ -31,9 +32,7 @@ export default function LoginPage() {
   const [fieldErrors, setFieldErrors] = useState({})
 
   const validate = () => {
-    const errs = {}
-    if (!email.includes('@')) errs.email = 'Enter a valid email'
-    if (!password) errs.password = 'Password is required'
+    const errs = validateLogin({ email, password })
     setFieldErrors(errs)
     return Object.keys(errs).length === 0
   }

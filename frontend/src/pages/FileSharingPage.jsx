@@ -4,12 +4,15 @@ import { useToast } from '../components/ToastContext';
 import { fetchSharesApi ,deleteShareApi} from '../store/fileApi';
 import '../styles/FileSharingPage.css'; 
 import Pagination from '../components/Pagination';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
 
 export default function FileSharingPage() {
   const [shares, setShares] = useState([]);
   const [loading, setLoading] = useState(true);
   const [revokeTarget, setRevokeTarget] = useState(null);
   const { showToast } = useToast();
+
+  useBodyScrollLock(!!revokeTarget);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);

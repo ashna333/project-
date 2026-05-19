@@ -17,6 +17,10 @@ import {useDispatch} from 'react-redux';
 import axios from 'axios'; // Recommended for easy progress tracking
 import { uploadFiles, checkUploadConflicts } from '../store/fileThunks';
 import DuplicateFileDialog from '../components/DuplicateFileDialog';
+import AlertModal from '../components/AlertModal';
+import { useToast } from '../components/ToastContext';
+import useBodyScrollLock from '../hooks/useBodyScrollLock';
+import { validateUploadFiles } from '../utils/validation';
 
 
 export default function UploadPage() {
@@ -26,6 +30,10 @@ export default function UploadPage() {
   const fileInputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
   const [conflicts, setConflicts] = useState(null);
+  const [alertModal, setAlertModal] = useState(null);
+  const { showToast } = useToast();
+
+  useBodyScrollLock(!!conflicts || !!alertModal);
 
   const formatSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
@@ -35,15 +43,29 @@ export default function UploadPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const handleFileChange = (e) => {
-    const newFiles = Array.from(e.target.files).map(file => ({
+  const addFilesToQueue = (fileList) => {
+    const { errors, files } = validateUploadFiles(fileList);
+    if (errors.length > 0) {
+      setAlertModal({
+        title: 'Invalid files',
+        message: errors.join('\n'),
+        variant: 'error',
+      });
+      if (files.length === 0) return;
+    }
+    const newFiles = files.map((file) => ({
       file,
-      id: `${file.name}-${file.lastModified}-${Date.now()}`, // Unique ID
+      id: `${file.name}-${file.lastModified}-${Date.now()}`,
       progress: 0,
-      status: 'queued', // queued, uploading, completed, error
-      sizeString: formatSize(file.size)
+      status: 'queued',
+      sizeString: formatSize(file.size),
     }));
     setFilesInQueue((prev) => [...prev, ...newFiles]);
+  };
+
+  const handleFileChange = (e) => {
+    if (e.target.files?.length) addFilesToQueue(e.target.files);
+    e.target.value = '';
   };
 
 
@@ -66,11 +88,19 @@ const navigate = useNavigate();
           );
           alertMsg += '\n\nSkipped:\n' + skippedNames.join('\n');
         }
-        alert(alertMsg);
+        showToast('Upload complete');
+        setAlertModal({
+          title: 'Upload complete',
+          message: alertMsg,
+        });
         setFilesInQueue((prev) => prev.map((f) => ({ ...f, status: 'completed' })));
-        setTimeout(() => navigate('/files'), 1500);
+        setTimeout(() => navigate('/files'), 2000);
       } else {
-        alert(result.error || 'Upload failed.');
+        setAlertModal({
+          title: 'Upload failed',
+          message: result.error || 'Upload failed.',
+          variant: 'error',
+        });
         setIsUploadingGlobal(false);
       }
     } catch (error) {
@@ -129,16 +159,8 @@ const handleDrop = (e) => {
   e.stopPropagation();
   setDragActive(false);
 
-  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-    // Reuse your existing logic for processing files
-    const droppedFiles = Array.from(e.dataTransfer.files).map(file => ({
-      file,
-      id: `${file.name}-${file.lastModified}-${Date.now()}`,
-      progress: 0,
-      status: 'queued',
-      sizeString: formatSize(file.size)
-    }));
-    setFilesInQueue((prev) => [...prev, ...droppedFiles]);
+  if (e.dataTransfer.files?.length) {
+    addFilesToQueue(e.dataTransfer.files);
   }
 };
 
@@ -258,6 +280,17 @@ const handleDrop = (e) => {
           onCancel={() => { setConflicts(null); setIsUploadingGlobal(false); }}
         />
       )}
+
+      <AlertModal
+        open={!!alertModal}
+        title={alertModal?.title}
+        message={alertModal?.message}
+        variant={alertModal?.variant}
+        onClose={() => {
+          setAlertModal(null);
+          if (alertModal?.variant !== 'error') navigate('/files');
+        }}
+      />
     </>
   );
 }
