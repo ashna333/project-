@@ -79,7 +79,7 @@ class PrivateShareCreateView(APIView):
             email_note = (
                 f" Notification email sent to {emails_sent} recipient(s) via SMTP."
                 if emails_sent == len(recipients)
-                else " Some emails could not be sent — check SMTP settings in .env."
+                else " Some emails could not be sent."
             )
         else:
             email_note = (

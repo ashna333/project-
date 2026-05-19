@@ -2,7 +2,7 @@ from django.contrib.auth import authenticate,get_user_model
 from .utils import get_user_tokens
 import uuid
 import os
-from django.core.mail import send_mail        # 👈 add this
+from django.core.mail import send_mail        
 from django.conf import settings 
 from datetime import date, timedelta
 import json
@@ -1057,7 +1057,7 @@ def upload_file_version(owner, file_id, new_file, change_note=""):
 
 
 def apply_watermark_to_file(user_file, recipient):
-    """Stamp recipient info onto downloadable file (images/PDF when possible)."""
+    """Stamp recipient info onto downloadable file (images only)."""
     try:
         from PIL import Image, ImageDraw, ImageFont
         path = user_file.file.path
@@ -1066,7 +1066,27 @@ def apply_watermark_to_file(user_file, recipient):
             overlay = Image.new("RGBA", img.size, (255, 255, 255, 0))
             draw = ImageDraw.Draw(overlay)
             text = f"{get_user_display_name(recipient)} | {recipient.email}"
-            draw.text((20, img.height - 40), text, fill=(255, 0, 0, 128))
+
+            # Font size: ~2.5% of image width, minimum 14px
+            font_size = max(14, int(img.width * 0.025))
+            font = ImageFont.load_default(size=font_size)
+
+            # Position near the bottom-left with a small margin
+            x = 20
+            y = img.height - font_size - 16
+
+            # Very light ghost stamp — visible if you look for it,
+            # but does not obscure the image content at all.
+            # Alpha 55/255 ≈ 22% opacity for text, 35/255 ≈ 14% for outline.
+            draw.text(
+                (x, y),
+                text,
+                fill=(255, 255, 255, 55),
+                font=font,
+                stroke_width=1,
+                stroke_fill=(0, 0, 0, 35),
+            )
+
             combined = Image.alpha_composite(img, overlay)
             out_path = path + ".wm.png"
             combined.convert("RGB").save(out_path, "PNG")
@@ -1074,6 +1094,8 @@ def apply_watermark_to_file(user_file, recipient):
     except Exception:
         pass
     return user_file.file.path
+
+
 
 
 def lookup_users_by_email(emails):

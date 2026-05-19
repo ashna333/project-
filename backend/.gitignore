@@ -5,13 +5,42 @@ __pycache__/
 *.pyd
 .env
 venv/
-sent_emails/
+.venv/
 env/
+sent_emails/
+*.egg-info/
+build/
+dist/
 
 # Django
 *.sqlite3
 media/
+*.log
 
-# IDE
+# Celery
+celerybeat-schedule
+celerybeat-schedule.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Temporary / Generated files
+*.wm.png
+*.wm.*
+tmp/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# IDE / Editors
 .vscode/
 .idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp

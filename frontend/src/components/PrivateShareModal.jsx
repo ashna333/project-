@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, X, Loader2, UserPlus, Clock, Lock, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { Shield, X, Loader2, UserPlus, Clock, Lock, CheckCircle, Eye, EyeOff, DownloadCloud, Activity, CalendarClock } from 'lucide-react';
 import { createPrivateShareApi, lookupUsersApi } from '../store/fileApi';
 import '../styles/ShareModal.css';
 
@@ -8,6 +8,11 @@ const PERMS = [
   { key: 'can_download', label: 'Download' },
   { key: 'can_reshare', label: 'Re-share' },
   { key: 'can_comment', label: 'Comment' },
+];
+
+const WEEKDAYS = [
+  { v: 0, l: 'Mon' }, { v: 1, l: 'Tue' }, { v: 2, l: 'Wed' },
+  { v: 3, l: 'Thu' }, { v: 4, l: 'Fri' }, { v: 5, l: 'Sat' }, { v: 6, l: 'Sun' },
 ];
 
 export default function PrivateShareModal({ file, parentShare, isOpen, onClose, onSuccess }) {
@@ -43,6 +48,12 @@ export default function PrivateShareModal({ file, parentShare, isOpen, onClose, 
       setShowPassword(false);
       setOneTime(false);
       setExpiresInHours(72);
+      setMaxDownloads('');
+      setInactivityDays('');
+      setEnableTimeWindow(false);
+      setWindowStart('09:00');
+      setWindowEnd('17:00');
+      setWindowDays([0, 1, 2, 3, 4]);
       setError('');
       setSuccessInfo('');
     }
@@ -272,15 +283,17 @@ export default function PrivateShareModal({ file, parentShare, isOpen, onClose, 
               </div>
             )}
 
-            <div className="checkbox-row">
-              <label>
+            <div className="ps-toggle-row">
+              <label className="ps-toggle-label">
                 <input
                   type="checkbox"
                   checked={oneTime}
+                  style={{ marginRight: '6px' }}
                   onChange={(e) => setOneTime(e.target.checked)}
                 />
                 One-time access
               </label>
+              <span className="ps-field-hint">Expires after first <strong>download</strong> (views are unlimited)</span>
             </div>
 
             {!oneTime && (
@@ -294,6 +307,86 @@ export default function PrivateShareModal({ file, parentShare, isOpen, onClose, 
                   max={720}
                   onChange={(e) => setExpiresInHours(e.target.value)}
                 />
+              </div>
+            )}
+
+            {/* ── Max Downloads ── */}
+            <div className="input-group">
+              <label><DownloadCloud size={14} /> Max downloads (leave blank for unlimited)</label>
+              <input
+                type="number"
+                className="modal-input"
+                value={maxDownloads}
+                min={1}
+                placeholder="e.g. 5"
+                onChange={(e) => setMaxDownloads(e.target.value)}
+              />
+            </div>
+
+            {/* ── Inactivity Revoke ── */}
+            <div className="input-group">
+              <label><Activity size={14} /> Inactivity revoke (days, blank = never)</label>
+              <input
+                type="number"
+                className="modal-input"
+                value={inactivityDays}
+                min={1}
+                placeholder="e.g. 30"
+                onChange={(e) => setInactivityDays(e.target.value)}
+              />
+            </div>
+
+            {/* ── Time Window ── */}
+            <div className="ps-toggle-row">
+              <label className="ps-toggle-label"><CalendarClock size={14} /> Restrict to time window</label>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={enableTimeWindow}
+                className={`ps-switch ${enableTimeWindow ? 'on' : ''}`}
+                onClick={() => setEnableTimeWindow((v) => !v)}
+              >
+                <span className="ps-switch-thumb" />
+              </button>
+            </div>
+            {enableTimeWindow && (
+              <div className="ps-time-window-panel">
+                <div className="ps-weekday-row">
+                  {WEEKDAYS.map(({ v, l }) => (
+                    <button
+                      key={v}
+                      type="button"
+                      className={`ps-day-btn ${windowDays.includes(v) ? 'active' : ''}`}
+                      onClick={() =>
+                        setWindowDays((prev) =>
+                          prev.includes(v) ? prev.filter((d) => d !== v) : [...prev, v].sort()
+                        )
+                      }
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+                <div className="ps-time-inputs">
+                  <div className="input-group" style={{ flex: 1, marginBottom: 0 }}>
+                    <label>From</label>
+                    <input
+                      type="time"
+                      className="modal-input"
+                      value={windowStart}
+                      onChange={(e) => setWindowStart(e.target.value)}
+                    />
+                  </div>
+                  <div className="input-group" style={{ flex: 1, marginBottom: 0 }}>
+                    <label>Until</label>
+                    <input
+                      type="time"
+                      className="modal-input"
+                      value={windowEnd}
+                      onChange={(e) => setWindowEnd(e.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
             )}
 

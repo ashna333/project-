@@ -19,6 +19,9 @@ const useAuthStore = create((set) => ({
   //  State
   user: getInitialUser(),
   isAuthenticated: !!getInitialUser(),
+  // True while hydrateUser is running on page load.
+  // ProtectedRoute waits for this to be false before deciding to redirect.
+  hydrating: true,
   loading: false,
   error: null,
   successMessage: null,
@@ -27,16 +30,25 @@ const useAuthStore = create((set) => ({
   clearMessages: () => set({ error: null, successMessage: null }),
   hydrateUser: async () => {
     const access = localStorage.getItem('access_token')
-    if (!access) return
+    const refresh = localStorage.getItem('refresh_token')
+    // If there is no token of any kind, the user is simply not logged in.
+    if (!access && !refresh) {
+      set({ hydrating: false })
+      return
+    }
     try {
+      // profileApi goes through the Axios interceptor.
+      // If access_token is null/invalid, the interceptor silently uses
+      // refresh_token to obtain a new access_token and retries automatically.
       const { data } = await profileApi()
       localStorage.setItem('auth_user', JSON.stringify(data))
-      set({ user: data, isAuthenticated: true })
+      set({ user: data, isAuthenticated: true, hydrating: false })
     } catch {
+      // Both tokens are gone/invalid — clear everything.
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
       localStorage.removeItem('auth_user')
-      set({ user: null, isAuthenticated: false })
+      set({ user: null, isAuthenticated: false, hydrating: false })
     }
   },
 

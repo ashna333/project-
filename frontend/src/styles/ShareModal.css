@@ -367,3 +367,62 @@ input:-webkit-autofill {
 .ps-password-eye:hover {
   color: #e4e4e7;
 }
+
+/* ── One-time access hint ── */
+.ps-field-hint {
+  font-size: 11px;
+  color: #71717a;
+  white-space: nowrap;
+}
+
+/* ── Time window panel ── */
+.ps-time-window-panel {
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ps-weekday-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ps-day-btn {
+  width: 38px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid #3f3f46;
+  background: #27272a;
+  color: #a1a1aa;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.ps-day-btn.active {
+  background: rgba(225, 29, 72, 0.18);
+  border-color: #e11d48;
+  color: #fb7185;
+}
+
+.ps-day-btn:hover:not(.active) {
+  background: #3f3f46;
+  color: #e4e4e7;
+}
+
+.ps-time-inputs {
+  display: flex;
+  gap: 12px;
+}
+
+/* ── Make time input match dark theme ── */
+input[type="time"].modal-input {
+  color-scheme: dark;
+}
