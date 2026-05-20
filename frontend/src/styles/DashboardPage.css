@@ -1946,3 +1946,76 @@
 .file-grid-item:hover .star-icon {
   opacity: 1;
 }
+
+
+/* NOTIFICATION STYLES */
+
+
+.nav-btn {
+  position: relative; /* add this if not already */
+}
+
+.nav-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e11d48;
+  margin-left: auto;
+  flex-shrink: 0;
+  /* subtle pulse */
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.85); }
+}
+
+
+
+
+/* STORAGE USAGE COMPONENT IN SIDEBAR */
+.sidebar-storage {
+  margin-top: auto;
+  padding: 12px 8px 4px;
+  border-top: 1px solid #27272a;
+}
+
+.sidebar-storage-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.sidebar-storage-label {
+  font-size: 12px;
+  color: #a1a1aa;
+  font-weight: 500;
+}
+
+.sidebar-storage-pct {
+  font-size: 11px;
+  color: #71717a;
+}
+
+.sidebar-storage-bar {
+  width: 100%;
+  height: 4px;
+  background: #27272a;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.sidebar-storage-fill {
+  height: 100%;
+  background: #e11d48;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.sidebar-storage-info {
+  font-size: 11px;
+  color: #71717a;
+}

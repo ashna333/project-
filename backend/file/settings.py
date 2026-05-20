@@ -25,7 +25,7 @@ GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")
 GOOGLE_CLIENT_SECRET = env("GOOGLE_CLIENT_SECRET", default="")
 GOOGLE_REDIRECT_URI = env(
     "GOOGLE_REDIRECT_URI",
-    default="http://127.0.0.1:8001/api/auth/google/callback/",
+    default="http://127.0.0.1:8000/api/auth/google/callback/",
 )
 
 # Email
@@ -196,7 +196,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
  
 # File upload limits
 # Django's built-in limit for in-memory uploads before it spools to disk
-FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB in memory
+FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024   # 100 MB in memory
 DATA_UPLOAD_MAX_MEMORY_SIZE = 105 * 1024 * 1024  
 X_FRAME_OPTIONS = 'ALLOWALL'
 

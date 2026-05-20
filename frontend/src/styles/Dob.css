@@ -1,0 +1,10 @@
+.dob-selects {
+  display: grid;
+  grid-template-columns: 80px 1fr 100px;
+  gap: 8px;
+}
+
+.auth-input option {
+  background: #1c1c1e;
+  color: #e4e4e7;
+}

@@ -8,9 +8,7 @@ import {
   postPrivateShareCommentApi,
 } from '../store/fileApi';
 import ShareTreeModal from '../components/ShareTreeModal';
-import ConfirmModal from '../components/ConfirmModal';
-import useBodyScrollLock from '../hooks/useBodyScrollLock';
-import { useToast } from '../components/ToastContext';
+import Pagination from '../components/Pagination';
 import '../styles/PrivateSharePages.css';
 
 export default function PrivateSharesByMePage() {
@@ -22,41 +20,40 @@ export default function PrivateSharesByMePage() {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [treeOpen, setTreeOpen] = useState(null);
-  const [revokeTarget, setRevokeTarget] = useState(null);
-  const { showToast } = useToast();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 9;
 
-  useBodyScrollLock(!!auditLogs || !!commentsOpen || !!treeOpen || !!revokeTarget);
+const load = async (page, currentFilter) => {
+  setLoading(true);
+  try {
+    const { data } = await fetchPrivateSharesOwnedApi(page, currentFilter ?? filter, pageSize);
+    const list = data.results?.shares ?? data.shares ?? (Array.isArray(data.results) ? data.results : []);
+    const totalCount = data.count || 0;
+    setTotalPages(Math.ceil(totalCount / pageSize) || 1);
+    setShares(list);
+  } catch {
+    setShares([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const { data } = await fetchPrivateSharesOwnedApi(1, filter);
-      const list = data.results?.shares ?? data.shares ?? (Array.isArray(data.results) ? data.results : []);
-      setShares(list);
-    } catch {
-      setShares([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+const handlePageChange = (newPage) => {
+  setCurrentPage(newPage);
+  load(newPage, filter);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
 
-  useEffect(() => { load(); }, [filter]);
+useEffect(() => {
+  setCurrentPage(1);
+  load(1, filter);
+}, [filter]);
 
-  const revoke = (id) => {
-    setRevokeTarget(id);
-  };
-
-  const confirmRevoke = async () => {
-    if (!revokeTarget) return;
-    try {
-      await revokePrivateShareApi(revokeTarget);
-      showToast('Share revoked');
-      load();
-    } catch {
-      showToast('Failed to revoke share');
-    } finally {
-      setRevokeTarget(null);
-    }
+  const revoke = async (id) => {
+    if (!window.confirm('Revoke this private share for all recipients?')) return;
+    await revokePrivateShareApi(id);
+    load();
   };
 
   const viewAudit = async (id) => {
@@ -140,7 +137,7 @@ export default function PrivateSharesByMePage() {
                     <MessageSquare size={14} style={{ marginRight: '4px' }} /> Comments
                   </button>
                 )}
-                {!s.is_revoked && (
+                {!s.is_revoked && !s.is_expired && (
                   <button type="button" className="ps-btn-revoke" onClick={() => revoke(s.id)}>
                     <Ban size={14} /> Revoke
                   </button>
@@ -150,6 +147,13 @@ export default function PrivateSharesByMePage() {
           ))}
         </div>
       )}
+
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+        loading={loading}
+      />
 
       {auditLogs && (
         <div className="modal-overlay" onClick={() => setAuditLogs(null)}>
@@ -178,42 +182,54 @@ export default function PrivateSharesByMePage() {
       )}
 
       {commentsOpen && (
-        <div className="modal-overlay" onClick={() => setCommentsOpen(null)}>
-          <div className="ps-comments-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Comments</h3>
-            <div className="comments-list">
-              {comments.map((c) => (
-                <div key={c.id} className="comment-item">
-                  <strong>{c.author_name}</strong>
-                  <p>{c.content}</p>
-                  {c.highlight_text && <em>Highlight: {c.highlight_text}</em>}
-                </div>
-              ))}
-            </div>
-            {!shares.find((s) => s.id === commentsOpen)?.is_revoked && (
-              <>
-                <textarea className="modal-textarea" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Add a comment..." />
-                <button type="button" className="share-submit-btn" onClick={submitComment}>Post</button>
-              </>
-            )}
+  <div className="modal-overlay" onClick={() => setCommentsOpen(null)}>
+    <div className="ps-comments-modal" onClick={(e) => e.stopPropagation()}>
+      <h3>Comments</h3>
+      <div className="comments-list">
+        {comments.map((c) => (
+          <div key={c.id} className="comment-item">
+            <strong>{c.author_name}</strong>
+            <p>{c.content}</p>
+            {c.highlight_text && <em>Highlight: {c.highlight_text}</em>}
           </div>
-        </div>
-      )}
+        ))}
+      </div>
+
+      {(() => {
+        const share = shares.find((s) => s.id === commentsOpen);
+        const canPost = !share?.is_revoked && !share?.is_expired;
+        return canPost ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <textarea
+              className="modal-textarea"
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Add a comment..."
+            />
+            <button
+              type="button"
+              className="share-submit-btn"
+              onClick={submitComment}
+              style={{ alignSelf: 'flex-end' }}
+            >
+              Post
+            </button>
+          </div>
+        ) : (
+          <p className="ps-muted" style={{ fontSize: '13px', marginTop: '8px' }}>
+            This share is {share?.is_revoked ? 'revoked' : 'expired'} — new comments are disabled.
+          </p>
+        );
+      })()}
+    </div>
+  </div>
+)}
 
       <ShareTreeModal
         shareId={treeOpen}
         isOpen={!!treeOpen}
         onClose={() => setTreeOpen(null)}
         onRefresh={() => load()}
-      />
-
-      <ConfirmModal
-        open={!!revokeTarget}
-        title="Revoke private share?"
-        message="This will revoke access for all recipients on this share."
-        confirmLabel="Revoke"
-        onConfirm={confirmRevoke}
-        onCancel={() => setRevokeTarget(null)}
       />
     </div>
   );

@@ -12,6 +12,7 @@ import {
   validateProfileForm,
   validateChangePassword,
 } from '../utils/validation';
+ import DateOfBirthSelect from '../components/DateOfBirthSelect';
 
 export default function ProfilePage() {
   const dispatch = useDispatch();
@@ -136,22 +137,23 @@ export default function ProfilePage() {
                 <input type="email" value={formData.email} disabled />
               </div>
             </div>
-            <div className="input-group">
-              <label>Date of Birth</label>
-              <div className="input-with-icon-wrapper">
-                <Calendar size={16} color="#71717a" />
-                <input 
-                  type="date" 
-                  value={formData.dob}
-                  className={`date-input ${fieldErrors.dob ? 'input-error' : ''}`}
-                  onChange={(e) => {
-                    setFieldErrors((p) => ({ ...p, dob: '' }));
-                    setFormData({ ...formData, dob: e.target.value });
-                  }}
-                />
-              </div>
-              {fieldErrors.dob && <span className="field-error-text">{fieldErrors.dob}</span>}
-            </div>
+
+            
+           
+
+<div className="auth-group">
+  <label className="auth-label">Date of Birth</label>
+  <DateOfBirthSelect
+    value={formData.dob}
+     onChange={(e) => {
+                  // setFieldErrors((p) => ({ ...p, lastName: '' }));
+                  setFormData({ ...formData, dob: e.target.value });
+                }}
+    name="dob"
+    error={fieldErrors.dob}
+  />
+  {fieldErrors.dob && <span className="field-error">⚠ {fieldErrors.dob}</span>}
+</div>
           </div>
 
           <div className="form-footer-simple">

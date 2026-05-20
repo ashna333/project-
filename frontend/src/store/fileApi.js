@@ -1,7 +1,7 @@
 import axios from 'axios'
 import api from '../api/axiosInstance'
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001/api'
+const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:800/api'
 
 const authHeaders = () => ({
   Authorization: `Bearer ${localStorage.getItem('access_token')}`,
@@ -9,7 +9,7 @@ const authHeaders = () => ({
 
 
 
-export const fetchFilesApi = (page = 1, pageSize = 12, search = '', filters = {}) =>
+export const fetchFilesApi = (page = 1, pageSize = 9, search = '', filters = {}) =>
   api.get(`${API_BASE}/`, {
     headers: authHeaders(),
     params: { 
@@ -61,13 +61,13 @@ export const toggleStarApi = (fileId) =>
 export const storageSummaryApi = () =>
   api.get('/storage/')
 
-export const fetchSharesApi = (page = 1, pageSize = 12, search = '') =>
+export const fetchSharesApi = (page = 1, pageSize = 9, search = '') =>
   api.get('/shares/', { params: { page, page_size: pageSize, search: search || undefined } })
 
 export const createShareApi = (payload) =>
   api.post('/shares/', payload)
 
-export const fetchTrashApi = (page = 1, pageSize = 12, search = '') =>
+export const fetchTrashApi = (page = 1, pageSize = 9, search = '') =>
   api.get('/trash/', { params: { page, page_size: pageSize, search: search || undefined } })
 
 export const restoreTrashFileApi = (fileId) =>
@@ -99,11 +99,11 @@ export const downloadPublicFileApi = (token) =>
 export const createPrivateShareApi = (payload) =>
   api.post('/private-shares/', payload);
 
-export const fetchPrivateSharesOwnedApi = (page = 1, status = '') =>
-  api.get('/private-shares/owned/', { params: { page, page_size: 12, status: status || undefined } });
+export const fetchPrivateSharesOwnedApi = (page = 1, status = '', pageSize = 10) =>
+  api.get('/private-shares/owned/', { params: { page, page_size: pageSize, status: status || undefined } });
 
-export const fetchPrivateSharesInboxApi = (page = 1) =>
-  api.get('/private-shares/inbox/', { params: { page, page_size: 12 } });
+export const fetchPrivateSharesInboxApi = (page = 1, pageSize = 9) =>
+  api.get('/private-shares/inbox/', { params: { page, page_size: pageSize } });
 
 export const lookupUsersApi = (emails) =>
   api.post('/private-shares/lookup/', { emails });

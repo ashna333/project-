@@ -16,7 +16,7 @@ export default function FileSharingPage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const pageSize = 20; 
+  const pageSize = 9; 
 
   const loadShares = async (page = 1) => {
     setLoading(true);
@@ -151,7 +151,7 @@ const handleRevoke = async () => {
                         )}
 
                         {/* Revoke: ONLY for Pending (Not accessed, revoked, or expired) */}
-                        {!share.is_revoked && !share.is_expired && !share.is_accessed && (
+                        {!share.is_revoked && !share.is_expired  && (
                           <button 
                             className="icon-btn btn-danger" 
                             onClick={() => setRevokeTarget(share)}

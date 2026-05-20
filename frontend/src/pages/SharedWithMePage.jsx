@@ -8,10 +8,12 @@ import {
 } from '../store/fileApi';
 import PrivateShareModal from '../components/PrivateShareModal';
 import { useToast } from '../components/ToastContext';
+import Pagination from '../components/Pagination';
 import AlertModal from '../components/AlertModal';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import { parseApiError } from '../utils/parseApiError';
 import '../styles/PrivateSharePages.css';
+
 
 function formatStatus(status) {
   if (status === 'accessible') return { label: 'Accessible', className: 'active' };
@@ -35,6 +37,9 @@ export default function SharedWithMePage() {
   const [reshareShare, setReshareShare] = useState(null);
   const [alertModal, setAlertModal] = useState(null);
   const { showToast } = useToast();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 9;
 
   const anyModalOpen =
     !!passwordPrompt ||
@@ -45,25 +50,41 @@ export default function SharedWithMePage() {
 
   useBodyScrollLock(anyModalOpen);
 
-  const load = async () => {
-    setLoading(true);
-    try {
-      const { data } = await fetchPrivateSharesInboxApi();
-      const list =
-        data.results?.shares ??
-        data.shares ??
-        (Array.isArray(data.results) ? data.results : []);
-      setShares(list);
-    } catch {
-      setShares([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+const load = async (page = 1) => {
+  setLoading(true);
+  try {
+    const { data } = await fetchPrivateSharesInboxApi(page, pageSize);
+    const list =
+      data.results?.shares ??
+      data.shares ??
+      (Array.isArray(data.results) ? data.results : []);
+    const totalCount = data.count || 0;
+    setTotalPages(Math.ceil(totalCount / pageSize) || 1);
+    setShares(list);
+    localStorage.setItem('inbox_last_seen', new Date().toISOString());
+    window.dispatchEvent(new Event('inbox-seen'));
+  } catch {
+    setShares([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handlePageChange = (newPage) => {
+  setCurrentPage(newPage);
+  load(newPage);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+useEffect(() => {
+  load(1);
+}, []);
+
 
   useEffect(() => {
     load();
   }, []);
+
 
   const runProtectedAction = async (share, pwd, action) => {
     const isPreview = action === 'preview';
@@ -130,30 +151,36 @@ export default function SharedWithMePage() {
   };
 
   const submitPassword = async () => {
-    if (!password.trim()) {
-      setPasswordError('Please enter the password.');
-      return;
+  if (!password.trim()) {
+    setPasswordError('Please enter the password.');
+    return;
+  }
+  setPasswordSubmitting(true);
+  setPasswordError('');
+  let success = false;
+  try {
+    const { share, action } = passwordPrompt;
+    if (action === 'download') {
+      await handleDownload(share, password, true);
+    } else {
+      await handlePreview(share, password, true);
     }
-    setPasswordSubmitting(true);
-    setPasswordError('');
-    try {
-      const { share, action } = passwordPrompt;
-      if (action === 'download') {
-        await handleDownload(share, password, true);
-      } else {
-        await handlePreview(share, password, true);
-      }
-      setPasswordPrompt(null);
-      setPassword('');
-      setShowPassword(false);
+    success = true;
+    setPasswordPrompt(null);
+    setPassword('');
+    setShowPassword(false);
+  } catch (err) {
+    const msg = await parseApiError(err, 'Invalid password.');
+    showToast("Invalid Password");
+    setPasswordError(msg);
+  } finally {
+    setPasswordSubmitting(false);
+    if (success) {
+      const { action } = passwordPrompt;
       showToast(action === 'download' ? 'Download started' : 'Preview opened');
-    } catch (err) {
-      const msg = await parseApiError(err, 'Invalid password.');
-      setPasswordError(msg);
-    } finally {
-      setPasswordSubmitting(false);
     }
-  };
+  }
+};
 
   const closePasswordModal = () => {
     setPasswordPrompt(null);
@@ -369,7 +396,12 @@ export default function SharedWithMePage() {
           </div>
         </div>
       )}
-
+       <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+              loading={loading}
+            />
       {commentsOpen && (
         <div className="modal-overlay" onClick={() => setCommentsOpen(null)}>
           <div className="ps-comments-modal" onClick={(e) => e.stopPropagation()}>
@@ -383,15 +415,22 @@ export default function SharedWithMePage() {
                 </div>
               ))}
             </div>
-            <textarea
-              className="modal-textarea"
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Add a comment..."
-            />
-            <button type="button" className="share-submit-btn" onClick={submitComment}>
-              Post
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+  <textarea
+    className="modal-textarea"
+    value={newComment}
+    onChange={(e) => setNewComment(e.target.value)}
+    placeholder="Add a comment..."
+  />
+  <button
+    type="button"
+    className="share-submit-btn"
+    onClick={submitComment}
+    style={{ alignSelf: 'flex-end' }}
+  >
+    Post
+  </button>
+</div>
           </div>
         </div>
       )}

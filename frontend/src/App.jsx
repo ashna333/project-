@@ -11,6 +11,9 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import GoogleAuthCallbackPage from './pages/GoogleAuthCallbackPage'
 
+import { InboxBadgeProvider } from './context/InboxBadgeContext';
+
+
 
 // Dashboard/App Pages
 import AppShell from './components/AppShell'; // Ensure this matches your filename
@@ -38,6 +41,7 @@ export default function App() {
     // 1. Move ToastProvider to the very top, wrapping the Router
     <ToastProvider> 
       <BrowserRouter>
+      <InboxBadgeProvider>
         <Routes>
           {/* --- PUBLIC ROUTES --- */}
           <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
@@ -50,7 +54,11 @@ export default function App() {
           <Route 
             element={
               <ProtectedRoute>
-                <AppShell />
+                
+                
+                  <AppShell />
+                
+
               </ProtectedRoute>
             }
           >
@@ -70,6 +78,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
+        </InboxBadgeProvider>
       </BrowserRouter>
     </ToastProvider>
   )

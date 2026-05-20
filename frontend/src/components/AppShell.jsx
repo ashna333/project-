@@ -5,6 +5,13 @@ import '../styles/DashboardPage.css';
 import { useEffect, useRef, useState } from 'react';
 import { formatUserDisplayName, userInitials } from '../utils/userDisplay';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
+import { useInboxBadge } from '../context/InboxBadgeContext';
+import { storageSummaryApi } from '../store/fileApi';
+
+// inside AppShell:
+
+
+
 
 // ... imports stay the same
 
@@ -12,6 +19,7 @@ export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
+  const hasNewShares = useInboxBadge();
   
   const rawUser = JSON.parse(localStorage.getItem('auth_user')) || {};
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
@@ -20,6 +28,22 @@ export default function AppShell() {
   const userEmail = rawUser.email || '';
   const displayName = formatUserDisplayName(rawUser);
   const initials = userInitials(rawUser);
+   
+
+   const [storage, setStorage] = useState({ used_percent: 0, used_bytes: 0, max_bytes: 0 });
+
+useEffect(() => {
+  const fetchStorage = async () => {
+    try {
+      const { data } = await storageSummaryApi();
+      console.log(data);
+      setStorage(data);
+    } catch {}
+  };
+  fetchStorage();
+}, []);
+
+
 
   useBodyScrollLock(showLogoutConfirm);
 
@@ -31,7 +55,7 @@ export default function AppShell() {
     localStorage.removeItem('user');
     navigate('/login');
   };
-
+console.log(hasNewShares);
   useEffect(() => {
   const handleClickOutside = (event) => {
     if (menuRef.current && !menuRef.current.contains(event.target)) {
@@ -71,9 +95,15 @@ export default function AppShell() {
           <button className={`nav-btn ${isActive('/shared')}`} onClick={() => { navigate('/shared'); setIsMobileMenuOpen(false); }}>
             <Share2 size={16} /> Public Links
           </button>
-          <button className={`nav-btn ${isActive('/private-shares/inbox')}`} onClick={() => { navigate('/private-shares/inbox'); setIsMobileMenuOpen(false); }}>
-            <Inbox size={16} /> Shared With Me
-          </button>
+         
+<button
+  className={`nav-btn ${isActive('/private-shares/inbox')}`}
+  onClick={() => { navigate('/private-shares/inbox'); setIsMobileMenuOpen(false); }}
+>
+  <Inbox size={16} />
+  Shared With Me
+  {hasNewShares && <span className="nav-dot" />}
+</button>
           <button className={`nav-btn ${isActive('/private-shares/owned')}`} onClick={() => { navigate('/private-shares/owned'); setIsMobileMenuOpen(false); }}>
             <Shield size={16} /> Shared By Me
           </button>
@@ -96,6 +126,25 @@ export default function AppShell() {
           <button className="nav-btn" style={{ color: '#fda4af' }} onClick={() => { setShowLogoutConfirm(true); setIsMobileMenuOpen(false); }}>
             <LogOut size={16} /> Logout
           </button>
+
+      {storage && (
+  <div className="sidebar-storage">
+    <div className="sidebar-storage-top">
+      <span className="sidebar-storage-label">Storage</span>
+      <span className="sidebar-storage-pct">{storage.used_percent.toFixed(1)}% full</span>
+    </div>
+    <div className="sidebar-storage-bar">
+      <div
+        className="sidebar-storage-fill"
+        style={{ width: `${Math.min(storage.used_percent, 100)}%` }}
+      />
+    </div>
+    <div className="sidebar-storage-info">
+      
+      {(storage.used_bytes / (1024 ** 2)).toFixed(1)} MB of {storage.total_gb} GB used
+    </div>
+  </div>
+)}
         </nav>
       </aside>
 
@@ -136,6 +185,7 @@ export default function AppShell() {
           <Outlet />
         </main>
       </div>
+
 
       {showLogoutConfirm && (
         <div className="modal-overlaydelete" style={{ position: 'fixed', top: 0, left: 0, zIndex: 9999 }}>

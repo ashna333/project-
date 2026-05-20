@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import useAuthStore from '../store/authStore'
 import { validateRegisterForm } from '../utils/validation'
+import DateOfBirthSelect from '../components/DateOfBirthSelect';
 import AlertModal from '../components/AlertModal'
 
 const EyeIcon = ({ open }) => open ? (
@@ -138,17 +139,17 @@ export default function Registeauthage() {
                 {fieldErrors.email && <span className="field-error">⚠ {fieldErrors.email}</span>}
               </div>
 
-              <div className="auth-group">
-                <label className="auth-label">Date of Birth</label>
-                <input 
-                  className={`auth-input ${fieldErrors.dob ? 'error' : ''}`} 
-                  name="dob"
-                  type="date" 
-                  value={form.dob} 
-                  onChange={handleChange} 
-                />
-                {fieldErrors.dob && <span className="field-error">⚠ {fieldErrors.dob}</span>}
-              </div>
+
+<div className="auth-group">
+  <label className="auth-label">Date of Birth</label>
+  <DateOfBirthSelect
+    value={form.dob}
+    onChange={handleChange}
+    name="dob"
+    error={fieldErrors.dob}
+  />
+  {fieldErrors.dob && <span className="field-error">⚠ {fieldErrors.dob}</span>}
+</div>
 
               <div className="auth-group">
                 <label className="auth-label">Password</label>

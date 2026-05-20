@@ -67,7 +67,7 @@ class LoginView(APIView):
             return Response({"error": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
        
 
-       return Response({
+        return Response({
            "message":"Logged in successfully",
            "tokens":data['tokens'],
            "user": UserProfileSerializer(data["user"]).data
@@ -201,7 +201,7 @@ from .service import (
 
 
 class FilePagination(PageNumberPagination):
-    page_size = 12  
+    page_size = 9 
     page_size_query_param = "page_size"
     max_page_size = 100
 
