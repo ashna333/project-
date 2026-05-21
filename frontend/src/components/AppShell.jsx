@@ -36,7 +36,7 @@ useEffect(() => {
   const fetchStorage = async () => {
     try {
       const { data } = await storageSummaryApi();
-      console.log(data);
+      
       setStorage(data);
     } catch {}
   };
@@ -55,7 +55,7 @@ useEffect(() => {
     localStorage.removeItem('user');
     navigate('/login');
   };
-console.log(hasNewShares);
+
   useEffect(() => {
   const handleClickOutside = (event) => {
     if (menuRef.current && !menuRef.current.contains(event.target)) {
@@ -96,14 +96,14 @@ console.log(hasNewShares);
             <Share2 size={16} /> Public Links
           </button>
          
-<button
-  className={`nav-btn ${isActive('/private-shares/inbox')}`}
-  onClick={() => { navigate('/private-shares/inbox'); setIsMobileMenuOpen(false); }}
->
-  <Inbox size={16} />
-  Shared With Me
-  {hasNewShares && <span className="nav-dot" />}
-</button>
+          <button
+            className={`nav-btn ${isActive('/private-shares/inbox')}`}
+            onClick={() => { navigate('/private-shares/inbox'); setIsMobileMenuOpen(false); }}
+          >
+            <Inbox size={16} />
+            Shared With Me
+            {hasNewShares && <span className="nav-dot" />}
+          </button>
           <button className={`nav-btn ${isActive('/private-shares/owned')}`} onClick={() => { navigate('/private-shares/owned'); setIsMobileMenuOpen(false); }}>
             <Shield size={16} /> Shared By Me
           </button>

@@ -6,7 +6,7 @@ import {
   fetchPrivateShareCommentsApi,
   postPrivateShareCommentApi,
 } from '../store/fileApi';
-import PrivateShareModal from '../components/PrivateShareModal';
+import PrivateShareModal from '../components/ShareModal';
 import { useToast } from '../components/ToastContext';
 import Pagination from '../components/Pagination';
 import AlertModal from '../components/AlertModal';
@@ -15,11 +15,17 @@ import { parseApiError } from '../utils/parseApiError';
 import '../styles/PrivateSharePages.css';
 
 
-function formatStatus(status) {
+
+function formatStatus(s) {
+  const status = s.access_status;
   if (status === 'accessible') return { label: 'Accessible', className: 'active' };
   if (!status) return { label: 'Unknown', className: 'inactive' };
-  const label = status.charAt(0).toUpperCase() + status.slice(1);
-  return { label, className: 'inactive', title: status };
+
+  return { 
+    label: status.replace(/\.$/, ''), // remove trailing dot
+    className: 'inactive', 
+    title: status 
+  };
 }
 
 export default function SharedWithMePage() {
@@ -69,6 +75,7 @@ const load = async (page = 1) => {
     setLoading(false);
   }
 };
+console.log('reshareShare:', reshareShare);
 
 const handlePageChange = (newPage) => {
   setCurrentPage(newPage);
@@ -81,9 +88,7 @@ useEffect(() => {
 }, []);
 
 
-  useEffect(() => {
-    load();
-  }, []);
+  
 
 
   const runProtectedAction = async (share, pwd, action) => {
@@ -212,6 +217,7 @@ useEffect(() => {
           <p>Files privately shared with your account</p>
         </div>
       </div>
+   
 
       {loading ? (
         <p className="ps-muted">Loading...</p>
@@ -240,7 +246,7 @@ useEffect(() => {
             </thead>
             <tbody>
               {shares.map((s) => {
-                const statusInfo = formatStatus(s.access_status);
+                const statusInfo = formatStatus(s);
                 return (
                   <tr key={s.id}>
                     <td className="ps-col-file">
@@ -347,6 +353,7 @@ useEffect(() => {
           </table>
         </div>
       )}
+      
 
       {passwordPrompt && (
         <div className="modal-overlay" onClick={closePasswordModal}>
@@ -416,6 +423,7 @@ useEffect(() => {
               ))}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    
   <textarea
     className="modal-textarea"
     value={newComment}
@@ -488,6 +496,7 @@ useEffect(() => {
           }}
         />
       )}
+    
 
       <AlertModal
         open={!!alertModal}

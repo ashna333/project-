@@ -63,7 +63,6 @@ class PrivateShareCreateView(APIView):
             password=data.get("password"),
             one_time_access=data.get("one_time_access", False),
             max_downloads=data.get("max_downloads"),
-            inactivity_revoke_days=data.get("inactivity_revoke_days"),
             time_windows=data.get("time_windows", []),
             request=request,
             parent_share_id=data.get("parent_share_id"),

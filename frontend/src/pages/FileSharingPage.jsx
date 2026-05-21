@@ -6,6 +6,7 @@ import '../styles/FileSharingPage.css';
 import Pagination from '../components/Pagination';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
 
+
 export default function FileSharingPage() {
   const [shares, setShares] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -91,7 +92,7 @@ const handleRevoke = async () => {
         <h1 className="outbox-title">Outbox</h1>
         <p className="outbox-subtitle">All files you've shared, with real-time access tracking.</p>
       </header>
-
+  
       {/* Table Card */}
       <div className="outbox-card">
         {loading ? (
@@ -169,6 +170,7 @@ const handleRevoke = async () => {
           </div>
         )}
       </div>
+      
       <Pagination 
   currentPage={currentPage}
   totalPages={totalPages}

@@ -9,6 +9,7 @@ import json
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
+from django.db import models as db_models
 
 import hashlib
 from django.utils import timezone
@@ -555,27 +556,27 @@ def mark_share_accessed(share):
         share.save(update_fields=["accessed_at"])
 
 
-def _send_app_email(*, subject, body, recipient_list):
-    """Send email via configured backend (SMTP, file+console in dev, etc.)."""
+def _send_app_email(*, subject, body, recipient_list, html_body=None):
     import logging
     logger = logging.getLogger(__name__)
+    from django.core.mail import EmailMultiAlternatives
+    
     from_email = getattr(settings, "DEFAULT_FROM_EMAIL", None) or "noreply@cloudshare.local"
     recipients = [r.strip().lower() for r in recipient_list if r and str(r).strip()]
     if not recipients:
         return False
     try:
-        sent = send_mail(
+        email = EmailMultiAlternatives(
             subject=subject,
-            message=body,
+            body=body,  # plain text fallback
             from_email=from_email,
-            recipient_list=recipients,
-            fail_silently=False,
+            to=recipients,
         )
-        if sent:
-            logger.info("Email sent to %s: %s", recipients, subject)
-            return True
-        logger.warning("send_mail returned 0 for %s", recipients)
-        return False
+        if html_body:
+            email.attach_alternative(html_body, "text/html")
+        email.send(fail_silently=False)
+        logger.info("Email sent to %s: %s", recipients, subject)
+        return True
     except Exception as exc:
         logger.exception("Email send failed: %s", exc)
         return False
@@ -644,27 +645,23 @@ def _is_within_time_windows(time_windows):
 
 
 def _share_is_accessible(share, grant=None):
-    if share.is_revoked:
-        return False, "Share has been revoked."
-    if share.is_expired:
-        return False, "Share has expired."
     if share.one_time_access and share.download_count > 0:
-        return False, "One-time access link has already been used."
+        return False, "One time access."
+    if share.is_revoked:
+        return False, "Revoked."
+    if share.is_expired:
+        return False, "Expired."
     if share.max_downloads and share.download_count >= share.max_downloads:
         return False, "Maximum download limit reached."
-    if share.inactivity_revoke_days and share.last_accessed_at:
-        cutoff = share.last_accessed_at + timedelta(days=share.inactivity_revoke_days)
-        if timezone.now() > cutoff:
-            return False, "Share revoked due to inactivity."
     if not _is_within_time_windows(share.time_windows):
-        return False, "File is not accessible outside the allowed time window."
+        return False, "Time window expired."
     if grant:
         if grant.is_revoked:
-            return False, "Your access has been revoked."
+            return False, "Revoked."
         if grant.individual_expires_at and timezone.now() >= grant.individual_expires_at:
-            return False, "Your access has expired."
+            return False, "Expired."
         if grant.max_downloads and grant.download_count >= grant.max_downloads:
-            return False, "Your download limit has been reached."
+            return False, "Download limit reached."
     return True, None
 
 
@@ -690,7 +687,6 @@ def create_private_share(
     password=None,
     one_time_access=False,
     max_downloads=None,
-    inactivity_revoke_days=None,
     time_windows=None,
     request=None,
     parent_share_id=None,
@@ -767,7 +763,6 @@ def create_private_share(
             password_hash=password_hash,
             one_time_access=one_time_access,
             max_downloads=max_downloads,
-            inactivity_revoke_days=inactivity_revoke_days,
             time_windows=time_windows or [],
             parent_share=parent_share,
         )
@@ -818,15 +813,28 @@ def _send_private_share_email(*, owner, recipient, share, message):
         recipient_list=[recipient.email],
     )
 
-
 def list_private_shares_by_owner(user, status_filter=None):
-    qs = PrivateShare.objects.select_related("user_file").prefetch_related("recipients__recipient").filter(owner=user)
+    qs = PrivateShare.objects.select_related("user_file").prefetch_related(
+        "recipients__recipient"
+    ).filter(owner=user)
+
     if status_filter == "active":
-        qs = qs.filter(is_revoked=False).exclude(expires_at__lt=timezone.now())
+        qs = qs.filter(is_revoked=False).filter(
+            db_models.Q(expires_at__isnull=True) |
+            db_models.Q(expires_at__gt=timezone.now())
+        ).exclude(
+            one_time_access=True, download_count__gte=1  # exclude used one-time shares
+        )
+
     elif status_filter == "expired":
-        qs = qs.filter(expires_at__lt=timezone.now(), is_revoked=False)
+        qs = qs.filter(is_revoked=False).filter(
+            db_models.Q(expires_at__isnull=False, expires_at__lt=timezone.now()) |
+            db_models.Q(one_time_access=True, download_count__gte=1)  # include used one-time shares
+        )
+
     elif status_filter == "revoked":
         qs = qs.filter(is_revoked=True)
+
     return qs
 
 
@@ -869,19 +877,31 @@ def record_private_share_view(grant, request=None, *, preview=False):
 
 def record_private_share_download(grant, request=None):
     share = grant.private_share
+
     if not grant.can_download:
         return False, "Download not permitted."
+    
     ok, err = _share_is_accessible(share, grant)
     if not ok:
         return False, err
+
     grant.download_count += 1
     grant.last_accessed_at = timezone.now()
     grant.save(update_fields=["download_count", "last_accessed_at"])
+    
     share.download_count += 1
     share.last_accessed_at = timezone.now()
     share.save(update_fields=["download_count", "last_accessed_at"])
+    
     _log_share_access(share, grant.recipient, ShareAccessLog.ACTION_DOWNLOAD, request)
     _notify_owner_read_receipt(share, grant.recipient, "downloaded")
+
+    # Revoke after successful download if one-time access
+    if share.one_time_access and not share.is_revoked:
+        share.is_revoked = True
+        share.revoked_at = timezone.now()
+        share.save(update_fields=['is_revoked', 'revoked_at'])
+
     return True, None
 
 

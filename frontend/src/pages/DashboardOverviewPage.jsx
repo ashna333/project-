@@ -103,7 +103,7 @@ export default function DashboardOverviewPage() {
           <div className="recent-card">
             <div className="recent-header">
               <h3 className="recent-title"><Share2 size={18} className="rose-text" /> Recent Shares</h3>
-              <Link to="/shares" className="view-all">View All <ChevronRight size={14} /></Link>
+              <Link to="/shared" className="view-all">View All <ChevronRight size={14} /></Link>
             </div>
             <div className="recent-list">
               {recentShares.length > 0 ? recentShares.map(share => (

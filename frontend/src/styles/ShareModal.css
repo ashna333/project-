@@ -151,9 +151,6 @@
   cursor: not-allowed;
 }
 
-.text-rose {
-  color: #e11d48;
-}
 
 
 
@@ -426,3 +423,6 @@ input:-webkit-autofill {
 input[type="time"].modal-input {
   color-scheme: dark;
 }
+
+
+

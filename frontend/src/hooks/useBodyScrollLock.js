@@ -1,14 +1,15 @@
 import { useEffect } from 'react';
 
-/** Prevent background scroll while overlays/modals are open */
 export default function useBodyScrollLock(locked) {
   useEffect(() => {
-    if (!locked) return undefined;
+    if (locked) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
 
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.overflow = '';
     };
   }, [locked]);
 }

@@ -232,7 +232,8 @@ from .models import FileShare
 class FileShareCreateSerializer(serializers.Serializer):
     file_id = serializers.IntegerField(min_value=1)
     recipient_email = serializers.EmailField()
-    expires_in_hours = serializers.IntegerField(min_value=1, max_value=720)
+    expires_in_hours = serializers.IntegerField(required=False, default=0, min_value=0)
+    expires_in_minutes = serializers.IntegerField(required=False, default=0, min_value=0)
     message = serializers.CharField(allow_blank=True, trim_whitespace=True, max_length=MAX_MESSAGE_LENGTH)
 
     def validate_recipient_email(self, value):
@@ -319,7 +320,6 @@ class PrivateShareCreateSerializer(serializers.Serializer):
     password = serializers.CharField(required=False, allow_blank=True, write_only=True, max_length=128)
     one_time_access = serializers.BooleanField(default=False)
     max_downloads = serializers.IntegerField(required=False, allow_null=True, min_value=1, max_value=10000)
-    inactivity_revoke_days = serializers.IntegerField(required=False, allow_null=True, min_value=1, max_value=365)
     time_windows = serializers.ListField(required=False, default=list)
     parent_share_id = serializers.IntegerField(required=False, allow_null=True)
 
@@ -402,20 +402,23 @@ class PrivateShareTreeSerializer(serializers.ModelSerializer):
     owner_name = serializers.SerializerMethodField()
     recipients = PrivateShareRecipientSerializer(many=True, read_only=True)
     child_shares = serializers.SerializerMethodField()
+    is_expired = serializers.SerializerMethodField()  # ← add this
 
     class Meta:
         model = PrivateShare
         fields = [
-            "id", "owner_email", "owner_name", "expires_at", "is_revoked", "revoked_at",
-            "recipients", "child_shares", "created_at"
+            "id", "owner_email", "owner_name", "expires_at", "is_expired",
+            "is_revoked", "revoked_at", "recipients", "child_shares", "created_at"
         ]
+
+    def get_is_expired(self, obj):  # ← add this
+        return obj.is_expired
 
     def get_owner_name(self, obj):
         from .service import get_user_display_name
         return get_user_display_name(obj.owner)
 
     def get_child_shares(self, obj):
-        # Recursively serialize child shares
         children = obj.child_shares.all()
         return PrivateShareTreeSerializer(children, many=True).data
 
@@ -434,7 +437,7 @@ class PrivateShareOwnerSerializer(serializers.ModelSerializer):
         fields = [
             "id", "file_id", "file_name", "message", "token",
             "expires_at", "one_time_access", "max_downloads", "download_count",
-            "inactivity_revoke_days", "time_windows", "is_revoked", "revoked_at",
+             "time_windows", "is_revoked", "revoked_at",
             "is_expired", "created_at", "last_accessed_at", "recipients", "analytics",
         ]
 
@@ -457,6 +460,7 @@ class PrivateShareInboxSerializer(serializers.ModelSerializer):
     is_expired = serializers.SerializerMethodField()
     access_status = serializers.SerializerMethodField()
     requires_password = serializers.SerializerMethodField()
+    one_time_access = serializers.BooleanField(source='private_share.one_time_access', read_only=True)
 
     class Meta:
         model = PrivateShareRecipient
@@ -464,7 +468,7 @@ class PrivateShareInboxSerializer(serializers.ModelSerializer):
             "id", "share_id", "file_id", "file_name",
             "shared_by", "shared_by_email", "message",
             "can_view", "can_download", "can_reshare", "can_comment",
-            "expires_at", "individual_expires_at", "is_expired",
+            "expires_at", "individual_expires_at", "is_expired",'one_time_access',
             "access_status", "requires_password",
             "download_count", "view_count", "last_accessed_at", "created_at",
         ]

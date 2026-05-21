@@ -4,6 +4,7 @@ import { File as FileIcon, Download, CloudUpload, AlertCircle, Clock } from 'luc
 import { fetchPublicShareApi, downloadPublicFileApi } from '../store/fileApi';
 import '../styles/PublicSharePage.css';
 
+
 const BG_IMAGE = "https://images.unsplash.com/photo-1761078739436-ccee01f3d89c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMGRhcmslMjB0ZXh0dXJlfGVufDB8fHx8MTc3NzY1MDYyOHww&ixlib=rb-4.1.0&q=85";
 
 const formatSize = (bytes) => {

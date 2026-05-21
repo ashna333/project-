@@ -13,6 +13,7 @@ import { deleteFileApi } from '../store/fileApi';
 import { useToast } from '../components/ToastContext';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import ConfirmModal from '../components/ConfirmModal';
+
 import '../styles/DashboardPage.css';
 import '../styles/FileManager.css';
 

@@ -20,6 +20,7 @@ import DuplicateFileDialog from '../components/DuplicateFileDialog';
 import AlertModal from '../components/AlertModal';
 import { useToast } from '../components/ToastContext';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
+
 import { validateUploadFiles } from '../utils/validation';
 
 
@@ -185,6 +186,8 @@ const handleDrop = (e) => {
                         {status !== 'uploading' && <span className="file-size">{sizeString}</span>}
                     </div>
                 </div>
+
+ 
                 
                 {/* Specific Loading Bar Container - Rose-600 colored */}
                 {status === 'uploading' && (
@@ -221,6 +224,8 @@ const handleDrop = (e) => {
           <h1 className="welcome-title" style={{ fontSize: '40px', fontWeight: '700' }}>Drop files here</h1>
           <p style={{ color: '#a1a1aa', marginTop: '8px', fontSize: '14px' }}>Up to 100 MB per file. Multiple files supported.</p>
         </div>
+        
+  
 
         {/* Dropzone Area (Clickable to Browse) */}
         
@@ -245,6 +250,7 @@ const handleDrop = (e) => {
           <p style={{ color: '#71717a', marginTop: '8px', fontSize: '14px' }}>or click to browse</p>
 </div>
 
+
         {/* File Queue Section */}
         {filesInQueue.length > 0 && (
           <div className="file-queue-card fade-in">
@@ -268,6 +274,7 @@ const handleDrop = (e) => {
               ))}
             </div>
           </div>
+          
         )}
 
         <footer className="footer-text">CloudShare - Secure file sharing, built for teams.</footer>
@@ -291,6 +298,7 @@ const handleDrop = (e) => {
           if (alertModal?.variant !== 'error') navigate('/files');
         }}
       />
+      
     </>
   );
 }

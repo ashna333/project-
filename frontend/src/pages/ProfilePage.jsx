@@ -14,6 +14,7 @@ import {
 } from '../utils/validation';
  import DateOfBirthSelect from '../components/DateOfBirthSelect';
 
+
 export default function ProfilePage() {
   const dispatch = useDispatch();
   const setUser = useAuthStore((s) => s.setUser);

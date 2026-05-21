@@ -32,36 +32,33 @@ export default function RenameModal({ file, isOpen, onClose, onRefresh }) {
   if (!isOpen) return null;
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Combine baseName + extension
-    const finalName = baseName.trim() + extension;
+  e.preventDefault();
 
-    if (finalName === file.original_name) {
-      onClose();
-      return;
-    }
+  // Strip any extension the user may have typed in baseName
+  const nameWithoutExt = baseName.trim().replace(/\.[^/.]+$/, '');
 
-    const nameErr = validateFilename(finalName);
-    if (nameErr) {
-      setError(nameErr);
-      return;
-    }
+  if (!nameWithoutExt) {
+    setError('File name cannot be empty.');
+    return;
+  }
 
-    setLoading(true);
-    setError('');
+  const err = validateFilename(nameWithoutExt);
+  if (err) { setError(err); return; }
 
-    try {
-      await renameFileApi(file.id, finalName);
-      if (onRefresh) onRefresh();
-      onClose();
-    } catch (err) {
-      const errorMessage = err.response?.data?.error || 'Failed to rename file.';
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const finalName = extension ? `${nameWithoutExt}${extension}` : nameWithoutExt;
+
+  setLoading(true);
+  setError('');
+  try {
+    await renameFileApi(file.id, finalName);
+    if (onRefresh) onRefresh();
+    onClose();
+  } catch (err) {
+    setError(err.response?.data?.error || 'Failed to rename file.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     // Change: Use onMouseDown instead of onClick for overlay to prevent selection-drags from closing it
@@ -93,19 +90,9 @@ export default function RenameModal({ file, isOpen, onClose, onRefresh }) {
                 value={baseName}
                 onChange={(e) => setBaseName(e.target.value)}
                 autoFocus
-                style={{ paddingRight: `${extension.length * 9 + 15}px` }} // Dynamic padding for extension hint
+                
               />
-              {extension && (
-                <span style={{ 
-                  position: 'absolute', 
-                  right: '12px', 
-                  color: '#71717a', 
-                  pointerEvents: 'none',
-                  fontSize: '0.9em' 
-                }}>
-                  {extension}
-                </span>
-              )}
+              
             </div>
             
           </div>

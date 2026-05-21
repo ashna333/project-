@@ -4,7 +4,7 @@
   right: 142px !important;
   z-index: 999999 !important;
   display: block;
-  animation: toastSlideTop 10s ease-out;
+  animation: toastSlideTop 2s ease-out;
   transform: translate3d(0, 0, 0); 
   backface-visibility: hidden;
 }

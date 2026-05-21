@@ -167,7 +167,6 @@ class PrivateShare(models.Model):
   one_time_access = models.BooleanField(default=False)
   max_downloads = models.PositiveIntegerField(null=True, blank=True)
   download_count = models.PositiveIntegerField(default=0)
-  inactivity_revoke_days = models.PositiveIntegerField(null=True, blank=True)
   last_accessed_at = models.DateTimeField(null=True, blank=True)
 
   time_windows = models.JSONField(default=list, blank=True)
@@ -201,10 +200,11 @@ class PrivateShare(models.Model):
 
   @property
   def is_expired(self):
-      if self.expires_at and timezone.now() >= self.expires_at:
-          return True
-      return False
-
+    if self.expires_at and timezone.now() >= self.expires_at:
+        return True
+    if self.one_time_access and self.download_count >= 1:
+        return True
+    return False
 
 class PrivateShareRecipient(models.Model):
   """Per-recipient grant on a private share."""

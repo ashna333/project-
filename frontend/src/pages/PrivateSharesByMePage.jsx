@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Shield, Ban, BarChart2, Users, MessageSquare, Network } from 'lucide-react';
+import { Shield, Ban, BarChart2, Users, MessageSquare, Network ,X} from 'lucide-react';
 import {
   fetchPrivateSharesOwnedApi,
   revokePrivateShareApi,
@@ -10,6 +10,8 @@ import {
 import ShareTreeModal from '../components/ShareTreeModal';
 import Pagination from '../components/Pagination';
 import '../styles/PrivateSharePages.css';
+import ConfirmModal from '../components/ConfirmModal';
+
 
 export default function PrivateSharesByMePage() {
   const [shares, setShares] = useState([]);
@@ -22,6 +24,7 @@ export default function PrivateSharesByMePage() {
   const [treeOpen, setTreeOpen] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [revokeTarget, setRevokeTarget] = useState(null);
   const pageSize = 9;
 
 const load = async (page, currentFilter) => {
@@ -50,11 +53,17 @@ useEffect(() => {
   load(1, filter);
 }, [filter]);
 
-  const revoke = async (id) => {
-    if (!window.confirm('Revoke this private share for all recipients?')) return;
-    await revokePrivateShareApi(id);
-    load();
-  };
+ const revoke = async () => {
+  if (!revokeTarget) return;
+  try {
+    await revokePrivateShareApi(revokeTarget);
+    load(currentPage, filter);
+  } catch (err) {
+    console.error('Failed to revoke', err);
+  } finally {
+    setRevokeTarget(null);
+  }
+};
 
   const viewAudit = async (id) => {
     const { data } = await fetchPrivateShareAuditApi(id);
@@ -82,6 +91,29 @@ useEffect(() => {
       console.error('Failed to post comment', error);
     }
   };
+  const getAuditDotColor = (action) => {
+  if (!action) return '#3f3f46';
+  const a = action.toLowerCase();
+  if (a.includes('download')) return '#e11d48';
+  if (a.includes('preview') || a.includes('view')) return '#9333ea';
+  if (a.includes('revoke')) return '#7f1d1d';
+  if (a === 'shared' || a.includes('create')) return '#99103e';
+  if (a.includes('re-share') || a.includes('reshare')) return '#0891b2';
+  if (a.includes('comment')) return '#d97706';
+  return '#3f3f46';
+};
+
+const getAuditActionColor = (action) => {
+  if (!action) return '#a1a1aa';
+  const a = action.toLowerCase();
+  if (a.includes('download')) return '#fda4af';
+  if (a.includes('preview') || a.includes('view')) return '#c084fc';
+  if (a.includes('revoke')) return '#df2030';
+  if (a === 'shared' || a.includes('create')) return '#be545d';
+  if (a.includes('re-share') || a.includes('reshare')) return '#67e8f9';
+  if (a.includes('comment')) return '#fcd34d';
+  return '#a1a1aa';
+};
 
   return (
     <div className="private-share-page fade-in">
@@ -132,17 +164,17 @@ useEffect(() => {
                   <Network size={14} style={{ marginRight: '4px' }} /> Tree
                 </button>
                 <button type="button" className="ps-btn-text" onClick={() => viewAudit(s.id)}>Audit log</button>
-                {!s.is_revoked && (
+                
                   <button type="button" className="ps-btn-text" onClick={() => openComments(s.id)}>
                     <MessageSquare size={14} style={{ marginRight: '4px' }} /> Comments
                   </button>
-                )}
+                
                 {!s.is_revoked && !s.is_expired && (
-                  <button type="button" className="ps-btn-revoke" onClick={() => revoke(s.id)}>
+                  <button type="button" className="ps-btn-revoke" onClick={() => setRevokeTarget(s.id)}>
                     <Ban size={14} /> Revoke
                   </button>
                 )}
-              </div>
+        </div>
             </div>
           ))}
         </div>
@@ -155,46 +187,102 @@ useEffect(() => {
         loading={loading}
       />
 
-      {auditLogs && (
-        <div className="modal-overlay" onClick={() => setAuditLogs(null)}>
-          <div className="ps-audit-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Audit log (permanent)</h3>
-            <div className="audit-list">
-              {auditLogs.logs.length === 0 ? (
-                <p className="audit-empty">No activity recorded yet for this file.</p>
-              ) : (
-                auditLogs.logs.map((log) => (
-                  <div key={log.id} className="audit-row">
-                    <span className="audit-action">{log.action_label || log.action}</span>
-                    <span>
-                      {log.actor_name || log.actor_email || '—'}
-                      {log.actor_email && log.actor_name && (
-                        <span className="audit-meta">{log.actor_email}</span>
-                      )}
-                    </span>
-                    <span className="ps-muted">{new Date(log.created_at).toLocaleString()}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+    {auditLogs && (
+  <div className="modal-overlay" onClick={() => setAuditLogs(null)}>
+    <div className="ps-audit-modal" onClick={(e) => e.stopPropagation()}>
+      
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#fff' }}>Audit Log</h3>
+          <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#71717a' }}>
+            {auditLogs.logs.length} event{auditLogs.logs.length !== 1 ? 's' : ''} recorded
+          </p>
         </div>
-      )}
+        <button
+          type="button"
+          className="close-x-btn"
+          onClick={() => setAuditLogs(null)}
+        >
+          <X size={18} />
+        </button>
+      </div>
 
+      {/* Log list */}
+      <div className="audit-list">
+        {auditLogs.logs.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '32px 0', color: '#52525b' }}>
+            <p style={{ margin: 0, fontSize: '14px' }}>No activity recorded yet.</p>
+          </div>
+        ) : (
+          auditLogs.logs.map((log, index) => (
+            <div
+              key={log.id}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                padding: '14px 0',
+                borderBottom: index < auditLogs.logs.length - 1 ? '1px solid #27272a' : 'none',
+              }}
+            >
+              {/* Action dot */}
+              <div style={{
+                width: '8px', height: '8px', borderRadius: '50%',
+                background: getAuditDotColor(log.action),
+                marginTop: '6px', flexShrink: 0,
+              }} />
+
+              {/* Content */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                  <span style={{
+                    fontSize: '13px', fontWeight: 600,
+                    color: getAuditActionColor(log.action),
+                    textTransform: 'capitalize',
+                  }}>
+                    {log.action_label || log.action}
+                  </span>
+                 <span style={{ fontSize: '11px', color: '#71717a', flexShrink: 0 }}>
+                    {new Date(log.created_at).toLocaleString('en-GB', {
+                      day: '2-digit', month: 'short', year: 'numeric',
+                      hour: '2-digit', minute: '2-digit',
+                    })}
+                  </span>
+                </div>
+                <p style={{ margin: '2px 0 0', fontSize: '13px', color: '#a1a1aa' }}>
+                  {log.actor_name || '—'}
+                  {log.actor_email && log.actor_name && (
+                    <span style={{ color: '#747480', marginLeft: '6px' }}>· {log.actor_email}</span>
+                  )}
+                </p>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  </div>
+)}
       {commentsOpen && (
   <div className="modal-overlay" onClick={() => setCommentsOpen(null)}>
     <div className="ps-comments-modal" onClick={(e) => e.stopPropagation()}>
       <h3>Comments</h3>
+      <br />
       <div className="comments-list">
-        {comments.map((c) => (
-          <div key={c.id} className="comment-item">
-            <strong>{c.author_name}</strong>
-            <p>{c.content}</p>
-            {c.highlight_text && <em>Highlight: {c.highlight_text}</em>}
+        {(comments.length === 0)? (
+          <p className="comments-empty">No comments yet.</p>
+         ) : (
+          comments.map((c) => (
+            <div key={c.id} className="comment-item">
+              <strong>{c.author_name}</strong>
+              <p>{c.content}</p>
+              {c.highlight_text && <em>Highlight: {c.highlight_text}</em>}
           </div>
-        ))}
+        )))}
       </div>
-
+         
+      
       {(() => {
         const share = shares.find((s) => s.id === commentsOpen);
         const canPost = !share?.is_revoked && !share?.is_expired;
@@ -216,14 +304,20 @@ useEffect(() => {
             </button>
           </div>
         ) : (
-          <p className="ps-muted" style={{ fontSize: '13px', marginTop: '8px' }}>
-            This share is {share?.is_revoked ? 'revoked' : 'expired'} — new comments are disabled.
-          </p>
+          <></>
         );
       })()}
     </div>
   </div>
 )}
+<ConfirmModal
+  open={!!revokeTarget}
+  title="Revoke this share?"
+  message="This will revoke access for all recipients of this share."
+  confirmLabel="Revoke"
+  onConfirm={revoke}
+  onCancel={() => setRevokeTarget(null)}
+/>
 
       <ShareTreeModal
         shareId={treeOpen}
