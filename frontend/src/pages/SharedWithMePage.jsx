@@ -44,13 +44,9 @@ export default function SharedWithMePage() {
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 9;
   const [openMenu, setOpenMenu] = useState(null);
-  const [filters, setFilters] = useState({
-    type: null,
-    sharedBy: null,
-    expires: null,
-    status: null,
-  });
+  const [filters, setFilters] = useState({});  // ✅ empty object
   const [openFilter, setOpenFilter] = useState(null);
+  const [senders, setSenders] = useState([]);
 
   useEffect(() => {
     const close = () => { setOpenMenu(null); setOpenFilter(null); };
@@ -61,25 +57,51 @@ export default function SharedWithMePage() {
   const anyModalOpen =
     !!passwordPrompt || !!commentsOpen || !!previewFile || !!reshareShare || !!alertModal;
   useBodyScrollLock(anyModalOpen);
-
-  const load = async (page = 1, currentFilters = filters) => {
+const load = async (page = 1, currentFilters = filters) => {
   setLoading(true);
   try {
-    // Build backend params from filters
     const params = {};
     if (currentFilters.type) params.file_type = currentFilters.type;
     if (currentFilters.sharedBy) params.shared_by = currentFilters.sharedBy;
     if (currentFilters.expires) params.expires = currentFilters.expires;
     if (currentFilters.status) params.status = currentFilters.status;
 
+    console.log("sending to backend:", params);
+
     const { data } = await fetchPrivateSharesInboxApi(page, pageSize, params);
-    const list =
+    let list =
       data.results?.shares ??
       data.shares ??
       (Array.isArray(data.results) ? data.results : []);
+
+    // ✅ Client-side fallback filtering
+    if (currentFilters.expires) {
+      const now = new Date();
+      list = list.filter(s => {
+        const exp = s.expires_at ? new Date(s.expires_at) : null;
+        if (currentFilters.expires === 'never') return !exp;
+        if (currentFilters.expires === 'today') return exp && exp <= new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+        if (currentFilters.expires === 'week') return exp && exp <= new Date(Date.now() + 7 * 86400000);
+        if (currentFilters.expires === 'month') return exp && exp <= new Date(Date.now() + 30 * 86400000);
+        return true;
+      });
+    }
+
+    if (currentFilters.status) {
+      list = list.filter(s => s.access_status === currentFilters.status);
+    }
+
+    if (currentFilters.sharedBy) {
+      list = list.filter(s => s.shared_by_email === currentFilters.sharedBy);
+    }
+
     const totalCount = data.count || 0;
     setTotalPages(Math.ceil(totalCount / pageSize) || 1);
     setShares(list);
+
+    const uniqueSenders = [...new Set(list.map(s => s.shared_by_email).filter(Boolean))];
+    setSenders(uniqueSenders);
+
     localStorage.setItem('inbox_last_seen', new Date().toISOString());
     window.dispatchEvent(new Event('inbox-seen'));
   } catch {
@@ -89,24 +111,29 @@ export default function SharedWithMePage() {
   }
 };
 
+  const handleFilterChange = (key, value) => {
+    const newFilters = { ...filters };
 
+    if (newFilters[key] === value) {
+      delete newFilters[key]; // ✅ deselect
+    } else {
+      newFilters[key] = value;
+    }
 
-
-
-
-const handleFilterChange = (key, value) => {
-  const newFilters = { 
-    ...filters, 
-    [key]: filters[key] === value ? null : value 
+    console.log("new filters:", newFilters);
+    setFilters(newFilters);
+    setCurrentPage(1);
+    load(1, newFilters);
+    setOpenFilter(null);
   };
-  setFilters(newFilters);
-  setCurrentPage(1);
-  load(1, newFilters);
-  setOpenFilter(null);
-};
 
+  const clearFilters = () => {
+    setFilters({});       // ✅ empty object
+    setCurrentPage(1);
+    load(1, {});          // ✅ reload with no filters
+  };
 
-
+  const activeFilterCount = Object.keys(filters).length; // ✅ correct count
 
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
@@ -115,35 +142,6 @@ const handleFilterChange = (key, value) => {
   };
 
   useEffect(() => { load(1); }, []);
-
-  // Filter logic
-  const senders = [...new Set(shares.map(s => s.shared_by_email).filter(Boolean))];
-
-  const filteredShares = shares.filter(s => {
-    if (filters.type) {
-      const ext = s.file_name?.split('.').pop()?.toLowerCase();
-      const images = ['jpg','jpeg','png','gif','svg','webp','bmp'];
-      const docs = ['doc','docx','xls','xlsx','txt','csv','ppt','pptx'];
-      if (filters.type === 'image' && !images.includes(ext)) return false;
-      if (filters.type === 'pdf' && ext !== 'pdf') return false;
-      if (filters.type === 'document' && !docs.includes(ext)) return false;
-      if (filters.type === 'other' && [...images, ...docs, 'pdf'].includes(ext)) return false;
-    }
-    if (filters.sharedBy && s.shared_by_email !== filters.sharedBy) return false;
-    if (filters.expires) {
-      const exp = s.expires_at ? new Date(s.expires_at) : null;
-      const now = new Date();
-      if (filters.expires === 'never' && exp) return false;
-      if (filters.expires === 'today' && (!exp || exp > new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59))) return false;
-      if (filters.expires === 'week' && (!exp || exp > new Date(Date.now() + 7 * 86400000))) return false;
-      if (filters.expires === 'month' && (!exp || exp > new Date(Date.now() + 30 * 86400000))) return false;
-    }
-    if (filters.status && s.access_status !== filters.status) return false;
-    return true;
-  });
-
-  const activeFilterCount = Object.values(filters).filter(Boolean).length;
-  const clearFilters = () => setFilters({ type: null, sharedBy: null, expires: null, status: null });
 
   const filterConfig = [
     {
@@ -302,13 +300,15 @@ const handleFilterChange = (key, value) => {
 
       {/* Filter bar */}
       <div className="ps-filter-bar" onClick={(e) => e.stopPropagation()}>
-        {filterConfig.map(({ key, label, icon, options }) => (
-          <div key={key} className="ps-filter-wrap">
+        {filterConfig.map(({ key, label, options }) => (
+          <div key={key} className="ps-filter-wrap" onClick={(e) => e.stopPropagation()}>
             <button
               className={`ps-filter-btn ${filters[key] ? 'active' : ''}`}
-              onClick={(e) => { e.stopPropagation(); setOpenFilter(openFilter === key ? null : key); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenFilter(openFilter === key ? null : key);
+              }}
             >
-              {icon}
               {label}
               {filters[key] && (
                 <span className="ps-filter-active-val">
@@ -326,7 +326,9 @@ const handleFilterChange = (key, value) => {
                     className={`ps-filter-option ${filters[key] === opt.value ? 'active' : ''}`}
                     onClick={() => handleFilterChange(key, opt.value)}
                   >
-                    {filters[key] === opt.value && <span style={{ color: '#e11d48', marginRight: '4px' }}>✓</span>}
+                    {filters[key] === opt.value && (
+                      <span style={{ color: '#e11d48', marginRight: '4px' }}>✓</span>
+                    )}
                     {opt.label}
                   </button>
                 ))}
@@ -352,7 +354,7 @@ const handleFilterChange = (key, value) => {
 
       {loading ? (
         <p className="ps-muted">Loading...</p>
-      ) : filteredShares.length === 0 ? (
+      ) : shares.length === 0 ? (
         <div className="ps-empty">
           {activeFilterCount > 0 ? 'No shares match your filters.' : 'No private shares in your inbox yet.'}
         </div>
@@ -378,7 +380,7 @@ const handleFilterChange = (key, value) => {
               </tr>
             </thead>
             <tbody>
-              {filteredShares.map((s) => {
+              {shares.map((s) => {
                 const statusInfo = formatStatus(s);
                 return (
                   <tr key={s.id}>
