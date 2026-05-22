@@ -103,7 +103,7 @@ export const fetchPrivateSharesOwnedApi = (page = 1, status = '', pageSize = 10)
   api.get('/private-shares/owned/', { params: { page, page_size: pageSize, status: status || undefined } });
 
 export const fetchPrivateSharesInboxApi = (page = 1, pageSize = 9) =>
-  api.get('/private-shares/inbox/', { params: { page, page_size: pageSize } });
+  api.get('/private-shares/inbox/', { params: { page, page_size: pageSize} });
 
 export const lookupUsersApi = (emails) =>
   api.post('/private-shares/lookup/', { emails });

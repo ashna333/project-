@@ -1,4 +1,7 @@
 from datetime import timezone
+
+from django.utils import timezone
+from datetime import timedelta
 import token
 from .models import FileShare, UserFile
 from rest_framework.views import APIView
@@ -252,35 +255,48 @@ class FileUploadView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 
+from django.utils import timezone
+from datetime import timedelta
+
 class FileListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         search = request.query_params.get("search", "").strip()
-        
-        # 1. GET THE PARAMETER FROM THE URL
         is_starred = request.query_params.get('is_starred')
+        file_type = request.query_params.get('file_type')
+        modified = request.query_params.get('modified')
 
-        # 2. START WITH YOUR BASE FILES
         qs = list_user_files(request.user, search=search or None).filter(is_deleted=False)
 
-        # 3. APPLY THE STAR FILTER MANUALLY HERE
         if is_starred == 'true':
             qs = qs.filter(is_starred=True)
 
-        # 4. PAGINATE AND RETURN
+        if file_type:
+            if file_type == 'image':
+                qs = qs.filter(original_name__iregex=r'\.(jpg|jpeg|png|gif|svg|webp|bmp)$')
+            elif file_type == 'pdf':
+                qs = qs.filter(original_name__iendswith='.pdf')
+            elif file_type == 'document':
+                qs = qs.filter(original_name__iregex=r'\.(doc|docx|xls|xlsx|txt|csv|ppt|pptx)$')
+            elif file_type == 'other':
+                qs = qs.exclude(original_name__iregex=r'\.(jpg|jpeg|png|gif|svg|webp|bmp|pdf|doc|docx|xls|xlsx|txt|csv|ppt|pptx)$')
+
+        if modified:
+            now = timezone.now()
+            if modified == 'today':
+                qs = qs.filter(uploaded_at__date=now.date())
+            elif modified == 'week':
+                qs = qs.filter(uploaded_at__gte=now - timedelta(days=7))
+            elif modified == 'month':
+                qs = qs.filter(uploaded_at__gte=now - timedelta(days=30))
+
         paginator = FilePagination()
         page = paginator.paginate_queryset(qs, request)
-
         serializer = UserFileSerializer(page, many=True, context={"request": request})
         storage = get_storage_summary(request.user)
 
-        return paginator.get_paginated_response(
-            {
-                "files": serializer.data,
-                "storage": storage,
-            }
-        )
+        return paginator.get_paginated_response({"files": serializer.data, "storage": storage})
 
 class FileDeleteView(APIView):
     """

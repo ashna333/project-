@@ -293,143 +293,239 @@ export default function ShareModal({ file, parentShare, isOpen, onClose, onRefre
             </div>
           </form>
         )}
+{/* ── PRIVATE FORM ── */}
+{mode === 'private' && (
+  <form onSubmit={handlePrivateSubmit} className="modal-form">
 
-        {/* ── PRIVATE FORM ── */}
-        {mode === 'private' && (
-          <form onSubmit={handlePrivateSubmit} className="modal-form">
-            <div className="input-group">
-              <label><UserPlus size={14} /> Recipient email (must be registered)</label>
-              <div className="email-chips-container">
-                {emails.map((email) => (
-                  <div key={email} className="email-chip verified">
-                    <span>{verifiedEmails[email] ? `${verifiedEmails[email]} · ` : ''}{email}</span>
-                    <X size={14} onClick={() => setEmails(emails.filter((e) => e !== email))} className="remove-chip-icon" />
-                  </div>
-                ))}
-                <input
-                  className="chip-input"
-                  placeholder="other-user@email.com"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onBlur={() => inputValue && addEmailPrivate(inputValue)}
-                />
-              </div>
-            </div>
+    {/* Email input */}
+    <div className="input-group">
+      <label><UserPlus size={14} /> Recipient email (must be registered)</label>
+      <div className="email-chips-container">
+        {emails.map((email) => (
+          <div key={email} className="email-chip verified">
+            <span>{verifiedEmails[email] ? `${verifiedEmails[email]} · ` : ''}{email}</span>
+            <X size={14} onClick={() => setEmails(emails.filter((e) => e !== email))} className="remove-chip-icon" />
+          </div>
+        ))}
+        <input
+          className="chip-input"
+          placeholder="other-user@email.com"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={() => inputValue && addEmailPrivate(inputValue)}
+        />
+      </div>
+    </div>
 
-            <div className="ps-form-group">
-              <label>Permissions</label>
-              <div className="ps-perms-grid">
-                {PERMS.map((p) => {
-                  const disabled = parentShare && !parentShare[p.key];
-                  return (
-                    <label key={p.key} className={`ps-perm-label ${disabled ? 'disabled-label' : ''}`}>
-                      <input type="checkbox" checked={defaultPerms[p.key]}
-                        disabled={disabled || p.key === 'can_view'}
-                        onChange={(e) => setDefaultPerms({ ...defaultPerms, [p.key]: e.target.checked })} />
-                      <span>{p.label}</span>
-                    </label>
-                  );
+    {/* Permissions — pill toggles */}
+    <div className="ps-form-group">
+      <label>Permissions</label>
+      <div className="perm-pills-row">
+        {PERMS.map((p) => {
+          const disabled = (parentShare && !parentShare[p.key]) || p.key === 'can_view';
+          const active = defaultPerms[p.key];
+          return (
+            <button
+              key={p.key}
+              type="button"
+              disabled={disabled}
+              className={`perm-pill ${active ? 'active' : ''} ${disabled ? 'disabled' : ''}`}
+              onClick={() => !disabled && setDefaultPerms({ ...defaultPerms, [p.key]: !active })}
+            >
+              {active ? '✓ ' : ''}{p.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+
+    {/* Password protect */}
+    <div className="ps-toggle-row">
+      <label className="ps-toggle-label"><Lock size={14} /> Password protect</label>
+      <button
+        type="button"
+        className={`ps-switch ${enablePassword ? 'on' : ''}`}
+        onClick={() => { setEnablePassword(v => { if (v) setPassword(''); return !v; }); }}
+      >
+        <span className="ps-switch-thumb" />
+      </button>
+    </div>
+    {enablePassword && (
+      <div className="input-group">
+        <div className="ps-password-wrap">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            className="modal-input"
+            value={password}
+            placeholder="Min. 4 characters"
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
+            name="private-share-password"
+          />
+          <button type="button" className="ps-password-eye" onClick={() => setShowPassword(!showPassword)}>
+            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
+      </div>
+    )}
+
+    {/* One-time access */}
+    <div className="ps-toggle-row">
+      <label className="ps-toggle-label">
+        <input
+          type="checkbox"
+          checked={oneTime}
+          style={{ marginRight: '6px' }}
+          onChange={(e) => setOneTime(e.target.checked)}
+        />
+        One-time access
+      </label>
+      <span className="ps-field-hint">Expires after first download</span>
+    </div>
+
+    {/* Expiry + Max downloads — side by side */}
+    {!oneTime && (
+      <div className="two-col-inputs">
+        <div className="input-group">
+          <label><Clock size={13} /> Expires (hours)</label>
+          <input
+            type="number"
+            className="modal-input"
+            value={privateExpiresInHours}
+            min={1}
+            max={720}
+            onChange={(e) => setPrivateExpiresInHours(e.target.value)}
+          />
+        </div>
+        <div className="input-group">
+          <label><DownloadCloud size={13} /> Max downloads</label>
+          <input
+            type="number"
+            className="modal-input"
+            value={maxDownloads}
+            min={1}
+            placeholder="Unlimited"
+            onChange={(e) => setMaxDownloads(e.target.value)}
+          />
+        </div>
+      </div>
+    )}
+
+    {/* Time window toggle */}
+    <div className="ps-toggle-row">
+      <label className="ps-toggle-label"><CalendarClock size={14} /> Restrict access hours</label>
+      <button
+        type="button"
+        className={`ps-switch ${enableTimeWindow ? 'on' : ''}`}
+        onClick={() => setEnableTimeWindow(v => !v)}
+      >
+        <span className="ps-switch-thumb" />
+      </button>
+    </div>
+
+    {/* Time window panel */}
+    {enableTimeWindow && (
+      <div className="ps-time-window-panel">
+
+        {/* Day selection */}
+        <div>
+          <p className="time-window-section-label">Active days</p>
+          <div className="day-pills-row">
+            {WEEKDAYS.map(({ v, l }) => (
+              <button
+                key={v}
+                type="button"
+                className={`day-pill-btn ${windowDays.includes(v) ? 'active' : ''}`}
+                onClick={() => setWindowDays(prev =>
+                  prev.includes(v) ? prev.filter(d => d !== v) : [...prev, v].sort()
+                )}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Time selection */}
+        <div>
+          <p className="time-window-section-label">Access hours</p>
+          <div className="time-selects-row">
+            <div className="time-select-wrap">
+              <label>From</label>
+              <select
+                className="modal-input"
+                value={windowStart}
+                onChange={(e) => setWindowStart(e.target.value)}
+              >
+                {Array.from({ length: 24 }, (_, i) => {
+                  const h = String(i).padStart(2, '0');
+                  return <option key={h} value={`${h}:00`}>{`${h}:00`}</option>;
                 })}
-              </div>
+              </select>
             </div>
-
-            <div className="ps-toggle-row">
-              <label className="ps-toggle-label"><Lock size={14} /> Password protect</label>
-              <button type="button" className={`ps-switch ${enablePassword ? 'on' : ''}`}
-                onClick={() => { setEnablePassword(v => { if (v) setPassword(''); return !v; }); }}>
-                <span className="ps-switch-thumb" />
-              </button>
+            <div className="time-arrow">→</div>
+            <div className="time-select-wrap">
+              <label>Until</label>
+              <select
+                className="modal-input"
+                value={windowEnd}
+                onChange={(e) => setWindowEnd(e.target.value)}
+              >
+                {Array.from({ length: 24 }, (_, i) => {
+                  const h = String(i).padStart(2, '0');
+                  return <option key={h} value={`${h}:00`}>{`${h}:00`}</option>;
+                })}
+              </select>
             </div>
-            {enablePassword && (
-              <div className="input-group">
-                <label>Password</label>
-                <div className="ps-password-wrap">
-                  <input type={showPassword ? 'text' : 'password'} className="modal-input"
-                    value={password} placeholder="••••••••"
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="new-password" name="private-share-password" />
-                  <button type="button" className="ps-password-eye" onClick={() => setShowPassword(!showPassword)}>
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-            )}
+          </div>
 
-            <div className="ps-toggle-row">
-              <label className="ps-toggle-label">
-                <input type="checkbox" checked={oneTime} style={{ marginRight: '6px' }}
-                  onChange={(e) => setOneTime(e.target.checked)} />
-                One-time access
-              </label>
-              <span className="ps-field-hint">Expires after first download</span>
+          {/* Visual timeline bar */}
+          <div className="time-bar-wrap">
+            <div className="time-bar-track">
+              <div
+                className="time-bar-fill"
+                style={{
+                  left: `${(parseInt(windowStart) / 24) * 100}%`,
+                  width: `${Math.max(((parseInt(windowEnd) - parseInt(windowStart)) / 24) * 100, 2)}%`,
+                }}
+              />
             </div>
-
-            {!oneTime && (
-              <div className="input-group">
-                <label><Clock size={14} /> Expires in (hours)</label>
-                <input type="number" className="modal-input" value={privateExpiresInHours}
-                  min={1} max={720} onChange={(e) => setPrivateExpiresInHours(e.target.value)} />
-              </div>
-            )}
-
-            {!oneTime && (
-              <div className="input-group">
-                <label><DownloadCloud size={14} /> Max downloads (blank = unlimited)</label>
-                <input type="number" className="modal-input" value={maxDownloads} min={1}
-                  placeholder="e.g. 5" onChange={(e) => setMaxDownloads(e.target.value)} />
-              </div>
-            )}
-
-            <div className="ps-toggle-row">
-              <label className="ps-toggle-label"><CalendarClock size={14} /> Restrict to time window</label>
-              <button type="button" className={`ps-switch ${enableTimeWindow ? 'on' : ''}`}
-                onClick={() => setEnableTimeWindow(v => !v)}>
-                <span className="ps-switch-thumb" />
-              </button>
+            <div className="time-bar-labels">
+              <span>12am</span>
+              <span>6am</span>
+              <span>12pm</span>
+              <span>6pm</span>
+              <span>12am</span>
             </div>
-            {enableTimeWindow && (
-              <div className="ps-time-window-panel">
-                <div className="ps-weekday-row">
-                  {WEEKDAYS.map(({ v, l }) => (
-                    <button key={v} type="button"
-                      className={`ps-day-btn ${windowDays.includes(v) ? 'active' : ''}`}
-                      onClick={() => setWindowDays(prev =>
-                        prev.includes(v) ? prev.filter(d => d !== v) : [...prev, v].sort()
-                      )}>
-                      {l}
-                    </button>
-                  ))}
-                </div>
-                <div className="ps-time-inputs">
-                  <div className="input-group" style={{ flex: 1, marginBottom: 0 }}>
-                    <label>From</label>
-                    <input type="time" className="modal-input" value={windowStart}
-                      onChange={(e) => setWindowStart(e.target.value)} />
-                  </div>
-                  <div className="input-group" style={{ flex: 1, marginBottom: 0 }}>
-                    <label>Until</label>
-                    <input type="time" className="modal-input" value={windowEnd}
-                      onChange={(e) => setWindowEnd(e.target.value)} />
-                  </div>
-                </div>
-              </div>
-            )}
+          </div>
+        </div>
+      </div>
+    )}
 
-            <div className="input-group">
-              <label>Message</label>
-              <textarea className="modal-textarea" value={message}
-                onChange={(e) => setMessage(e.target.value)} placeholder="Optional message..." />
-            </div>
+    {/* Message */}
+    <div className="input-group">
+      <label>Message <span className="label-hint">(optional)</span></label>
+      <textarea
+        className="modal-textarea"
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        placeholder="Add a note for the recipient..."
+      />
+    </div>
 
-            <div className="modal-footer">
-              <button type="button" className="cancel-btn" onClick={handleClose}>Cancel</button>
-              <button type="submit" className="share-submit-btn" disabled={loading || !!successInfo}>
-                {loading ? <><Loader2 size={16} className="spinner" /> Sharing...</> : `Share with ${emails.length} user(s)`}
-              </button>
-            </div>
-          </form>
-        )}
+    <div className="modal-footer">
+      <button type="button" className="cancel-btn" onClick={handleClose}>Cancel</button>
+      <button type="submit" className="share-submit-btn" disabled={loading || !!successInfo}>
+        {loading
+          ? <><Loader2 size={16} className="spinner" /> Sharing...</>
+          : `Share with ${emails.length} user(s)`
+        }
+      </button>
+    </div>
+  </form>
+)}
+  
       </div>
     </div>
   );

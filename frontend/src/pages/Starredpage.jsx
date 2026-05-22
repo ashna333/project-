@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-  Star, Download, Trash2, Share2, Edit2, X,
+  Star, Download, Share2, Edit2, X,
   FileText, Image as ImageIcon, File as FileIcon,
 } from 'lucide-react';
 import { fetchFiles, downloadFile, toggleFileStar } from '../store/fileThunks';
@@ -12,6 +12,9 @@ import Pagination from '../components/Pagination';
 import { deleteFileApi } from '../store/fileApi';
 import { useToast } from '../components/ToastContext';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
+import FileGrid from '../components/FileGrid';
+import ViewToggle from '../components/ViewToggle';
+import useViewMode from '../hooks/useViewMode';
 import ConfirmModal from '../components/ConfirmModal';
 
 import '../styles/DashboardPage.css';
@@ -31,11 +34,13 @@ export default function StarredPage() {
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 12;
 
+  const [viewMode, handleViewMode] = useViewMode('list');
+
+  const starredFilters = { is_starred: true };
+
   useBodyScrollLock(
     !!selectedFile || isModalOpen || isRenameModalOpen || !!deleteTarget
   );
-
-  const starredFilters = { is_starred: true };
 
   useEffect(() => {
     dispatch(fetchFiles(currentPage, pageSize, '', starredFilters));
@@ -51,12 +56,12 @@ export default function StarredPage() {
   const getFileIcon = (file) => {
     const name = (file?.original_name || '').toLowerCase();
     if (name.match(/\.(pdf|txt|docx|doc|xls|xlsx)$/)) {
-      return <FileText size={40} className="text-rose" />;
+      return <FileText size={viewMode === 'grid' ? 40 : 20} className="text-rose" />;
     }
     if (name.match(/\.(jpg|jpeg|png|gif|svg|webp|bmp)$/)) {
-      return <ImageIcon size={40} className="text-rose" />;
+      return <ImageIcon size={viewMode === 'grid' ? 40 : 20} className="text-rose" />;
     }
-    return <FileIcon size={40} className="text-rose" />;
+    return <FileIcon size={viewMode === 'grid' ? 40 : 20} className="text-rose" />;
   };
 
   const formatFileSize = (bytes) => {
@@ -71,20 +76,23 @@ export default function StarredPage() {
     setCurrentPage(newPage);
     dispatch(setPage(newPage));
     dispatch(fetchFiles(newPage, pageSize, '', starredFilters));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleToggleStar = async (file, e) => {
     if (e) e.stopPropagation();
     try {
       const result = await dispatch(toggleFileStar(file.id));
-      if (selectedFile?.id === file.id) {
-        setSelectedFile(null);
-      }
+      if (selectedFile?.id === file.id) setSelectedFile(null);
       showToast(result.is_starred ? 'Added to Starred' : 'Removed from Starred');
       dispatch(fetchFiles(currentPage, pageSize, '', starredFilters));
     } catch {
       showToast('Failed to update star');
     }
+  };
+
+  const handleDeleteTrigger = (file) => {
+    setDeleteTarget(file);
   };
 
   const confirmDelete = async () => {
@@ -113,6 +121,10 @@ export default function StarredPage() {
           </div>
         </div>
 
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+          <ViewToggle viewMode={viewMode} onChange={handleViewMode} />
+        </div>
+
         <section className="file-list-container">
           {loading ? (
             <div className="fm-empty-state"><div className="fm-spinner" /></div>
@@ -123,44 +135,18 @@ export default function StarredPage() {
               <p style={{ color: '#71717a' }}>Files you star will appear here for quick access.</p>
             </div>
           ) : (
-            <div className="file-grid-inner">
-              {files.map((file) => {
-                const ext = file.original_name?.split('.').pop()?.toLowerCase();
-                const isImage = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp'].includes(ext);
-                return (
-                  <div
-                    key={file.id}
-                    className="file-grid-item"
-                    onClick={() => setSelectedFile(file)}
-                  >
-                    <div className="file-preview-container">
-                      {isImage && file.url ? (
-                        <img src={file.url} alt="" className="file-image-preview" />
-                      ) : (
-                        getFileIcon(file)
-                      )}
-                    </div>
-                    <div className="file-info-stack">
-                      <div className="file-name-container" style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
-                        <div className="file-name-main" title={file.original_name}>
-                          {file.original_name}
-                        </div>
-                        <Star
-                          size={16}
-                          onClick={(e) => handleToggleStar(file, e)}
-                          fill="#fbbf24"
-                          color="#fbbf24"
-                          style={{ cursor: 'pointer', flexShrink: 0 }}
-                        />
-                      </div>
-                      <div className="file-meta-sub">
-                        {file.file_size_display || formatFileSize(file.file_size)} · Starred
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <FileGrid
+              files={files}
+              viewMode={viewMode}
+              onSelect={setSelectedFile}
+              onStar={handleToggleStar}
+              onRename={(file) => { setActiveFile(file); setIsRenameModalOpen(true); }}
+              onShare={(file) => { setActiveFile(file); setIsModalOpen(true); }}
+              onDownload={(file) => dispatch(downloadFile(file.id, file.original_name))}
+              onDelete={handleDeleteTrigger}
+              getFileIcon={getFileIcon}
+              formatFileSize={formatFileSize}
+            />
           )}
 
           <Pagination
@@ -215,35 +201,19 @@ export default function StarredPage() {
                 </div>
               </div>
               <div className="sidebar-actions-main">
-                <button
-                  type="button"
-                  onClick={() => {
-                    dispatch(downloadFile(selectedFile.id, selectedFile.original_name));
-                  }}
-                >
+                <button type="button" onClick={() => dispatch(downloadFile(selectedFile.id, selectedFile.original_name))}>
                   <Download size={18} /> Download
                 </button>
-                <button
-                  type="button"
-                  className="sidebar-btn-share"
-                  onClick={() => {
-                    setActiveFile(selectedFile);
-                    setIsModalOpen(true);
-                  }}
-                >
+                <button type="button" className="sidebar-btn-share"
+                  onClick={() => { setActiveFile(selectedFile); setIsModalOpen(true); }}>
                   <Share2 size={18} /> Share
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveFile(selectedFile);
-                    setIsRenameModalOpen(true);
-                  }}
-                >
+                <button type="button"
+                  onClick={() => { setActiveFile(selectedFile); setIsRenameModalOpen(true); }}>
                   <Edit2 size={18} /> Rename
                 </button>
                 <button type="button" onClick={() => setDeleteTarget(selectedFile)}>
-                  <Trash2 size={18} /> Delete
+                  <Star size={18} /> Unstar
                 </button>
               </div>
             </div>

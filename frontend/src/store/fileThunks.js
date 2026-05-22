@@ -27,7 +27,7 @@ export const fetchFiles = (page = 1, pageSize = 12, search = '', filters = {}) =
     const { data } = await fetchFilesApi(page, pageSize, search, filters)
 
     dispatch(fetchFilesSuccess({
-      files: data.results.files,
+      files: data.results.shares,
       count: data.count,
       next: data.next,
       previous: data.previous,

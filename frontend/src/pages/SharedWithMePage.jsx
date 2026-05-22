@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Inbox, Download, Eye, EyeOff, Lock, MessageSquare, X, Share2 } from 'lucide-react';
+import { Inbox, Download, Eye, EyeOff, Lock, MessageSquare, X, Share2, MoreVertical, ChevronDown, File as FileIcon, User as UserIcon, Calendar as CalendarIcon, Activity as ActivityIcon } from 'lucide-react';
 import {
   fetchPrivateSharesInboxApi,
   downloadPrivateShareApi,
@@ -14,17 +14,14 @@ import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import { parseApiError } from '../utils/parseApiError';
 import '../styles/PrivateSharePages.css';
 
-
-
 function formatStatus(s) {
   const status = s.access_status;
   if (status === 'accessible') return { label: 'Accessible', className: 'active' };
   if (!status) return { label: 'Unknown', className: 'inactive' };
-
-  return { 
-    label: status.replace(/\.$/, ''), // remove trailing dot
-    className: 'inactive', 
-    title: status 
+  return {
+    label: status.replace(/\.$/, ''),
+    className: 'inactive',
+    title: status,
   };
 }
 
@@ -46,20 +43,36 @@ export default function SharedWithMePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 9;
+  const [openMenu, setOpenMenu] = useState(null);
+  const [filters, setFilters] = useState({
+    type: null,
+    sharedBy: null,
+    expires: null,
+    status: null,
+  });
+  const [openFilter, setOpenFilter] = useState(null);
+
+  useEffect(() => {
+    const close = () => { setOpenMenu(null); setOpenFilter(null); };
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, []);
 
   const anyModalOpen =
-    !!passwordPrompt ||
-    !!commentsOpen ||
-    !!previewFile ||
-    !!reshareShare ||
-    !!alertModal;
-
+    !!passwordPrompt || !!commentsOpen || !!previewFile || !!reshareShare || !!alertModal;
   useBodyScrollLock(anyModalOpen);
 
-const load = async (page = 1) => {
+  const load = async (page = 1, currentFilters = filters) => {
   setLoading(true);
   try {
-    const { data } = await fetchPrivateSharesInboxApi(page, pageSize);
+    // Build backend params from filters
+    const params = {};
+    if (currentFilters.type) params.file_type = currentFilters.type;
+    if (currentFilters.sharedBy) params.shared_by = currentFilters.sharedBy;
+    if (currentFilters.expires) params.expires = currentFilters.expires;
+    if (currentFilters.status) params.status = currentFilters.status;
+
+    const { data } = await fetchPrivateSharesInboxApi(page, pageSize, params);
     const list =
       data.results?.shares ??
       data.shares ??
@@ -75,21 +88,103 @@ const load = async (page = 1) => {
     setLoading(false);
   }
 };
-console.log('reshareShare:', reshareShare);
 
-const handlePageChange = (newPage) => {
-  setCurrentPage(newPage);
-  load(newPage);
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+
+
+
+
+const handleFilterChange = (key, value) => {
+  const newFilters = { 
+    ...filters, 
+    [key]: filters[key] === value ? null : value 
+  };
+  setFilters(newFilters);
+  setCurrentPage(1);
+  load(1, newFilters);
+  setOpenFilter(null);
 };
 
-useEffect(() => {
-  load(1);
-}, []);
 
 
-  
 
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+    load(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => { load(1); }, []);
+
+  // Filter logic
+  const senders = [...new Set(shares.map(s => s.shared_by_email).filter(Boolean))];
+
+  const filteredShares = shares.filter(s => {
+    if (filters.type) {
+      const ext = s.file_name?.split('.').pop()?.toLowerCase();
+      const images = ['jpg','jpeg','png','gif','svg','webp','bmp'];
+      const docs = ['doc','docx','xls','xlsx','txt','csv','ppt','pptx'];
+      if (filters.type === 'image' && !images.includes(ext)) return false;
+      if (filters.type === 'pdf' && ext !== 'pdf') return false;
+      if (filters.type === 'document' && !docs.includes(ext)) return false;
+      if (filters.type === 'other' && [...images, ...docs, 'pdf'].includes(ext)) return false;
+    }
+    if (filters.sharedBy && s.shared_by_email !== filters.sharedBy) return false;
+    if (filters.expires) {
+      const exp = s.expires_at ? new Date(s.expires_at) : null;
+      const now = new Date();
+      if (filters.expires === 'never' && exp) return false;
+      if (filters.expires === 'today' && (!exp || exp > new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59))) return false;
+      if (filters.expires === 'week' && (!exp || exp > new Date(Date.now() + 7 * 86400000))) return false;
+      if (filters.expires === 'month' && (!exp || exp > new Date(Date.now() + 30 * 86400000))) return false;
+    }
+    if (filters.status && s.access_status !== filters.status) return false;
+    return true;
+  });
+
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+  const clearFilters = () => setFilters({ type: null, sharedBy: null, expires: null, status: null });
+
+  const filterConfig = [
+    {
+      key: 'type',
+      label: 'Type',
+      icon: <FileIcon size={13} />,
+      options: [
+        { value: 'image', label: 'Images' },
+        { value: 'pdf', label: 'PDF' },
+        { value: 'document', label: 'Documents' },
+        { value: 'other', label: 'Other' },
+      ],
+    },
+    {
+      key: 'sharedBy',
+      label: 'People',
+      icon: <UserIcon size={13} />,
+      options: senders.map(e => ({ value: e, label: e })),
+    },
+    {
+      key: 'expires',
+      label: 'Expires',
+      icon: <CalendarIcon size={13} />,
+      options: [
+        { value: 'today', label: 'Today' },
+        { value: 'week', label: 'This week' },
+        { value: 'month', label: 'This month' },
+        { value: 'never', label: 'No expiry' },
+      ],
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      icon: <ActivityIcon size={13} />,
+      options: [
+        { value: 'accessible', label: 'Accessible' },
+        { value: 'expired', label: 'Expired' },
+        { value: 'revoked', label: 'Revoked' },
+      ],
+    },
+  ];
 
   const runProtectedAction = async (share, pwd, action) => {
     const isPreview = action === 'preview';
@@ -97,10 +192,9 @@ useEffect(() => {
     const url = window.URL.createObjectURL(
       new Blob([data], { type: data.type || 'application/octet-stream' })
     );
-
     if (isPreview) {
       const extension = share.file_name.split('.').pop().toLowerCase();
-      const isImage = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp'].includes(extension);
+      const isImage = ['jpg','jpeg','png','gif','svg','webp','bmp'].includes(extension);
       const isPDF = extension === 'pdf';
       setPreviewFile({ ...share, url, isImage, isPDF });
     } else {
@@ -121,10 +215,7 @@ useEffect(() => {
     } catch (err) {
       const msg = await parseApiError(err, 'Download failed.');
       if (err.response?.status === 403) {
-        if (
-          share.requires_password ||
-          msg.toLowerCase().includes('password')
-        ) {
+        if (share.requires_password || msg.toLowerCase().includes('password')) {
           setPasswordError(msg);
           setPasswordPrompt({ share, action: 'download' });
           return;
@@ -141,10 +232,7 @@ useEffect(() => {
     } catch (err) {
       const msg = await parseApiError(err, 'Preview failed.');
       if (err.response?.status === 403) {
-        if (
-          share.requires_password ||
-          msg.toLowerCase().includes('password')
-        ) {
+        if (share.requires_password || msg.toLowerCase().includes('password')) {
           setPasswordError(msg);
           setPasswordPrompt({ share, action: 'preview' });
           return;
@@ -156,36 +244,30 @@ useEffect(() => {
   };
 
   const submitPassword = async () => {
-  if (!password.trim()) {
-    setPasswordError('Please enter the password.');
-    return;
-  }
-  setPasswordSubmitting(true);
-  setPasswordError('');
-  let success = false;
-  try {
-    const { share, action } = passwordPrompt;
-    if (action === 'download') {
-      await handleDownload(share, password, true);
-    } else {
-      await handlePreview(share, password, true);
+    if (!password.trim()) { setPasswordError('Please enter the password.'); return; }
+    setPasswordSubmitting(true);
+    setPasswordError('');
+    let success = false;
+    try {
+      const { share, action } = passwordPrompt;
+      if (action === 'download') await handleDownload(share, password, true);
+      else await handlePreview(share, password, true);
+      success = true;
+      setPasswordPrompt(null);
+      setPassword('');
+      setShowPassword(false);
+    } catch (err) {
+      const msg = await parseApiError(err, 'Invalid password.');
+      showToast('Invalid Password');
+      setPasswordError(msg);
+    } finally {
+      setPasswordSubmitting(false);
+      if (success) {
+        const { action } = passwordPrompt;
+        showToast(action === 'download' ? 'Download started' : 'Preview opened');
+      }
     }
-    success = true;
-    setPasswordPrompt(null);
-    setPassword('');
-    setShowPassword(false);
-  } catch (err) {
-    const msg = await parseApiError(err, 'Invalid password.');
-    showToast("Invalid Password");
-    setPasswordError(msg);
-  } finally {
-    setPasswordSubmitting(false);
-    if (success) {
-      const { action } = passwordPrompt;
-      showToast(action === 'download' ? 'Download started' : 'Preview opened');
-    }
-  }
-};
+  };
 
   const closePasswordModal = () => {
     setPasswordPrompt(null);
@@ -217,12 +299,63 @@ useEffect(() => {
           <p>Files privately shared with your account</p>
         </div>
       </div>
-   
+
+      {/* Filter bar */}
+      <div className="ps-filter-bar" onClick={(e) => e.stopPropagation()}>
+        {filterConfig.map(({ key, label, icon, options }) => (
+          <div key={key} className="ps-filter-wrap">
+            <button
+              className={`ps-filter-btn ${filters[key] ? 'active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setOpenFilter(openFilter === key ? null : key); }}
+            >
+              {icon}
+              {label}
+              {filters[key] && (
+                <span className="ps-filter-active-val">
+                  : {options.find(o => o.value === filters[key])?.label}
+                </span>
+              )}
+              <ChevronDown size={12} />
+            </button>
+
+            {openFilter === key && (
+              <div className="ps-filter-dropdown" onClick={(e) => e.stopPropagation()}>
+                {options.map(opt => (
+                  <button
+                    key={opt.value}
+                    className={`ps-filter-option ${filters[key] === opt.value ? 'active' : ''}`}
+                    onClick={() => handleFilterChange(key, opt.value)}
+                  >
+                    {filters[key] === opt.value && <span style={{ color: '#e11d48', marginRight: '4px' }}>✓</span>}
+                    {opt.label}
+                  </button>
+                ))}
+                {filters[key] && (
+                  <button
+                    className="ps-filter-clear-one"
+                    onClick={() => handleFilterChange(key, filters[key])}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {activeFilterCount > 0 && (
+          <button className="ps-filter-reset" onClick={clearFilters}>
+            <X size={12} /> Clear all
+          </button>
+        )}
+      </div>
 
       {loading ? (
         <p className="ps-muted">Loading...</p>
-      ) : shares.length === 0 ? (
-        <div className="ps-empty">No private shares in your inbox yet.</div>
+      ) : filteredShares.length === 0 ? (
+        <div className="ps-empty">
+          {activeFilterCount > 0 ? 'No shares match your filters.' : 'No private shares in your inbox yet.'}
+        </div>
       ) : (
         <div className="ps-table-wrap">
           <table className="ps-table">
@@ -241,11 +374,11 @@ useEffect(() => {
                 <th className="ps-col-perms">Permissions</th>
                 <th className="ps-col-expires">Expires</th>
                 <th className="ps-col-status">Status</th>
-                <th className="ps-col-actions">Actions</th>
+                <th className="ps-col-actions" style={{ width: '44px' }}></th>
               </tr>
             </thead>
             <tbody>
-              {shares.map((s) => {
+              {filteredShares.map((s) => {
                 const statusInfo = formatStatus(s);
                 return (
                   <tr key={s.id}>
@@ -255,10 +388,7 @@ useEffect(() => {
                     </td>
                     <td className="ps-col-shared">
                       <span className="ps-shared-name">{s.shared_by}</span>
-                      <span
-                        className="ps-muted ps-shared-email"
-                        title={s.shared_by_email}
-                      >
+                      <span className="ps-muted ps-shared-email" title={s.shared_by_email}>
                         {s.shared_by_email}
                       </span>
                     </td>
@@ -271,7 +401,12 @@ useEffect(() => {
                       </div>
                     </td>
                     <td className="ps-col-expires ps-expires-cell">
-                      {s.expires_at ? new Date(s.expires_at).toLocaleString() : '—'}
+                      {s.one_time_access
+                        ? <span className="one-time-badge">One-time</span>
+                        : s.expires_at
+                          ? new Date(s.expires_at).toLocaleString()
+                          : '—'
+                      }
                     </td>
                     <td className="ps-col-status">
                       <span
@@ -281,70 +416,64 @@ useEffect(() => {
                         {statusInfo.label}
                       </span>
                     </td>
-                    <td className="ps-col-actions">
-                      <div className="ps-actions-toolbar">
-                        {s.access_status === 'accessible' ? (
-                          <>
-                            {s.requires_password && (
-                              <span className="ps-lock-badge" title="Password protected">
-                                <Lock size={14} />
-                              </span>
-                            )}
-                            {s.can_download && (
-                              <button
-                                type="button"
-                                className="ps-btn"
-                                onClick={() =>
+                    <td className="ps-col-actions" style={{ position: 'relative' }}>
+                      {s.access_status === 'accessible' ? (
+                        <div className="ps-dot-wrap">
+                          <button
+                            className="ps-dot-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenu(openMenu === s.id ? null : s.id);
+                            }}
+                            aria-label="Actions"
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+
+                          {openMenu === s.id && (
+                            <div className="ps-dropdown">
+                              {s.can_view && (
+                                <button className="ps-drop-item" onClick={() => {
+                                  setOpenMenu(null);
+                                  s.requires_password
+                                    ? setPasswordPrompt({ share: s, action: 'preview' })
+                                    : handlePreview(s);
+                                }}>
+                                  <Eye size={14} /> Preview
+                                  <span className="ps-drop-views">{s.view_count ?? 0}</span>
+                                </button>
+                              )}
+                              {s.can_download && (
+                                <button className="ps-drop-item" onClick={() => {
+                                  setOpenMenu(null);
                                   s.requires_password
                                     ? setPasswordPrompt({ share: s, action: 'download' })
-                                    : handleDownload(s)
-                                }
-                                title="Download"
-                              >
-                                <Download size={16} />
-                              </button>
-                            )}
-                            {s.can_reshare && (
-                              <button
-                                type="button"
-                                className="ps-btn"
-                                onClick={() => setReshareShare(s)}
-                                title="Re-share"
-                              >
-                                <Share2 size={16} />
-                              </button>
-                            )}
-                            {s.can_comment && (
-                              <button
-                                type="button"
-                                className="ps-btn"
-                                onClick={() => openComments(s.share_id)}
-                                title="Comments"
-                              >
-                                <MessageSquare size={16} />
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              className="ps-btn ps-btn-views"
-                              onClick={() =>
-                                s.can_view
-                                  ? s.requires_password
-                                    ? setPasswordPrompt({ share: s, action: 'preview' })
-                                    : handlePreview(s)
-                                  : undefined
-                              }
-                              disabled={!s.can_view}
-                              title={s.can_view ? 'Preview' : `Views: ${s.view_count ?? 0}`}
-                            >
-                              <Eye size={16} />
-                              <span className="ps-view-count">{s.view_count ?? 0}</span>
-                            </button>
-                          </>
-                        ) : (
-                          <span className="ps-muted">—</span>
-                        )}
-                      </div>
+                                    : handleDownload(s);
+                                }}>
+                                  <Download size={14} /> Download
+                                  {s.requires_password && <Lock size={12} className="ps-drop-lock" />}
+                                </button>
+                              )}
+                              {s.can_reshare && (
+                                <button className="ps-drop-item" onClick={() => {
+                                  setOpenMenu(null); setReshareShare(s);
+                                }}>
+                                  <Share2 size={14} /> Re-share
+                                </button>
+                              )}
+                              {s.can_comment && (
+                                <button className="ps-drop-item" onClick={() => {
+                                  setOpenMenu(null); openComments(s.share_id);
+                                }}>
+                                  <MessageSquare size={14} /> Comments
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="ps-muted"></span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -353,7 +482,13 @@ useEffect(() => {
           </table>
         </div>
       )}
-      
+
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+        loading={loading}
+      />
 
       {passwordPrompt && (
         <div className="modal-overlay" onClick={closePasswordModal}>
@@ -366,10 +501,7 @@ useEffect(() => {
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setPasswordError('');
-                }}
+                onChange={(e) => { setPassword(e.target.value); setPasswordError(''); }}
                 className="modal-input"
                 placeholder="••••••••"
                 autoComplete="new-password"
@@ -403,12 +535,7 @@ useEffect(() => {
           </div>
         </div>
       )}
-       <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={handlePageChange}
-              loading={loading}
-            />
+
       {commentsOpen && (
         <div className="modal-overlay" onClick={() => setCommentsOpen(null)}>
           <div className="ps-comments-modal" onClick={(e) => e.stopPropagation()}>
@@ -423,22 +550,21 @@ useEffect(() => {
               ))}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-    
-  <textarea
-    className="modal-textarea"
-    value={newComment}
-    onChange={(e) => setNewComment(e.target.value)}
-    placeholder="Add a comment..."
-  />
-  <button
-    type="button"
-    className="share-submit-btn"
-    onClick={submitComment}
-    style={{ alignSelf: 'flex-end' }}
-  >
-    Post
-  </button>
-</div>
+              <textarea
+                className="modal-textarea"
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Add a comment..."
+              />
+              <button
+                type="button"
+                className="share-submit-btn"
+                onClick={submitComment}
+                style={{ alignSelf: 'flex-end' }}
+              >
+                Post
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -446,10 +572,7 @@ useEffect(() => {
       {previewFile && (
         <div
           className="modal-overlay"
-          onClick={() => {
-            URL.revokeObjectURL(previewFile.url);
-            setPreviewFile(null);
-          }}
+          onClick={() => { URL.revokeObjectURL(previewFile.url); setPreviewFile(null); }}
         >
           <div className="ps-preview-modal" onClick={(e) => e.stopPropagation()}>
             <div className="ps-preview-header">
@@ -457,10 +580,7 @@ useEffect(() => {
               <button
                 type="button"
                 className="close-x-btn"
-                onClick={() => {
-                  URL.revokeObjectURL(previewFile.url);
-                  setPreviewFile(null);
-                }}
+                onClick={() => { URL.revokeObjectURL(previewFile.url); setPreviewFile(null); }}
               >
                 <X size={20} />
               </button>
@@ -490,13 +610,9 @@ useEffect(() => {
           parentShare={reshareShare}
           isOpen={true}
           onClose={() => setReshareShare(null)}
-          onSuccess={() => {
-            load();
-            showToast('File re-shared successfully');
-          }}
+          onSuccess={() => { load(); showToast('File re-shared successfully'); }}
         />
       )}
-    
 
       <AlertModal
         open={!!alertModal}

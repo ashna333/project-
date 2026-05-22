@@ -277,7 +277,8 @@
   max-width: 1480px;
   margin: 0 auto;
   animation: fadeIn 0.4s ease-out;
-  padding: 80px 24px 60px !important;
+  padding: 60px 24px 60px !important;
+ 
 }
 
 @keyframes fadeIn {
@@ -1200,13 +1201,24 @@
 
 /* Parent container */
 /* Main header */
+
+/* In DashboardPage.css, update file-manager-header */
 .file-manager-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center; /* ← change from flex-end to center */
   width: 100%;
   gap: 20px;
   flex-wrap: wrap;
+  margin-bottom: 24px;
+  
+}
+
+.search-containerfm {
+  position: relative;
+  width: 280px;
+  max-width: 100%;
+  flex-shrink: 0; /* ← prevent shrinking */
 }
 
 /* Left side */
