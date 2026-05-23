@@ -15,14 +15,13 @@ import { parseApiError } from '../utils/parseApiError';
 import '../styles/PrivateSharePages.css';
 
 function formatStatus(s) {
-  const status = s.access_status;
+  const status = (s.access_status || '').toLowerCase().replace(/\.$/, '').trim();
   if (status === 'accessible') return { label: 'Accessible', className: 'active' };
+  if (status === 'expired') return { label: 'Expired', className: 'inactive' };
+  if (status === 'revoked') return { label: 'Revoked', className: 'inactive' };
+  if (status === 'one time access') return { label: 'One-time used', className: 'inactive' };
   if (!status) return { label: 'Unknown', className: 'inactive' };
-  return {
-    label: status.replace(/\.$/, ''),
-    className: 'inactive',
-    title: status,
-  };
+  return { label: s.access_status.replace(/\.$/, ''), className: 'inactive' };
 }
 
 export default function SharedWithMePage() {
@@ -57,60 +56,73 @@ export default function SharedWithMePage() {
   const anyModalOpen =
     !!passwordPrompt || !!commentsOpen || !!previewFile || !!reshareShare || !!alertModal;
   useBodyScrollLock(anyModalOpen);
-const load = async (page = 1, currentFilters = filters) => {
-  setLoading(true);
-  try {
-    const params = {};
-    if (currentFilters.type) params.file_type = currentFilters.type;
-    if (currentFilters.sharedBy) params.shared_by = currentFilters.sharedBy;
-    if (currentFilters.expires) params.expires = currentFilters.expires;
-    if (currentFilters.status) params.status = currentFilters.status;
 
-    console.log("sending to backend:", params);
 
-    const { data } = await fetchPrivateSharesInboxApi(page, pageSize, params);
-    let list =
-      data.results?.shares ??
-      data.shares ??
-      (Array.isArray(data.results) ? data.results : []);
 
-    // ✅ Client-side fallback filtering
-    if (currentFilters.expires) {
-      const now = new Date();
-      list = list.filter(s => {
-        const exp = s.expires_at ? new Date(s.expires_at) : null;
-        if (currentFilters.expires === 'never') return !exp;
-        if (currentFilters.expires === 'today') return exp && exp <= new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-        if (currentFilters.expires === 'week') return exp && exp <= new Date(Date.now() + 7 * 86400000);
-        if (currentFilters.expires === 'month') return exp && exp <= new Date(Date.now() + 30 * 86400000);
-        return true;
-      });
+  const load = async (page = 1, currentFilters = filters) => {
+    setLoading(true);
+    try {
+      const { data } = await fetchPrivateSharesInboxApi(page, pageSize);
+  
+      let list =
+        data.results?.shares ??
+        data.shares ??
+        (Array.isArray(data.results) ? data.results : []);
+  
+      // collect senders before filtering
+      const uniqueSenders = [...new Set(list.map(s => s.shared_by_email).filter(Boolean))];
+      setSenders(uniqueSenders);
+  
+      // Type filter — based on file_name extension
+      if (currentFilters.type) {
+        list = list.filter(s => {
+          const ext = (s.file_name || '').split('.').pop().toLowerCase();
+          if (currentFilters.type === 'image') return ['jpg','jpeg','png','gif','svg','webp','bmp'].includes(ext);
+          if (currentFilters.type === 'pdf') return ext === 'pdf';
+          if (currentFilters.type === 'document') return ['doc','docx','xls','xlsx','txt','csv','ppt','pptx'].includes(ext);
+          if (currentFilters.type === 'other') return !['jpg','jpeg','png','gif','svg','webp','bmp','pdf','doc','docx','xls','xlsx','txt','csv','ppt','pptx'].includes(ext);
+          return true;
+        });
+      }
+  
+      // People filter
+      if (currentFilters.sharedBy) {
+        list = list.filter(s => s.shared_by_email === currentFilters.sharedBy);
+      }
+  
+     
+      // Expires filter
+if (currentFilters.expires) {
+  const now = new Date();
+  list = list.filter(s => {
+    const exp = s.expires_at ? new Date(s.expires_at) : null;
+    if (currentFilters.expires === 'never') return !exp;
+    if (currentFilters.expires === 'past') return exp && exp < now;
+    if (currentFilters.expires === 'week') return exp && exp >= now && exp <= new Date(Date.now() + 7 * 86400000);
+    if (currentFilters.expires === 'month') return exp && exp >= now && exp <= new Date(Date.now() + 30 * 86400000);
+    return true;
+  });
+}
+      // Status filter
+      if (currentFilters.status) {
+        list = list.filter(s => {
+          const st = (s.access_status || '').toLowerCase().replace(/\.$/, '').trim();
+          return st === currentFilters.status.toLowerCase();
+        });
+      }
+  
+      setTotalPages(Math.ceil((data.count || 0) / pageSize) || 1);
+      setShares(list);
+  
+      localStorage.setItem('inbox_last_seen', new Date().toISOString());
+      window.dispatchEvent(new Event('inbox-seen'));
+    } catch (err) {
+      console.error('load error:', err);
+      setShares([]);
+    } finally {
+      setLoading(false);
     }
-
-    if (currentFilters.status) {
-      list = list.filter(s => s.access_status === currentFilters.status);
-    }
-
-    if (currentFilters.sharedBy) {
-      list = list.filter(s => s.shared_by_email === currentFilters.sharedBy);
-    }
-
-    const totalCount = data.count || 0;
-    setTotalPages(Math.ceil(totalCount / pageSize) || 1);
-    setShares(list);
-
-    const uniqueSenders = [...new Set(list.map(s => s.shared_by_email).filter(Boolean))];
-    setSenders(uniqueSenders);
-
-    localStorage.setItem('inbox_last_seen', new Date().toISOString());
-    window.dispatchEvent(new Event('inbox-seen'));
-  } catch {
-    setShares([]);
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
   const handleFilterChange = (key, value) => {
     const newFilters = { ...filters };
 
@@ -166,10 +178,10 @@ const load = async (page = 1, currentFilters = filters) => {
       label: 'Expires',
       icon: <CalendarIcon size={13} />,
       options: [
-        { value: 'today', label: 'Today' },
-        { value: 'week', label: 'This week' },
-        { value: 'month', label: 'This month' },
         { value: 'never', label: 'No expiry' },
+        { value: 'past', label: 'Already expired' },
+        { value: 'week', label: 'Within 7 days' },
+        { value: 'month', label: 'Within 30 days' },
       ],
     },
     {

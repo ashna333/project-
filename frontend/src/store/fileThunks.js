@@ -25,9 +25,10 @@ export const fetchFiles = (page = 1, pageSize = 12, search = '', filters = {}) =
   try {
     // Pass filters into your API function
     const { data } = await fetchFilesApi(page, pageSize, search, filters)
+    console.log('API response:', data) 
 
     dispatch(fetchFilesSuccess({
-      files: data.results.shares,
+      files: data.results.files,
       count: data.count,
       next: data.next,
       previous: data.previous,

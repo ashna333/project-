@@ -14,7 +14,7 @@ export default function FileGrid({
 }) {
   return (
     <div className={viewMode === 'grid' ? 'file-grid-inner' : 'file-list-card'}>
-      {files.map((file) => {
+      { files.map((file) => {
         const extension = file.original_name?.split('.').pop()?.toLowerCase();
         const isImage = ['jpg','jpeg','png','gif','svg','webp','bmp'].includes(extension);
         const isPDF = extension === 'pdf';

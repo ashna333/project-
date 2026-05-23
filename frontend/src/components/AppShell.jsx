@@ -1,49 +1,38 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { CloudUpload, Files, Share2, LogOut, Layers, Trash2, Star, User, ChevronDown, Menu, X, Inbox, Shield } from 'lucide-react';
-import '../styles/DashboardPage.css';
-import { useEffect, useRef, useState } from 'react';
+import { CloudUpload, Files, Share2, LogOut, Layers, Trash2, Star, User, Menu, X, Inbox, Shield, Plus } from 'lucide-react';
+
+import '../styles/AppShell.css';
+import { useEffect, useState } from 'react';
 import { formatUserDisplayName, userInitials } from '../utils/userDisplay';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import { useInboxBadge } from '../context/InboxBadgeContext';
 import { storageSummaryApi } from '../store/fileApi';
-
-// inside AppShell:
-
-
-
-
-// ... imports stay the same
 
 export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
   const hasNewShares = useInboxBadge();
-  
+
   const rawUser = JSON.parse(localStorage.getItem('auth_user')) || {};
-  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const menuRef = React.useRef(null);
   const userEmail = rawUser.email || '';
   const displayName = formatUserDisplayName(rawUser);
   const initials = userInitials(rawUser);
-   
 
-   const [storage, setStorage] = useState({ used_percent: 0, used_bytes: 0, max_bytes: 0 });
+  const [storage, setStorage] = useState({ used_percent: 0, used_bytes: 0, max_bytes: 0 });
 
-useEffect(() => {
-  const fetchStorage = async () => {
-    try {
-      const { data } = await storageSummaryApi();
-      
-      setStorage(data);
-    } catch {}
-  };
-  fetchStorage();
-}, []);
-
-
+  useEffect(() => {
+    const fetchStorage = async () => {
+      try {
+        const { data } = await storageSummaryApi();
+        setStorage(data);
+      } catch {}
+    };
+    fetchStorage();
+  }, []);
 
   useBodyScrollLock(showLogoutConfirm);
 
@@ -57,24 +46,41 @@ useEffect(() => {
   };
 
   useEffect(() => {
-  const handleClickOutside = (event) => {
-    if (menuRef.current && !menuRef.current.contains(event.target)) {
-      setIsMenuOpen(false);
-    }
-  };
-  document.addEventListener('mousedown', handleClickOutside);
-  return () => document.removeEventListener('mousedown', handleClickOutside);
-}, []);
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        // menu close logic if needed
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const isActive = (path) => location.pathname === path ? 'active' : '';
 
   return (
     <div className="dashboard-container app-layout">
       {/* Sidebar Navigation */}
       <aside className={`app-sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
-        <div className="sidebar-brand" onClick={() => navigate('/dashboard')} style={{ cursor: 'pointer', marginBottom: '32px' }}>
+
+        {/* Brand */}
+        <div
+          className="sidebar-brand"
+          onClick={() => navigate('/dashboard')}
+          style={{ cursor: 'pointer', marginBottom: '20px' }}
+        >
           <div className="brand-icon"><CloudUpload size={20} color="white" /></div>
           <span>Cloud<span className="rose-text">Share</span></span>
         </div>
+
+        {/* + New Button (Google Drive style) */}
+        <button
+          className="sidebar-fab"
+          onClick={() => { navigate('/upload'); setIsMobileMenuOpen(false); }}
+          title="Upload files"
+        >
+          <Plus size={20} strokeWidth={2} />
+          <span>New</span>
+        </button>
 
         <nav className="sidebar-nav">
           {/* Main */}
@@ -85,9 +91,6 @@ useEffect(() => {
           <button className={`nav-btn ${isActive('/files')}`} onClick={() => { navigate('/files'); setIsMobileMenuOpen(false); }}>
             <Files size={16} /> My Files
           </button>
-          <button className={`nav-btn ${isActive('/upload')}`} onClick={() => { navigate('/upload'); setIsMobileMenuOpen(false); }}>
-            <CloudUpload size={16} /> Upload
-          </button>
 
           {/* Sharing */}
           <div className="sidebar-divider" />
@@ -95,7 +98,6 @@ useEffect(() => {
           <button className={`nav-btn ${isActive('/shared')}`} onClick={() => { navigate('/shared'); setIsMobileMenuOpen(false); }}>
             <Share2 size={16} /> Public Links
           </button>
-         
           <button
             className={`nav-btn ${isActive('/private-shares/inbox')}`}
             onClick={() => { navigate('/private-shares/inbox'); setIsMobileMenuOpen(false); }}
@@ -127,24 +129,24 @@ useEffect(() => {
             <LogOut size={16} /> Logout
           </button>
 
-      {storage && (
-  <div className="sidebar-storage">
-    <div className="sidebar-storage-top">
-      <span className="sidebar-storage-label">Storage</span>
-      <span className="sidebar-storage-pct">{storage.used_percent.toFixed(1)}% full</span>
-    </div>
-    <div className="sidebar-storage-bar">
-      <div
-        className="sidebar-storage-fill"
-        style={{ width: `${Math.min(storage.used_percent, 100)}%` }}
-      />
-    </div>
-    <div className="sidebar-storage-info">
-      
-      {(storage.used_bytes / (1024 ** 2)).toFixed(1)} MB of {storage.total_gb} GB used
-    </div>
-  </div>
-)}
+          {/* Storage Bar */}
+          {storage && (
+            <div className="sidebar-storage">
+              <div className="sidebar-storage-top">
+                <span className="sidebar-storage-label">Storage</span>
+                <span className="sidebar-storage-pct">{storage.used_percent.toFixed(1)}% full</span>
+              </div>
+              <div className="sidebar-storage-bar">
+                <div
+                  className="sidebar-storage-fill"
+                  style={{ width: `${Math.min(storage.used_percent, 100)}%` }}
+                />
+              </div>
+              <div className="sidebar-storage-info">
+                {(storage.used_bytes / (1024 ** 2)).toFixed(1)} MB of {storage.total_gb} GB used
+              </div>
+            </div>
+          )}
         </nav>
       </aside>
 
@@ -152,8 +154,8 @@ useEffect(() => {
       <div className="app-main">
         <header className="app-topbar">
           <div className="mobile-brand-container">
-            <button 
-              className="mobile-menu-btn" 
+            <button
+              className="mobile-menu-btn"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             >
               {isMobileMenuOpen ? <X size={24} color="white" /> : <Menu size={24} color="white" />}
@@ -166,17 +168,17 @@ useEffect(() => {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginLeft: 'auto' }}>
             <div className="user-dropdown-container">
-                <div className="user-profile-trigger" style={{ cursor: 'default' }}>
-                  <div style={{ textAlign: 'right' }} className="user-details-text">
-                    <div style={{ fontSize: '14px', fontWeight: '500', color: 'white' }}>
-                      {displayName}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#71717a' }}>{userEmail}</div>
+              <div className="user-profile-trigger" style={{ cursor: 'default' }}>
+                <div style={{ textAlign: 'right' }} className="user-details-text">
+                  <div style={{ fontSize: '14px', fontWeight: '500', color: 'white' }}>
+                    {displayName}
                   </div>
+                  <div style={{ fontSize: '11px', color: '#71717a' }}>{userEmail}</div>
                 </div>
-                <div className="avatar-circle">
-                    {initials}
-                </div>
+              </div>
+              <div className="avatar-circle">
+                {initials}
+              </div>
             </div>
           </div>
         </header>
@@ -186,7 +188,7 @@ useEffect(() => {
         </main>
       </div>
 
-
+      {/* Logout Confirm Modal */}
       {showLogoutConfirm && (
         <div className="modal-overlaydelete" style={{ position: 'fixed', top: 0, left: 0, zIndex: 9999 }}>
           <div className="modal-content">

@@ -128,7 +128,7 @@ export default function StarredPage() {
         <section className="file-list-container">
           {loading ? (
             <div className="fm-empty-state"><div className="fm-spinner" /></div>
-          ) : files.length === 0 ? (
+          ) : !files ||  files.length === 0 ? (
             <div className="fm-empty-state">
               <Star size={64} color="#27272a" strokeWidth={1} />
               <h2 style={{ color: 'white', marginTop: '16px' }}>No stars yet</h2>

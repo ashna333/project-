@@ -770,6 +770,7 @@ html, body, #root {
   padding: 24px;
   display: grid;
   gap: 20px;
+  
 }
 
 .dashboard-hero-card {

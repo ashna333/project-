@@ -1,7 +1,7 @@
 import axios from 'axios'
 import api from '../api/axiosInstance'
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:800/api'
+const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api'
 
 const authHeaders = () => ({
   Authorization: `Bearer ${localStorage.getItem('access_token')}`,
@@ -102,8 +102,8 @@ export const createPrivateShareApi = (payload) =>
 export const fetchPrivateSharesOwnedApi = (page = 1, status = '', pageSize = 10) =>
   api.get('/private-shares/owned/', { params: { page, page_size: pageSize, status: status || undefined } });
 
-export const fetchPrivateSharesInboxApi = (page = 1, pageSize = 9) =>
-  api.get('/private-shares/inbox/', { params: { page, page_size: pageSize} });
+export const fetchPrivateSharesInboxApi = (page = 1, pageSize = 9, filters = {}) =>
+  api.get('/private-shares/inbox/', { params: { page, page_size: pageSize, ...filters } });
 
 export const lookupUsersApi = (emails) =>
   api.post('/private-shares/lookup/', { emails });

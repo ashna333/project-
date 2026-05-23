@@ -4,7 +4,8 @@ import {
   Share2, Search,
   File as FileIcon,
   Download, Trash2,
-  Edit2, FileText, Image as ImageIcon, X, Star, Zap, ChevronDown
+  Edit2, FileText, Image as ImageIcon, X, Star, Zap, ChevronDown,
+  ArrowUp, ArrowDown
 } from 'lucide-react';
 import { fetchFiles, downloadFile, toggleFileStar } from '../store/fileThunks';
 import { setSearchQuery } from '../store/fileSlice';
@@ -25,53 +26,53 @@ const FILTER_CONFIG = [
     key: 'file_type',
     label: 'Type',
     options: [
-      { value: 'image', label: 'Images' },
-      { value: 'pdf', label: 'PDF' },
+      { value: 'image',    label: 'Images' },
+      { value: 'pdf',      label: 'PDF' },
       { value: 'document', label: 'Documents' },
-      { value: 'other', label: 'Other' },
+      { value: 'other',    label: 'Other' },
     ],
   },
   {
-    key: 'modified',
-    label: 'Modified',
+    key: 'uploaded',
+    label: 'Uploaded',
     options: [
       { value: 'today', label: 'Today' },
-      { value: 'week', label: 'This week' },
+      { value: 'week',  label: 'This week' },
       { value: 'month', label: 'This month' },
     ],
   },
-  {
-    key: 'is_starred',
-    label: 'Starred',
-    options: [
-      { value: 'true', label: 'Starred only' },
-    ],
-  },
+];
+
+const SORT_OPTIONS = [
+ 
+  { value: 'uploaded_at',  label: 'Oldest' },
+  { value: '-file_size',   label: 'Largest' },
+  { value: 'file_size',    label: 'Smallest' },
 ];
 
 export default function FileManagerPage() {
   const dispatch = useDispatch();
   const { files, pagination, loading, searchQuery } = useSelector((s) => s.files);
 
-  const [searchInput, setSearchInput] = useState(searchQuery);
-  const [viewMode, handleViewMode] = useViewMode('list');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchInput, setSearchInput]             = useState(searchQuery);
+  const [viewMode, handleViewMode]                 = useViewMode('list');
+  const [isModalOpen, setIsModalOpen]             = useState(false);
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
-  const [activeFile, setActiveFile] = useState(null);
+  const [activeFile, setActiveFile]               = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [fileToDelete, setFileToDelete] = useState(null);
-  const { showToast } = useToast();
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const pageSize = 12;
+  const [fileToDelete, setFileToDelete]           = useState(null);
+  const { showToast }                              = useToast();
+  const [selectedFile, setSelectedFile]           = useState(null);
+  const [currentPage, setCurrentPage]             = useState(1);
+  const [totalPages, setTotalPages]               = useState(1);
+  const pageSize                                   = 12;
 
-  const [filters, setFilters] = useState({});
+  const [filters, setFilters]       = useState({});
   const [openFilter, setOpenFilter] = useState(null);
+  const [ordering, setOrdering]     = useState('-uploaded_at');
 
   const scrollPositionRef = useRef(0);
-
-  const saveScroll = () => { scrollPositionRef.current = window.scrollY; };
+  const saveScroll    = () => { scrollPositionRef.current = window.scrollY; };
   const restoreScroll = () => {
     requestAnimationFrame(() => {
       window.scrollTo({ top: scrollPositionRef.current, behavior: 'instant' });
@@ -87,17 +88,11 @@ export default function FileManagerPage() {
     return () => document.removeEventListener('click', close);
   }, []);
 
-  // Build params object from filters
-  const buildParams = (f = filters) => {
-    const params = {};
-    Object.entries(f).forEach(([k, v]) => { if (v) params[k] = v; });
-    return params;
-  };
-
-  // Main fetch effect
+  // Main fetch — builds params inline to always use latest state
   useEffect(() => {
-    dispatch(fetchFiles(currentPage, pageSize, searchQuery, buildParams()));
-  }, [dispatch, currentPage, pageSize, searchQuery, filters]);
+    const params = { ordering, ...filters };
+    dispatch(fetchFiles(currentPage, pageSize, searchQuery, params));
+  }, [dispatch, currentPage, pageSize, searchQuery, filters, ordering]);
 
   // Search debounce
   useEffect(() => {
@@ -119,32 +114,49 @@ export default function FileManagerPage() {
   }, [pagination, pageSize]);
 
   const handleRefresh = async () => {
-    await dispatch(fetchFiles(pagination.currentPage, pagination.pageSize, searchQuery, buildParams()));
+    const params = { ordering, ...filters };
+    await dispatch(fetchFiles(pagination.currentPage, pagination.pageSize, searchQuery, params));
     restoreScroll();
   };
+
+  // Sort handler — resets to page 1
+  const handleSortChange = (value) => {
+    setOrdering(value);
+    setCurrentPage(1);
+  };
+
+  // Name sort toggle: A→Z first click, Z→A second click
+  const handleNameSort = () => {
+    const next = ordering === 'original_name' ? '-original_name' : 'original_name';
+    handleSortChange(next);
+  };
+
+  const isNameSort = ordering === 'original_name' || ordering === '-original_name';
+  const nameAsc    = ordering === 'original_name';
 
   // Filter handlers
   const handleFilterChange = (key, value) => {
     const newFilters = { ...filters, [key]: filters[key] === value ? undefined : value };
-    // Remove undefined keys
     Object.keys(newFilters).forEach(k => newFilters[k] === undefined && delete newFilters[k]);
     setFilters(newFilters);
     setCurrentPage(1);
     setOpenFilter(null);
-    dispatch(fetchFiles(1, pageSize, searchQuery, buildParams(newFilters)));
+    const params = { ordering, ...newFilters };
+    dispatch(fetchFiles(1, pageSize, searchQuery, params));
   };
 
   const clearFilters = () => {
     setFilters({});
     setCurrentPage(1);
-    dispatch(fetchFiles(1, pageSize, searchQuery, {}));
+    dispatch(fetchFiles(1, pageSize, searchQuery, { ordering }));
   };
 
   const activeFilterCount = Object.keys(filters).length;
 
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
-    dispatch(fetchFiles(newPage, pageSize, searchQuery, buildParams()));
+    const params = { ordering, ...filters };
+    dispatch(fetchFiles(newPage, pageSize, searchQuery, params));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -158,7 +170,8 @@ export default function FileManagerPage() {
     try {
       await deleteFileApi(fileToDelete.id);
       showToast('File moved to trash');
-      await dispatch(fetchFiles(pagination.currentPage, pagination.pageSize, searchQuery, buildParams()));
+      const params = { ordering, ...filters };
+      await dispatch(fetchFiles(pagination.currentPage, pagination.pageSize, searchQuery, params));
       setIsDeleteModalOpen(false);
       setSelectedFile(null);
       setFileToDelete(null);
@@ -221,11 +234,27 @@ export default function FileManagerPage() {
     return fileTypes[extension] || 'Unknown File';
   };
 
+  const sortBtnStyle = (active) => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '5px 12px',
+    borderRadius: '20px',
+    fontSize: '12px',
+    fontWeight: '500',
+    cursor: 'pointer',
+    border: active ? '1px solid #e11d48' : '1px solid #27272a',
+    background: active ? 'rgba(225,29,72,0.1)' : 'transparent',
+    color: active ? '#f43f5e' : '#71717a',
+    transition: 'all 0.15s ease',
+    whiteSpace: 'nowrap',
+  });
+
   return (
     <>
       <main className="dashboard-main" style={{ transition: 'none' }}>
 
-        {/* Header */}
+        {/* ── Header ── */}
         <div className="file-manager-header">
           <div className="welcome-sectionfm">
             <div className="welcome-labelfm">Library</div>
@@ -244,7 +273,7 @@ export default function FileManagerPage() {
           </div>
         </div>
 
-        {/* Filter bar */}
+        {/* ── Filter bar ── */}
         <div className="ps-filter-bar" onClick={(e) => e.stopPropagation()}>
           {FILTER_CONFIG.map(({ key, label, options }) => (
             <div key={key} className="ps-filter-wrap" onClick={(e) => e.stopPropagation()}>
@@ -295,16 +324,55 @@ export default function FileManagerPage() {
           )}
         </div>
 
-        {/* View toggle */}
-        <div className="view-controls" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+        {/* ── Sort bar + View toggle ── */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          margin: '16px 0',
+          flexWrap: 'wrap',
+          gap: '10px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+ 
+
+  <button style={sortBtnStyle(isNameSort)} onClick={handleNameSort}>
+    Name
+    {isNameSort
+      ? nameAsc
+        ? <ArrowUp size={12} />
+        : <ArrowDown size={12} />
+      : null}
+  </button>
+
+  {SORT_OPTIONS.map(opt => (
+    <button
+      key={opt.value}
+      style={sortBtnStyle(ordering === opt.value)}
+      onClick={() => handleSortChange(opt.value)}
+    >
+      {opt.label}
+    </button>
+  ))}
+
+  {/* Reset sort — only shows when not on default */}
+  {ordering !== '-uploaded_at' && (
+    <button
+      style={sortBtnStyle(false)}
+      onClick={() => handleSortChange('-uploaded_at')}
+    >
+      <X size={12} /> Reset
+    </button>
+  )}
+</div>
           <ViewToggle viewMode={viewMode} onChange={handleViewMode} />
         </div>
 
-        {/* File list */}
+        {/* ── File list ── */}
         <section className="file-list-container">
           {loading ? (
             <div className="fm-empty-state"><div className="fm-spinner" /></div>
-          ) : files.length === 0 ? (
+          ) : !files || files.length === 0 ? (
             <div className="fm-empty-state">
               <FileIcon size={60} color="#27272a" strokeWidth={1} />
               <h2 style={{ marginTop: '20px', color: 'white' }}>
@@ -325,7 +393,7 @@ export default function FileManagerPage() {
             </div>
           ) : (
             <FileGrid
-              files={files}
+              files={Array.isArray(files) ? files : []}
               viewMode={viewMode}
               onSelect={setSelectedFile}
               onStar={handleToggleStar}
@@ -349,12 +417,11 @@ export default function FileManagerPage() {
         <footer className="fm-footer">CloudShare - Secure file sharing, built for teams.</footer>
       </main>
 
-      {/* File details modal */}
+      {/* ── File details modal ── */}
       {selectedFile && (
         <div className="modal-overlay" onClick={() => setSelectedFile(null)}>
           <div className="file-details-modal fade-in-up" onClick={(e) => e.stopPropagation()}>
 
-            {/* Header */}
             <div className="modal-header-section">
               <h3>File Details</h3>
               <button className="close-sidebar" onClick={() => setSelectedFile(null)}>
@@ -362,22 +429,18 @@ export default function FileManagerPage() {
               </button>
             </div>
 
-            {/* Preview */}
             <div className="modal-preview-box">
               {(() => {
                 const ext = selectedFile.original_name?.split('.').pop()?.toLowerCase();
                 const isImage = ['jpg','jpeg','png','gif','svg','webp','bmp'].includes(ext);
-                const isPDF = ext === 'pdf';
+                const isPDF   = ext === 'pdf';
                 if (isImage) return <img src={selectedFile?.url} alt="Preview" className="modal-img-preview" />;
-                if (isPDF) return <embed src={selectedFile?.url} type="application/pdf" width="100%" height="100%" />;
+                if (isPDF)   return <embed src={selectedFile?.url} type="application/pdf" width="100%" height="100%" />;
                 return <div className="modal-icon-placeholder">{getFileIcon(selectedFile)}</div>;
               })()}
             </div>
 
-            {/* Body */}
             <div className="modal-body-content">
-
-              {/* Name + star */}
               <div className="detail-title-row">
                 <h2 className="detail-filename">{selectedFile.original_name}</h2>
                 <div
@@ -398,7 +461,6 @@ export default function FileManagerPage() {
                 </div>
               </div>
 
-              {/* Info grid */}
               <div className="detail-info-grid">
                 <div className="info-group">
                   <label>Size</label>
@@ -416,7 +478,6 @@ export default function FileManagerPage() {
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="sidebar-actions-main">
                 <button onClick={() => { dispatch(downloadFile(selectedFile.id, selectedFile.original_name)); setSelectedFile(null); }}>
                   <Download size={16} /> Download
@@ -435,7 +496,6 @@ export default function FileManagerPage() {
                 </button>
               </div>
 
-              {/* AI Insights */}
               <div className="ai-insights-card">
                 <div className="insights-header">
                   <div className="insights-title">
@@ -451,7 +511,6 @@ export default function FileManagerPage() {
                   {selectedFile.original_name?.split('.').pop()?.toUpperCase() || 'FILE'}
                 </span>
               </div>
-
             </div>
           </div>
         </div>
