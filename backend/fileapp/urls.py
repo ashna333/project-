@@ -19,6 +19,7 @@ from .views import( RegisterView, LoginView,
                     FileShareView,
                     PublicShareDetailView,
                     PublicShareDownloadView,
+                    ExpiringSoonView,
                     FileShareDeleteView)
 from .private_share_views import (
     PrivateShareCreateView,
@@ -36,6 +37,7 @@ from .private_share_views import (
     PrivateShareTreeView,
     PrivateShareApproveView,
     PrivateShareAnalyticsView
+    
 )
 
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -100,5 +102,8 @@ urlpatterns = [
     path("private-shares/<int:share_id>/approve/", PrivateShareApproveView.as_view()),
     path("files/<int:file_id>/transfer/", PrivateShareTransferView.as_view()),
     path("files/<int:file_id>/version/", PrivateShareVersionView.as_view()),
+
+
+path("shares/expiring-soon/", ExpiringSoonView.as_view(), name="shares-expiring-soon"),
 ]
 

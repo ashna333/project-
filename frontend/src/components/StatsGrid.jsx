@@ -1,18 +1,20 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Files, Share2, CloudUpload } from 'lucide-react';
+import { Files, Share2, Inbox, ClockAlert } from 'lucide-react';
 
-/* Reusable Card Component */
-function StatCard({ icon: Icon, label, value, href = '#', isPrimary = false }) {
+function StatCard({ icon: Icon, label, value, href = '#', badge }) {
   return (
     <Link to={href} className="stat-card">
       <div className="stat-header">
-        <div className={isPrimary ? 'brand-icon' : 'icon-box'}>
-          <Icon size={20} color={isPrimary ? '#ffffff' : '#e11d48'} />
+        <div className="icon-box">
+          <Icon size={20} color="#e11d48" />
         </div>
-        <span className="stat-arrow">→</span>
+        {badge
+          ? <span className="stat-badge">{badge}</span>
+          : <span className="stat-arrow">→</span>
+        }
       </div>
-      <div style={{ marginTop: '20px' }}>
+      <div style={{ marginTop: '18px' }}>
         <div className="stat-label">{label}</div>
         <div className="stat-value">{value}</div>
       </div>
@@ -20,30 +22,36 @@ function StatCard({ icon: Icon, label, value, href = '#', isPrimary = false }) {
   );
 }
 
-/* Main Grid Component */
-export default function StatsGrid({ totalFiles, totalShares }) {
+export default function StatsGrid({ totalFiles, totalShares, sharedWithMe, expiringSoon }) {
   const stats = [
     {
       id: 'files',
       icon: Files,
-      label: 'Files Stored',
+      label: 'Files stored',
       value: totalFiles,
       href: '/files',
     },
     {
       id: 'shares',
       icon: Share2,
-      label: 'Active Shares',
+      label: 'Active shares',
       value: totalShares,
       href: '/shared',
     },
     {
-      id: 'upload',
-      icon: CloudUpload,
-      label: 'Upload Something',
-      value: 'Start',
-      href: '/upload',
-      isPrimary: true,
+      id: 'shared-with-me',
+      icon: Inbox,
+      label: 'Shared with me',
+      value: sharedWithMe,
+      href: '/shared-with-me',
+    },
+    {
+      id: 'expiring',
+      icon: ClockAlert,
+      label: 'Expiring soon',
+      value: expiringSoon,
+      href: '/files?filter=expiring',
+      badge: '24h',
     },
   ];
 

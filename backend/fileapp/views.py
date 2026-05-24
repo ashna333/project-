@@ -644,3 +644,27 @@ class TrashDeleteAllPermanentView(APIView):
             "message": f"Permanently deleted {count} files.",
             "deleted_count": count
         })
+
+
+from datetime import timedelta
+from django.utils import timezone
+
+class ExpiringSoonView(APIView):
+    """
+    GET /api/shares/expiring-soon/
+    Returns count of public shares expiring within the next 24 hours.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        now = timezone.now()
+        in_24h = now + timedelta(hours=24)
+
+        count = FileShare.objects.filter(
+            owner=request.user,
+            is_revoked=False,
+            expires_at__gt=now,
+            expires_at__lte=in_24h,
+        ).count()
+
+        return Response({ "count": count })

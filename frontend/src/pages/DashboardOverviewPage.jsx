@@ -1,91 +1,198 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  CloudUpload, 
-  HardDrive, 
-  FileText, 
-  Share2, 
-  ChevronRight, 
+import {
+  CloudUpload,
+  HardDrive,
+  FileText,
+  Share2,
+  ChevronRight,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Files,
+  Inbox,
+  ClockAlert,
 } from 'lucide-react';
-import { fetchFilesApi, fetchSharesApi } from '../store/fileApi';
-import StatsGrid from '../components/StatsGrid';
+import { fetchFilesApi, fetchSharesApi, fetchExpiringSoonApi, fetchPrivateSharesInboxApi } from '../store/fileApi';
 import '../styles/DashboardPage.css';
+
+// ─── Placeholder API calls ───────────────────────────────────────────────────
+// Replace these with your real API functions once the endpoints are ready.
+
+async function fetchSharedWithMeApi() {
+  // TODO: replace with real endpoint, e.g. GET /api/shares/received/
+  return { data: { count: 0, results: { shares: [] } } };
+}
+
+
+
+// ─── StatCard ────────────────────────────────────────────────────────────────
+
+function StatCard({ icon: Icon, label, value, href = '#', badge }) {
+  return (
+    <Link to={href} className="stat-card">
+      <div className="stat-header">
+        <div className="icon-box">
+          <Icon size={20} color="#e11d48" />
+        </div>
+        {badge
+          ? <span className="stat-badge">{badge}</span>
+          : <span className="stat-arrow">→</span>
+        }
+      </div>
+      <div style={{ marginTop: '18px' }}>
+        <div className="stat-label">{label}</div>
+        <div className="stat-value">{value}</div>
+      </div>
+    </Link>
+  );
+}
+
+// ─── StatsGrid ───────────────────────────────────────────────────────────────
+
+function StatsGrid({ totalFiles, totalShares, sharedWithMe, expiringSoon }) {
+  const stats = [
+    {
+      id: 'files',
+      icon: Files,
+      label: 'Files stored',
+      value: totalFiles,
+      href: '/files',
+    },
+    {
+      id: 'shares',
+      icon: Share2,
+      label: 'Active shares',
+      value: totalShares,
+      href: '/shared',
+    },
+    {
+      id: 'shared-with-me',
+      icon: Inbox,
+      label: 'Shared with me',
+      value: sharedWithMe,
+      href: '/shared-with-me',
+    },
+    {
+      id: 'expiring',
+      icon: ClockAlert,
+      label: 'Expiring soon',
+      value: expiringSoon,
+      href: '/files?filter=expiring',
+      badge: '24h',
+    },
+  ];
+
+  return (
+    <section className="stats-grid">
+      {stats.map((item) => (
+        <StatCard key={item.id} {...item} />
+      ))}
+    </section>
+  );
+}
+
+// ─── DashboardOverviewPage ───────────────────────────────────────────────────
 
 export default function DashboardOverviewPage() {
   const [totalFiles, setTotalFiles] = useState(0);
   const [totalShares, setTotalShares] = useState(0);
+  const [sharedWithMe, setSharedWithMe] = useState(0);
+  const [expiringSoon, setExpiringSoon] = useState(0);
   const [recentFiles, setRecentFiles] = useState([]);
   const [recentShares, setRecentShares] = useState([]);
   const [storage, setStorage] = useState({ used_percent: 0, used_bytes: 0, max_bytes: 0 });
-  
+
   const user = JSON.parse(localStorage.getItem('auth_user')) || { first_name: 'User' };
 
   useEffect(() => {
-    // Fetch Recent Files
+    // Recent files + storage
     fetchFilesApi(1, 5, '').then(({ data }) => {
       setTotalFiles(data.count || 0);
       setRecentFiles(data.results?.files || []);
       setStorage(data.results?.storage || { used_percent: 0, used_bytes: 0, max_bytes: 0 });
     });
 
-    // Fetch Recent Shares
+    // Recent shares + active share count
     fetchSharesApi(1, 5, '').then(({ data }) => {
       setTotalShares(data.count || 0);
-      setRecentShares(data.results?.shares || []);
+      setRecentShares(data.results?.shares || []);   // back to pageSize 5
     });
+    
+    fetchExpiringSoonApi().then(({ data }) => {
+      setExpiringSoon(data.count || 0);
+    });
+    // Shared with me (private shares received by current user)
+    fetchPrivateSharesInboxApi(1, 9).then(({ data }) => {
+      setSharedWithMe(data.count || 0);
+    });
+    
   }, []);
 
   return (
-    <>
-      <main className="dashboard-main fade-in">
-        <div className="welcome-section">
-          <div className="welcome-label">Welcome back</div>
-          <h1 className="welcome-title">
-            Hello, <span className="rose-text">{user?.first_name || 'User'}</span>.
-          </h1>
-          <p style={{ color: '#a1a1aa', marginTop: '10px' }}>
-            Your encrypted file vault is ready. Upload, share, and track every link.
-          </p>
-        </div>
+    <main className="dashboard-main fade-in">
+      {/* Welcome */}
+      <div className="welcome-section">
+        <div className="welcome-label">Welcome back</div>
+        <h1 className="welcome-title">
+          Hello, <span className="rose-text">{user?.first_name || 'User'}</span>.
+        </h1>
+        <p style={{ color: '#a1a1aa', marginTop: '10px' }}>
+          Your encrypted file vault is ready. Upload, share, and track every link.
+        </p>
+      </div>
 
-        <section className="storage-card">
-          <div className="storage-header">
-            <div className="storage-info">
-              <div className="icon-box"><HardDrive size={20} className="rose-text" /></div>
-              <div>
-                <div style={{ fontSize: '11px', color: '#71717a', textTransform: 'uppercase' }}>Storage Used</div>
-                <div style={{ fontSize: '24px', fontWeight: '700' }}>
-                  {(storage.used_bytes / (1024 ** 2)).toFixed(1)} MB / 1.00 GB
-                </div>
+      {/* Storage bar */}
+      <section className="storage-card">
+        <div className="storage-header">
+          <div className="storage-info">
+            <div className="icon-box">
+              <HardDrive size={20} className="rose-text" />
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', color: '#71717a', textTransform: 'uppercase' }}>
+                Storage Used
+              </div>
+              <div style={{ fontSize: '24px', fontWeight: '700' }}>
+                {(storage.used_bytes / 1024 ** 2).toFixed(1)} MB / 1.00 GB
               </div>
             </div>
-            <Link to="/upload" className="upload-btn">
-              <CloudUpload size={18} />
-              Upload files
+          </div>
+          <Link to="/upload" className="upload-btn">
+            <CloudUpload size={18} />
+            Upload files
+          </Link>
+        </div>
+        <div className="progress-container">
+          <div className="progress-fill" style={{ width: `${storage.used_percent}%` }} />
+        </div>
+        <div style={{ fontSize: '11px', color: '#71717a' }}>
+          {storage.used_percent.toFixed(1)}% used · Max 100 MB per file
+        </div>
+      </section>
+
+      {/* 4-card stats grid */}
+      <StatsGrid
+        totalFiles={totalFiles}
+        totalShares={totalShares}
+        sharedWithMe={sharedWithMe}
+        expiringSoon={expiringSoon}
+      />
+
+      {/* Recent activity */}
+      <div className="recent-grid">
+        {/* Recent Files */}
+        <div className="recent-card">
+          <div className="recent-header">
+            <h3 className="recent-title">
+              <FileText size={18} className="rose-text" /> Recent Files
+            </h3>
+            <Link to="/files" className="view-all">
+              View All <ChevronRight size={14} />
             </Link>
           </div>
-          <div className="progress-container">
-            <div className="progress-fill" style={{ width: `${storage.used_percent}%` }}></div>
-          </div>
-          <div style={{ fontSize: '11px', color: '#71717a' }}>
-            {storage.used_percent.toFixed(1)}% used · Max 100 MB per file
-          </div>
-        </section>
-
-        <StatsGrid totalFiles={totalFiles} totalShares={totalShares} />
-
-        {/* --- RECENT ACTIVITY SECTION --- */}
-        <div className="recent-grid">
-          {/* Recent Files */}
-          <div className="recent-card">
-            <div className="recent-header">
-              <h3 className="recent-title"><FileText size={18} className="rose-text" /> Recent Files</h3>
-              <Link to="/files" className="view-all">View All <ChevronRight size={14} /></Link>
-            </div>
-            <div className="recent-list">
-              {recentFiles.length > 0 ? recentFiles.map(file => (
+          <div className="recent-list">
+            {recentFiles.length > 0 ? (
+              recentFiles.map((file) => (
                 <div key={file.id} className="recent-item">
                   <div className="item-info">
                     <span className="item-name">{file.original_name}</span>
@@ -93,20 +200,26 @@ export default function DashboardOverviewPage() {
                   </div>
                   <Clock size={14} color="#3f3f46" />
                 </div>
-              )) : (
-                <div className="empty-recent">No files uploaded yet.</div>
-              )}
-            </div>
+              ))
+            ) : (
+              <div className="empty-recent">No files uploaded yet.</div>
+            )}
           </div>
+        </div>
 
-          {/* Recent Shares */}
-          <div className="recent-card">
-            <div className="recent-header">
-              <h3 className="recent-title"><Share2 size={18} className="rose-text" /> Recent Shares</h3>
-              <Link to="/shared" className="view-all">View All <ChevronRight size={14} /></Link>
-            </div>
-            <div className="recent-list">
-              {recentShares.length > 0 ? recentShares.map(share => (
+        {/* Recent Shares */}
+        <div className="recent-card">
+          <div className="recent-header">
+            <h3 className="recent-title">
+              <Share2 size={18} className="rose-text" /> Recent Shares
+            </h3>
+            <Link to="/shared" className="view-all">
+              View All <ChevronRight size={14} />
+            </Link>
+          </div>
+          <div className="recent-list">
+            {recentShares.length > 0 ? (
+              recentShares.map((share) => (
                 <div key={share.id} className="recent-item">
                   <div className="item-info">
                     <span className="item-name">{share.file_name || 'Shared Link'}</span>
@@ -114,13 +227,13 @@ export default function DashboardOverviewPage() {
                   </div>
                   <ExternalLink size={14} color="#3f3f46" />
                 </div>
-              )) : (
-                <div className="empty-recent">No active shares found.</div>
-              )}
-            </div>
+              ))
+            ) : (
+              <div className="empty-recent">No active shares found.</div>
+            )}
           </div>
         </div>
-      </main>
-    </>
+      </div>
+    </main>
   );
 }

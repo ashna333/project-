@@ -143,3 +143,6 @@ export const approvePrivateShareApi = (shareId) =>
 
 export const transferFileOwnershipApi = (fileId, newOwnerEmail) =>
   api.post(`/files/${fileId}/transfer/`, { new_owner_email: newOwnerEmail });
+
+export const fetchExpiringSoonApi = () =>
+  api.get('/shares/expiring-soon/');
