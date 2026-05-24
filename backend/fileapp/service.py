@@ -253,13 +253,24 @@ def get_user_storage_usage(user):
     result = UserFile.objects.filter(user=user).aggregate(total=Sum("file_size"))
     return result["total"] or 0
 
+from django.db.models.functions import Lower
 
-def list_user_files(user, search=None):
-    qs = UserFile.objects.filter(user=user, is_deleted=False)  # 👈 add is_deleted=False
+
+def list_user_files(user, search=None, ordering='-uploaded_at'):
+    qs = UserFile.objects.filter(user=user, is_deleted=False)
     if search:
         qs = qs.filter(original_name__icontains=search)
-    return qs
 
+    if ordering in ('original_name', '-original_name'):
+        qs = qs.annotate(name_lower=Lower('original_name'))
+        if ordering == 'original_name':
+            qs = qs.order_by('name_lower')
+        else:
+            qs = qs.order_by('-name_lower')
+    else:
+        qs = qs.order_by(ordering)
+
+    return qs
 
 def list_user_trash(user, search=None):
     qs = UserFile.objects.filter(user=user, is_deleted=True)
@@ -644,15 +655,16 @@ def _is_within_time_windows(time_windows):
     return False
 
 
-def _share_is_accessible(share, grant=None):
+def _share_is_accessible(share, grant=None, ignore_download_limit=False):
     if share.one_time_access and share.download_count > 0:
         return False, "One time access."
     if share.is_revoked:
         return False, "Revoked."
     if share.is_expired:
         return False, "Expired."
-    if share.max_downloads and share.download_count >= share.max_downloads:
-        return False, "Maximum download limit reached."
+    if not ignore_download_limit:
+        if share.max_downloads and share.download_count >= share.max_downloads:
+            return False, "Maximum download limit reached."
     if not _is_within_time_windows(share.time_windows):
         return False, "Time window expired."
     if grant:
@@ -660,9 +672,11 @@ def _share_is_accessible(share, grant=None):
             return False, "Revoked."
         if grant.individual_expires_at and timezone.now() >= grant.individual_expires_at:
             return False, "Expired."
-        if grant.max_downloads and grant.download_count >= grant.max_downloads:
-            return False, "Download limit reached."
+        if not ignore_download_limit:
+            if grant.max_downloads and grant.download_count >= grant.max_downloads:
+                return False, "Download limit reached."
     return True, None
+
 
 
 def _get_upstream_owner_emails(parent_share):
@@ -859,50 +873,7 @@ def verify_private_share_password(share, password):
     return check_password(password, share.password_hash)
 
 
-def record_private_share_view(grant, request=None, *, preview=False):
-    share = grant.private_share
-    ok, err = _share_is_accessible(share, grant)
-    if not ok:
-        return False, err
-    grant.view_count += 1
-    grant.last_accessed_at = timezone.now()
-    grant.save(update_fields=["view_count", "last_accessed_at"])
-    share.last_accessed_at = timezone.now()
-    share.save(update_fields=["last_accessed_at"])
-    metadata = {"preview": True} if preview else {}
-    _log_share_access(share, grant.recipient, ShareAccessLog.ACTION_VIEW, request, metadata=metadata)
-    _notify_owner_read_receipt(share, grant.recipient, "viewed")
-    return True, None
 
-
-def record_private_share_download(grant, request=None):
-    share = grant.private_share
-
-    if not grant.can_download:
-        return False, "Download not permitted."
-    
-    ok, err = _share_is_accessible(share, grant)
-    if not ok:
-        return False, err
-
-    grant.download_count += 1
-    grant.last_accessed_at = timezone.now()
-    grant.save(update_fields=["download_count", "last_accessed_at"])
-    
-    share.download_count += 1
-    share.last_accessed_at = timezone.now()
-    share.save(update_fields=["download_count", "last_accessed_at"])
-    
-    _log_share_access(share, grant.recipient, ShareAccessLog.ACTION_DOWNLOAD, request)
-    _notify_owner_read_receipt(share, grant.recipient, "downloaded")
-
-    # Revoke after successful download if one-time access
-    if share.one_time_access and not share.is_revoked:
-        share.is_revoked = True
-        share.revoked_at = timezone.now()
-        share.save(update_fields=['is_revoked', 'revoked_at'])
-
-    return True, None
 
 
 def _notify_owner_read_receipt(share, recipient, action):
@@ -1011,27 +982,6 @@ def transfer_file_ownership(owner, file_id, new_owner_email):
     user_file.save(update_fields=["user"])
     return True, "Ownership transferred."
 
-
-def add_share_comment(grant, content, page_number=None, highlight_text="", parent_id=None):
-    if not grant.can_comment:
-        return None, "Commenting not permitted."
-    share = grant.private_share
-    ok, err = _share_is_accessible(share, grant)
-    if not ok:
-        return None, err
-    parent = None
-    if parent_id:
-        parent = ShareComment.objects.filter(id=parent_id, private_share=share).first()
-    comment = ShareComment.objects.create(
-        private_share=share,
-        author=grant.recipient,
-        content=content,
-        page_number=page_number,
-        highlight_text=highlight_text,
-        parent=parent,
-    )
-    _log_share_access(share, grant.recipient, ShareAccessLog.ACTION_COMMENT)
-    return comment, None
 
 
 def _share_ids_for_same_file(share):
@@ -1150,3 +1100,100 @@ def lookup_users_by_email(emails):
             "display_name": get_user_display_name(u) if u else None,
         })
     return results
+
+
+def _share_is_accessible_for_action(share, grant=None, action='download'):
+    """
+    Gate checks by action type:
+    - 'download': all checks (revoked, expired, time window, download limit, one-time)
+    - 'preview':  all checks EXCEPT download limit
+    - 'comment' / 'reshare': only revoked + expired (download limit never blocks these)
+    """
+    # Always block revoked
+    if share.is_revoked:
+        return False, "Revoked."
+    if share.is_expired:
+        return False, "Expired."
+    if grant:
+        if grant.is_revoked:
+            return False, "Revoked."
+        if grant.individual_expires_at and timezone.now() >= grant.individual_expires_at:
+            return False, "Expired."
+
+    # Below checks only apply to download/preview
+    if action in ('download', 'preview'):
+        if share.one_time_access and share.download_count > 0:
+            return False, "One time access."
+        if not _is_within_time_windows(share.time_windows):
+            return False, "Time window expired."
+
+    # Below checks only apply to download
+    if action == 'download':
+        if share.max_downloads and share.download_count >= share.max_downloads:
+            return False, "Maximum download limit reached."
+        if grant and grant.max_downloads and grant.download_count >= grant.max_downloads:
+            return False, "Download limit reached."
+
+    return True, None
+
+
+
+def record_private_share_view(grant, request=None, *, preview=False):
+    share = grant.private_share
+    action = 'preview' if preview else 'download'
+    ok, err = _share_is_accessible_for_action(share, grant, action=action)
+    if not ok:
+        return False, err
+    grant.view_count += 1
+    grant.last_accessed_at = timezone.now()
+    grant.save(update_fields=["view_count", "last_accessed_at"])
+    share.last_accessed_at = timezone.now()
+    share.save(update_fields=["last_accessed_at"])
+    metadata = {"preview": True} if preview else {}
+    _log_share_access(share, grant.recipient, ShareAccessLog.ACTION_VIEW, request, metadata=metadata)
+    _notify_owner_read_receipt(share, grant.recipient, "viewed")
+    return True, None
+
+
+def record_private_share_download(grant, request=None):
+    share = grant.private_share
+    if not grant.can_download:
+        return False, "Download not permitted."
+    ok, err = _share_is_accessible_for_action(share, grant, action='download')
+    if not ok:
+        return False, err
+    grant.download_count += 1
+    grant.last_accessed_at = timezone.now()
+    grant.save(update_fields=["download_count", "last_accessed_at"])
+    share.download_count += 1
+    share.last_accessed_at = timezone.now()
+    share.save(update_fields=["download_count", "last_accessed_at"])
+    _log_share_access(share, grant.recipient, ShareAccessLog.ACTION_DOWNLOAD, request)
+    _notify_owner_read_receipt(share, grant.recipient, "downloaded")
+    if share.one_time_access and not share.is_revoked:
+        share.is_revoked = True
+        share.revoked_at = timezone.now()
+        share.save(update_fields=['is_revoked', 'revoked_at'])
+    return True, None
+
+
+def add_share_comment(grant, content, page_number=None, highlight_text="", parent_id=None):
+    if not grant.can_comment:
+        return None, "Commenting not permitted."
+    share = grant.private_share
+    ok, err = _share_is_accessible_for_action(share, grant, action='comment')
+    if not ok:
+        return None, err
+    parent = None
+    if parent_id:
+        parent = ShareComment.objects.filter(id=parent_id, private_share=share).first()
+    comment = ShareComment.objects.create(
+        private_share=share,
+        author=grant.recipient,
+        content=content,
+        page_number=page_number,
+        highlight_text=highlight_text,
+        parent=parent,
+    )
+    _log_share_access(share, grant.recipient, ShareAccessLog.ACTION_COMMENT)
+    return comment, None

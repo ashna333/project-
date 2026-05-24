@@ -55,10 +55,12 @@
   background: rgba(225, 29, 72, 0.1);
 }
 
+
 .ps-table-wrap {
-  overflow: visible;  /* was likely 'hidden' or 'auto' */
   border-radius: 12px;
   border: 1px solid #27272a;
+  overflow: visible;          /* ← was likely auto or hidden */
+  position: relative;         /* ← add this */
 }
 
 
@@ -100,7 +102,13 @@
 .ps-col-perms   { width: 20%; }
 .ps-col-expires { width: 18%; }
 .ps-col-status  { width: 16%; min-width: unset; }
-.ps-col-actions { width: 4%; min-width: 44px; padding-right: 12px; }
+.ps-col-actions {
+  width: 4%;
+  min-width: 44px;
+  padding-right: 12px;
+  overflow: visible !important;  /* ← force this */
+  position: relative;
+}
 
 /* .ps-col-actions {
   width: 48px;      
@@ -116,12 +124,11 @@
   position: absolute;
   right: 8px;
   top: 32px;
-  z-index: 999;
+  z-index: 9999;             /* ← bump this up from 999 */
   background: #1a1a1e;
   border: 0.5px solid #2a2a2e;
   border-radius: 8px;
   min-width: 150px;
-  overflow: visible;
 }
 
 .ps-col-status {
@@ -677,7 +684,12 @@
 }
 
 
-.ps-dot-wrap { position: relative; display: flex; justify-content: center; }
+.ps-dot-wrap {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  overflow: visible;          /* ← add this */
+}
 
 .ps-dot-btn {
   width: 30px; height: 30px;
@@ -688,7 +700,6 @@
   transition: background 0.12s, color 0.12s;
 }
 .ps-dot-btn:hover { background: #1e1e22; color: #ccc; }
-
 
 
 .ps-drop-item {
@@ -706,6 +717,16 @@
 }
 .ps-drop-lock { margin-left: auto; color: #BA7517; }
 
+.ps-drop-item--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ps-drop-limit {
+  margin-left: auto;
+  font-size: 11px;
+  color: #f87171;
+}
 
 .ps-filter-bar {
   display: flex;

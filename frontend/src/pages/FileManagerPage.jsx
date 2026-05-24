@@ -5,7 +5,7 @@ import {
   File as FileIcon,
   Download, Trash2,
   Edit2, FileText, Image as ImageIcon, X, Star, Zap, ChevronDown,
-  ArrowUp, ArrowDown
+  ArrowUp, ArrowDown,
 } from 'lucide-react';
 import { fetchFiles, downloadFile, toggleFileStar } from '../store/fileThunks';
 import { setSearchQuery } from '../store/fileSlice';
@@ -20,6 +20,8 @@ import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import FileGrid from '../components/FileGrid';
 import ViewToggle from '../components/ViewToggle';
 import useViewMode from '../hooks/useViewMode';
+import useSelectMode from '../hooks/useSelectMode';
+import SelectToolbar from '../components/SelectToolbar';
 
 const FILTER_CONFIG = [
   {
@@ -44,7 +46,6 @@ const FILTER_CONFIG = [
 ];
 
 const SORT_OPTIONS = [
- 
   { value: 'uploaded_at',  label: 'Oldest' },
   { value: '-file_size',   label: 'Largest' },
   { value: 'file_size',    label: 'Smallest' },
@@ -71,6 +72,15 @@ export default function FileManagerPage() {
   const [openFilter, setOpenFilter] = useState(null);
   const [ordering, setOrdering]     = useState('-uploaded_at');
 
+  const safeFiles = Array.isArray(files) ? files : [];
+
+  const {
+    selectMode, selectedIds,
+    toggleSelectMode, toggleSelectFile,
+    toggleSelectAll, clearSelection,
+    allSelected, someSelected,
+  } = useSelectMode(safeFiles);
+
   const scrollPositionRef = useRef(0);
   const saveScroll    = () => { scrollPositionRef.current = window.scrollY; };
   const restoreScroll = () => {
@@ -81,20 +91,17 @@ export default function FileManagerPage() {
 
   useBodyScrollLock(!!selectedFile || isModalOpen || isRenameModalOpen || isDeleteModalOpen);
 
-  // Close filter dropdown on outside click
   useEffect(() => {
     const close = () => setOpenFilter(null);
     document.addEventListener('click', close);
     return () => document.removeEventListener('click', close);
   }, []);
 
-  // Main fetch — builds params inline to always use latest state
   useEffect(() => {
     const params = { ordering, ...filters };
     dispatch(fetchFiles(currentPage, pageSize, searchQuery, params));
   }, [dispatch, currentPage, pageSize, searchQuery, filters, ordering]);
 
-  // Search debounce
   useEffect(() => {
     const t = setTimeout(() => {
       if (searchInput.trim() !== searchQuery) {
@@ -105,7 +112,6 @@ export default function FileManagerPage() {
     return () => clearTimeout(t);
   }, [dispatch, searchInput, searchQuery]);
 
-  // Sync pagination from redux
   useEffect(() => {
     if (pagination) {
       setCurrentPage(pagination.currentPage || 1);
@@ -119,13 +125,11 @@ export default function FileManagerPage() {
     restoreScroll();
   };
 
-  // Sort handler — resets to page 1
   const handleSortChange = (value) => {
     setOrdering(value);
     setCurrentPage(1);
   };
 
-  // Name sort toggle: A→Z first click, Z→A second click
   const handleNameSort = () => {
     const next = ordering === 'original_name' ? '-original_name' : 'original_name';
     handleSortChange(next);
@@ -134,7 +138,6 @@ export default function FileManagerPage() {
   const isNameSort = ordering === 'original_name' || ordering === '-original_name';
   const nameAsc    = ordering === 'original_name';
 
-  // Filter handlers
   const handleFilterChange = (key, value) => {
     const newFilters = { ...filters, [key]: filters[key] === value ? undefined : value };
     Object.keys(newFilters).forEach(k => newFilters[k] === undefined && delete newFilters[k]);
@@ -178,6 +181,20 @@ export default function FileManagerPage() {
       restoreScroll();
     } catch {
       showToast('Failed to delete file');
+    }
+  };
+
+  // Bulk move to trash
+  const handleBulkMoveToTrash = async () => {
+    if (!someSelected) return;
+    try {
+      await Promise.all(selectedIds.map(id => deleteFileApi(id)));
+      showToast(`${selectedIds.length} file(s) moved to trash.`);
+      clearSelection();
+      const params = { ordering, ...filters };
+      dispatch(fetchFiles(currentPage, pageSize, searchQuery, params));
+    } catch {
+      showToast('Failed to move some files to trash.');
     }
   };
 
@@ -235,26 +252,20 @@ export default function FileManagerPage() {
   };
 
   const sortBtnStyle = (active) => ({
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '4px',
-    padding: '5px 12px',
-    borderRadius: '20px',
-    fontSize: '12px',
-    fontWeight: '500',
-    cursor: 'pointer',
+    display: 'inline-flex', alignItems: 'center', gap: '4px',
+    padding: '5px 12px', borderRadius: '20px', fontSize: '12px',
+    fontWeight: '500', cursor: 'pointer',
     border: active ? '1px solid #e11d48' : '1px solid #27272a',
     background: active ? 'rgba(225,29,72,0.1)' : 'transparent',
     color: active ? '#f43f5e' : '#71717a',
-    transition: 'all 0.15s ease',
-    whiteSpace: 'nowrap',
+    transition: 'all 0.15s ease', whiteSpace: 'nowrap',
   });
 
   return (
     <>
       <main className="dashboard-main" style={{ transition: 'none' }}>
 
-        {/* ── Header ── */}
+        {/* Header */}
         <div className="file-manager-header">
           <div className="welcome-sectionfm">
             <div className="welcome-labelfm">Library</div>
@@ -273,7 +284,7 @@ export default function FileManagerPage() {
           </div>
         </div>
 
-        {/* ── Filter bar ── */}
+        {/* Filter bar */}
         <div className="ps-filter-bar" onClick={(e) => e.stopPropagation()}>
           {FILTER_CONFIG.map(({ key, label, options }) => (
             <div key={key} className="ps-filter-wrap" onClick={(e) => e.stopPropagation()}>
@@ -324,55 +335,62 @@ export default function FileManagerPage() {
           )}
         </div>
 
-        {/* ── Sort bar + View toggle ── */}
+        {/* Sort bar + Select toolbar + View toggle */}
         <div style={{
-          display: 'flex',
-          alignItems: 'center',
+          display: 'flex', alignItems: 'center',
           justifyContent: 'space-between',
-          margin: '16px 0',
-          flexWrap: 'wrap',
-          gap: '10px',
+          margin: '16px 0', flexWrap: 'wrap', gap: '10px',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
- 
 
-  <button style={sortBtnStyle(isNameSort)} onClick={handleNameSort}>
-    Name
-    {isNameSort
-      ? nameAsc
-        ? <ArrowUp size={12} />
-        : <ArrowDown size={12} />
-      : null}
-  </button>
+            {/* Select toolbar always on the left */}
+            <SelectToolbar
+              files={safeFiles}
+              selectMode={selectMode}
+              selectedIds={selectedIds}
+              allSelected={allSelected}
+              someSelected={someSelected}
+              onToggleSelectMode={toggleSelectMode}
+              onToggleSelectAll={toggleSelectAll}
+              onBulkDelete={handleBulkMoveToTrash}
+              actionLoading={null}
+            />
 
-  {SORT_OPTIONS.map(opt => (
-    <button
-      key={opt.value}
-      style={sortBtnStyle(ordering === opt.value)}
-      onClick={() => handleSortChange(opt.value)}
-    >
-      {opt.label}
-    </button>
-  ))}
+            {/* Sort buttons — hidden when select mode is active */}
+            {!selectMode && (
+              <>
+                <button style={sortBtnStyle(isNameSort)} onClick={handleNameSort}>
+                  Name
+                  {isNameSort
+                    ? nameAsc ? <ArrowUp size={12} /> : <ArrowDown size={12} />
+                    : null}
+                </button>
+                {SORT_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    style={sortBtnStyle(ordering === opt.value)}
+                    onClick={() => handleSortChange(opt.value)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+                {ordering !== '-uploaded_at' && (
+                  <button style={sortBtnStyle(false)} onClick={() => handleSortChange('-uploaded_at')}>
+                    <X size={12} /> Reset
+                  </button>
+                )}
+              </>
+            )}
+          </div>
 
-  {/* Reset sort — only shows when not on default */}
-  {ordering !== '-uploaded_at' && (
-    <button
-      style={sortBtnStyle(false)}
-      onClick={() => handleSortChange('-uploaded_at')}
-    >
-      <X size={12} /> Reset
-    </button>
-  )}
-</div>
           <ViewToggle viewMode={viewMode} onChange={handleViewMode} />
         </div>
 
-        {/* ── File list ── */}
+        {/* File list */}
         <section className="file-list-container">
           {loading ? (
             <div className="fm-empty-state"><div className="fm-spinner" /></div>
-          ) : !files || files.length === 0 ? (
+          ) : safeFiles.length === 0 ? (
             <div className="fm-empty-state">
               <FileIcon size={60} color="#27272a" strokeWidth={1} />
               <h2 style={{ marginTop: '20px', color: 'white' }}>
@@ -393,9 +411,9 @@ export default function FileManagerPage() {
             </div>
           ) : (
             <FileGrid
-              files={Array.isArray(files) ? files : []}
+              files={safeFiles}
               viewMode={viewMode}
-              onSelect={setSelectedFile}
+              onSelect={selectMode ? undefined : setSelectedFile}
               onStar={handleToggleStar}
               onRename={(file) => { saveScroll(); setActiveFile(file); setIsRenameModalOpen(true); }}
               onShare={(file) => { saveScroll(); setActiveFile(file); setIsModalOpen(true); }}
@@ -403,6 +421,9 @@ export default function FileManagerPage() {
               onDelete={(file) => { saveScroll(); handleDeleteTrigger(file); }}
               getFileIcon={getFileIcon}
               formatFileSize={formatFileSize}
+              selectMode={selectMode}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelectFile}
             />
           )}
 
@@ -417,7 +438,7 @@ export default function FileManagerPage() {
         <footer className="fm-footer">CloudShare - Secure file sharing, built for teams.</footer>
       </main>
 
-      {/* ── File details modal ── */}
+      {/* File details modal */}
       {selectedFile && (
         <div className="modal-overlay" onClick={() => setSelectedFile(null)}>
           <div className="file-details-modal fade-in-up" onClick={(e) => e.stopPropagation()}>

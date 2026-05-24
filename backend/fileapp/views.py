@@ -267,7 +267,16 @@ class FileListView(APIView):
         file_type = request.query_params.get('file_type')
         modified = request.query_params.get('modified')
 
-        qs = list_user_files(request.user, search=search or None).filter(is_deleted=False)
+        ALLOWED_ORDERING = {
+            'original_name', '-original_name',
+            'uploaded_at', '-uploaded_at',
+            'file_size', '-file_size',
+        }
+        ordering = request.query_params.get('ordering', '-uploaded_at')
+        if ordering not in ALLOWED_ORDERING:
+            ordering = '-uploaded_at'
+
+        qs = list_user_files(request.user, search=search or None, ordering=ordering)  # removed .filter(is_deleted=False)
 
         if is_starred == 'true':
             qs = qs.filter(is_starred=True)
@@ -290,6 +299,8 @@ class FileListView(APIView):
                 qs = qs.filter(uploaded_at__gte=now - timedelta(days=7))
             elif modified == 'month':
                 qs = qs.filter(uploaded_at__gte=now - timedelta(days=30))
+
+        # ❌ removed qs = qs.order_by(ordering) — this was overriding the annotated sort from service
 
         paginator = FilePagination()
         page = paginator.paginate_queryset(qs, request)

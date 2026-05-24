@@ -43,7 +43,7 @@ export default function SharedWithMePage() {
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 9;
   const [openMenu, setOpenMenu] = useState(null);
-  const [filters, setFilters] = useState({});  // ✅ empty object
+  const [filters, setFilters] = useState({});
   const [openFilter, setOpenFilter] = useState(null);
   const [senders, setSenders] = useState([]);
 
@@ -57,22 +57,20 @@ export default function SharedWithMePage() {
     !!passwordPrompt || !!commentsOpen || !!previewFile || !!reshareShare || !!alertModal;
   useBodyScrollLock(anyModalOpen);
 
-
-
   const load = async (page = 1, currentFilters = filters) => {
     setLoading(true);
     try {
       const { data } = await fetchPrivateSharesInboxApi(page, pageSize);
-  
+
       let list =
         data.results?.shares ??
         data.shares ??
         (Array.isArray(data.results) ? data.results : []);
-  
+
       // collect senders before filtering
       const uniqueSenders = [...new Set(list.map(s => s.shared_by_email).filter(Boolean))];
       setSenders(uniqueSenders);
-  
+
       // Type filter — based on file_name extension
       if (currentFilters.type) {
         list = list.filter(s => {
@@ -84,25 +82,25 @@ export default function SharedWithMePage() {
           return true;
         });
       }
-  
+
       // People filter
       if (currentFilters.sharedBy) {
         list = list.filter(s => s.shared_by_email === currentFilters.sharedBy);
       }
-  
-     
+
       // Expires filter
-if (currentFilters.expires) {
-  const now = new Date();
-  list = list.filter(s => {
-    const exp = s.expires_at ? new Date(s.expires_at) : null;
-    if (currentFilters.expires === 'never') return !exp;
-    if (currentFilters.expires === 'past') return exp && exp < now;
-    if (currentFilters.expires === 'week') return exp && exp >= now && exp <= new Date(Date.now() + 7 * 86400000);
-    if (currentFilters.expires === 'month') return exp && exp >= now && exp <= new Date(Date.now() + 30 * 86400000);
-    return true;
-  });
-}
+      if (currentFilters.expires) {
+        const now = new Date();
+        list = list.filter(s => {
+          const exp = s.expires_at ? new Date(s.expires_at) : null;
+          if (currentFilters.expires === 'never') return !exp;
+          if (currentFilters.expires === 'past') return exp && exp < now;
+          if (currentFilters.expires === 'week') return exp && exp >= now && exp <= new Date(Date.now() + 7 * 86400000);
+          if (currentFilters.expires === 'month') return exp && exp >= now && exp <= new Date(Date.now() + 30 * 86400000);
+          return true;
+        });
+      }
+
       // Status filter
       if (currentFilters.status) {
         list = list.filter(s => {
@@ -110,10 +108,10 @@ if (currentFilters.expires) {
           return st === currentFilters.status.toLowerCase();
         });
       }
-  
+
       setTotalPages(Math.ceil((data.count || 0) / pageSize) || 1);
       setShares(list);
-  
+
       localStorage.setItem('inbox_last_seen', new Date().toISOString());
       window.dispatchEvent(new Event('inbox-seen'));
     } catch (err) {
@@ -123,16 +121,14 @@ if (currentFilters.expires) {
       setLoading(false);
     }
   };
+
   const handleFilterChange = (key, value) => {
     const newFilters = { ...filters };
-
     if (newFilters[key] === value) {
-      delete newFilters[key]; // ✅ deselect
+      delete newFilters[key];
     } else {
       newFilters[key] = value;
     }
-
-    console.log("new filters:", newFilters);
     setFilters(newFilters);
     setCurrentPage(1);
     load(1, newFilters);
@@ -140,12 +136,12 @@ if (currentFilters.expires) {
   };
 
   const clearFilters = () => {
-    setFilters({});       // ✅ empty object
+    setFilters({});
     setCurrentPage(1);
-    load(1, {});          // ✅ reload with no filters
+    load(1, {});
   };
 
-  const activeFilterCount = Object.keys(filters).length; // ✅ correct count
+  const activeFilterCount = Object.keys(filters).length;
 
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
@@ -214,42 +210,43 @@ if (currentFilters.expires) {
       link.click();
       window.URL.revokeObjectURL(url);
     }
-    load();
     return true;
   };
 
   const handleDownload = async (share, pwd = '', silent = false) => {
     try {
       await runProtectedAction(share, pwd, 'download');
+      load();
       if (!silent) showToast('Download started');
     } catch (err) {
+      if (silent) throw err; // let submitPassword handle it
       const msg = await parseApiError(err, 'Download failed.');
-      if (err.response?.status === 403) {
-        if (share.requires_password || msg.toLowerCase().includes('password')) {
-          setPasswordError(msg);
-          setPasswordPrompt({ share, action: 'download' });
-          return;
-        }
+      if (err.response?.status === 403 &&
+          (share.requires_password || msg.toLowerCase().includes('password'))) {
+        setPasswordError(msg);
+        setPasswordPrompt({ share, action: 'download' });
+        return;
       }
-      if (!silent) setAlertModal({ title: 'Download failed', message: msg, variant: 'error' });
-      throw err;
+      setAlertModal({ title: 'Download failed', message: msg, variant: 'error' });
     }
   };
 
   const handlePreview = async (share, pwd = '', silent = false) => {
     try {
       await runProtectedAction(share, pwd, 'preview');
+      load();
     } catch (err) {
+      if (silent) throw err; // let submitPassword handle it
       const msg = await parseApiError(err, 'Preview failed.');
-      if (err.response?.status === 403) {
-        if (share.requires_password || msg.toLowerCase().includes('password')) {
-          setPasswordError(msg);
-          setPasswordPrompt({ share, action: 'preview' });
-          return;
-        }
+      const isPasswordError = err.response?.status === 403 &&
+        (share.requires_password || msg.toLowerCase().includes('password')) &&
+        !msg.toLowerCase().includes('download limit');
+      if (isPasswordError) {
+        setPasswordError(msg);
+        setPasswordPrompt({ share, action: 'preview' });
+        return;
       }
-      if (!silent) setAlertModal({ title: 'Preview failed', message: msg, variant: 'error' });
-      throw err;
+      setAlertModal({ title: 'Preview failed', message: msg, variant: 'error' });
     }
   };
 
@@ -257,25 +254,21 @@ if (currentFilters.expires) {
     if (!password.trim()) { setPasswordError('Please enter the password.'); return; }
     setPasswordSubmitting(true);
     setPasswordError('');
-    let success = false;
+    const { share, action } = passwordPrompt; // capture before any state change
     try {
-      const { share, action } = passwordPrompt;
       if (action === 'download') await handleDownload(share, password, true);
       else await handlePreview(share, password, true);
-      success = true;
+      // success — close modal then toast
       setPasswordPrompt(null);
       setPassword('');
       setShowPassword(false);
+      showToast(action === 'download' ? 'Download started' : 'Preview opened');
     } catch (err) {
       const msg = await parseApiError(err, 'Invalid password.');
-      showToast('Invalid Password');
       setPasswordError(msg);
+      // modal stays open, no success toast
     } finally {
       setPasswordSubmitting(false);
-      if (success) {
-        const { action } = passwordPrompt;
-        showToast(action === 'download' ? 'Download started' : 'Preview opened');
-      }
     }
   };
 
@@ -394,6 +387,18 @@ if (currentFilters.expires) {
             <tbody>
               {shares.map((s) => {
                 const statusInfo = formatStatus(s);
+                const status = (s.access_status || '').toLowerCase().replace(/\.$/, '').trim();
+                const isRevoked = status === 'revoked';
+                const isExpired = status === 'expired';
+                const downloadLimitReached =
+                  status === 'download limit reached' || s.download_limit_reached === true;
+
+                const hasView     = s.can_view;
+                const hasDownload = s.can_download;
+                const hasReshare  = s.can_reshare;
+                const hasComment  = s.can_comment;
+                const hasAnyAction = hasView || (hasDownload && !downloadLimitReached) || hasReshare || hasComment;
+
                 return (
                   <tr key={s.id}>
                     <td className="ps-col-file">
@@ -431,62 +436,80 @@ if (currentFilters.expires) {
                       </span>
                     </td>
                     <td className="ps-col-actions" style={{ position: 'relative' }}>
-                      {s.access_status === 'accessible' ? (
-                        <div className="ps-dot-wrap">
-                          <button
-                            className="ps-dot-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenMenu(openMenu === s.id ? null : s.id);
-                            }}
-                            aria-label="Actions"
-                          >
-                            <MoreVertical size={16} />
-                          </button>
-
-                          {openMenu === s.id && (
-                            <div className="ps-dropdown">
-                              {s.can_view && (
-                                <button className="ps-drop-item" onClick={() => {
-                                  setOpenMenu(null);
-                                  s.requires_password
-                                    ? setPasswordPrompt({ share: s, action: 'preview' })
-                                    : handlePreview(s);
-                                }}>
-                                  <Eye size={14} /> Preview
-                                  <span className="ps-drop-views">{s.view_count ?? 0}</span>
-                                </button>
-                              )}
-                              {s.can_download && (
-                                <button className="ps-drop-item" onClick={() => {
-                                  setOpenMenu(null);
-                                  s.requires_password
-                                    ? setPasswordPrompt({ share: s, action: 'download' })
-                                    : handleDownload(s);
-                                }}>
-                                  <Download size={14} /> Download
-                                  {s.requires_password && <Lock size={12} className="ps-drop-lock" />}
-                                </button>
-                              )}
-                              {s.can_reshare && (
-                                <button className="ps-drop-item" onClick={() => {
-                                  setOpenMenu(null); setReshareShare(s);
-                                }}>
-                                  <Share2 size={14} /> Re-share
-                                </button>
-                              )}
-                              {s.can_comment && (
-                                <button className="ps-drop-item" onClick={() => {
-                                  setOpenMenu(null); openComments(s.share_id);
-                                }}>
-                                  <MessageSquare size={14} /> Comments
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
+                      {/* Hide all actions for revoked or expired */}
+                      {isRevoked || isExpired ? (
                         <span className="ps-muted"></span>
+                      ) : (
+                        /* Show menu if there is at least one action available,
+                           OR if download limit is reached but other actions exist */
+                        (hasView || hasDownload || hasReshare || hasComment) && (
+                          <div className="ps-dot-wrap">
+                            <button
+                              className="ps-dot-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenu(openMenu === s.id ? null : s.id);
+                              }}
+                              aria-label="Actions"
+                            >
+                              <MoreVertical size={16} />
+                            </button>
+
+                            {openMenu === s.id && (
+                              <div className="ps-dropdown">
+                                {hasView && (
+                                  <button className="ps-drop-item" onClick={() => {
+                                    setOpenMenu(null);
+                                    // If download limit is reached, skip password prompt — just preview directly
+                                    // (preview is still allowed; only download is blocked)
+                                    if (!downloadLimitReached && s.requires_password) {
+                                      setPasswordPrompt({ share: s, action: 'preview' });
+                                    } else {
+                                      handlePreview(s);
+                                    }
+                                  }}>
+                                    <Eye size={14} /> Preview
+                                    <span className="ps-drop-views">{s.view_count ?? 0}</span>
+                                  </button>
+                                )}
+                                {hasDownload && (
+                                  <button
+                                    className={`ps-drop-item${downloadLimitReached ? ' ps-drop-item--disabled' : ''}`}
+                                    disabled={downloadLimitReached}
+                                    title={downloadLimitReached ? 'Download limit reached' : undefined}
+                                    onClick={() => {
+                                      if (downloadLimitReached) return;
+                                      setOpenMenu(null);
+                                      s.requires_password
+                                        ? setPasswordPrompt({ share: s, action: 'download' })
+                                        : handleDownload(s);
+                                    }}
+                                  >
+                                    <Download size={14} /> Download
+                                    {downloadLimitReached
+                                      ? <span className="ps-drop-limit">Limit reached</span>
+                                      : s.requires_password && <Lock size={12} className="ps-drop-lock" />
+                                    }
+                                  </button>
+                                )}
+                                {hasReshare && (
+                                  <button className="ps-drop-item" onClick={() => {
+                                    setOpenMenu(null); setReshareShare(s);
+                                  }}>
+                                    <Share2 size={14} /> Re-share
+                                  </button>
+                                )}
+                                {hasComment && (
+                                  <button className="ps-drop-item" onClick={() => {
+                                    setOpenMenu(null); openComments(s.share_id);
+                                  }}>
+                                    <MessageSquare size={14} /> Comments
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
                       )}
                     </td>
                   </tr>

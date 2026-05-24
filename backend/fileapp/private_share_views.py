@@ -166,10 +166,13 @@ class PrivateShareDownloadView(APIView):
             return Response({"error": "Invalid password."}, status=403)
 
         is_preview = request.query_params.get("preview") == "true"
+
         if is_preview:
+            # Preview is NEVER blocked by download limit — only check view permission
             ok, err = record_private_share_view(grant, request, preview=True)
             as_attachment = False
         else:
+            # Download limit is only enforced here
             ok, err = record_private_share_download(grant, request)
             as_attachment = True
 
