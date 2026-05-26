@@ -521,9 +521,7 @@ def create_file_share(*, owner, file_id, recipient_email, expires_in_hours, mess
     if request is not None:
         share_url = f"{settings.FRONTEND_APP_URL}/s/{share.token}/"
 
-
-    print("FRONTEND_APP_URL:", settings.FRONTEND_APP_URL)   # 👈 ADD
-    print("GENERATED SHARE URL:", share_url)      
+   
 
     _send_file_share_email(
         owner_email=getattr(owner, "email", ""),

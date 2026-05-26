@@ -47,13 +47,6 @@ class FileConsoleEmailBackend(BaseEmailBackend):
             except OSError:
                 pass
 
-            print("\n" + "=" * 60)
-            print(f"EMAIL SAVED: {filepath}")
-            print(f"To: {', '.join(recipients)}")
-            print(f"Subject: {subject}")
-            print("-" * 60)
-            print(body)
-            print("=" * 60 + "\n")
 
             sent += 1
 

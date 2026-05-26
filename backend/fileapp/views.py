@@ -265,7 +265,7 @@ class FileListView(APIView):
         search = request.query_params.get("search", "").strip()
         is_starred = request.query_params.get('is_starred')
         file_type = request.query_params.get('file_type')
-        modified = request.query_params.get('modified')
+        uploaded = request.query_params.get('uploaded')
 
         ALLOWED_ORDERING = {
             'original_name', '-original_name',
@@ -288,16 +288,20 @@ class FileListView(APIView):
                 qs = qs.filter(original_name__iendswith='.pdf')
             elif file_type == 'document':
                 qs = qs.filter(original_name__iregex=r'\.(doc|docx|xls|xlsx|txt|csv|ppt|pptx)$')
+            elif file_type == 'video':
+                qs = qs.filter(original_name__iregex=r'\.(mp4|webm|mov|avi|mkv)$')
+            elif file_type == 'audio':
+                qs = qs.filter(original_name__iregex=r'\.(mp3|wav|aac|flac|m4a|ogg)$')
             elif file_type == 'other':
                 qs = qs.exclude(original_name__iregex=r'\.(jpg|jpeg|png|gif|svg|webp|bmp|pdf|doc|docx|xls|xlsx|txt|csv|ppt|pptx)$')
 
-        if modified:
+        if uploaded:
             now = timezone.now()
-            if modified == 'today':
+            if uploaded == 'today':
                 qs = qs.filter(uploaded_at__date=now.date())
-            elif modified == 'week':
+            elif uploaded == 'week':
                 qs = qs.filter(uploaded_at__gte=now - timedelta(days=7))
-            elif modified == 'month':
+            elif uploaded == 'month':
                 qs = qs.filter(uploaded_at__gte=now - timedelta(days=30))
 
         # ❌ removed qs = qs.order_by(ordering) — this was overriding the annotated sort from service
@@ -480,13 +484,24 @@ class FileShareView(APIView):
 
     def get(self, request):
         search = request.query_params.get("search", "").strip()
+        status = request.query_params.get("status", "")
+        
         qs = list_user_shares(request.user, search=search or None)
+        
+        now = timezone.now()
+        
+        if status == "revoked":
+            qs = qs.filter(is_revoked=True)
+        elif status == "expired":
+            qs = qs.filter(is_revoked=False, expires_at__lt=now)
+        elif status == "active":
+            qs = qs.filter(is_revoked=False, expires_at__gte=now)
 
         paginator = FilePagination()
         page = paginator.paginate_queryset(qs, request)
         serializer = FileShareListSerializer(page, many=True, context={"request": request})
         return paginator.get_paginated_response({"shares": serializer.data})
-        
+            
 
     def post(self, request):
         serializer = FileShareCreateSerializer(data=request.data)

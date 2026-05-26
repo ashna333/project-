@@ -6,6 +6,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
+from datetime import timedelta
+from django.db import models as db_models
+from django.utils import timezone
 
 from .serializers import (
     PrivateShareCreateSerializer,
@@ -114,18 +117,103 @@ class PrivateShareOwnerListView(APIView):
         page = paginator.paginate_queryset(qs, request)
         serializer = PrivateShareOwnerSerializer(page, many=True, context={"request": request})
         return paginator.get_paginated_response({"shares": serializer.data})
+    
 
+from datetime import timedelta
+from django.db import models as db_models
+from django.utils import timezone
 
 class PrivateShareInboxView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         qs = list_private_shares_for_recipient(request.user)
+
+        # --- Type filter ---
+        file_type = request.query_params.get("type")
+        if file_type:
+            IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp']
+            PDF_EXTS = ['pdf']
+            DOC_EXTS = ['doc', 'docx', 'xls', 'xlsx', 'txt', 'csv', 'ppt', 'pptx']
+            ALL_KNOWN = IMAGE_EXTS + PDF_EXTS + DOC_EXTS
+
+            if file_type == 'image':
+                exts = IMAGE_EXTS
+            elif file_type == 'pdf':
+                exts = PDF_EXTS
+            elif file_type == 'document':
+                exts = DOC_EXTS
+            elif file_type == 'other':
+                exts = None
+                exclude_q = db_models.Q()
+                for ext in ALL_KNOWN:
+                    exclude_q |= db_models.Q(
+                        private_share__user_file__original_name__iendswith=f'.{ext}'
+                    )
+                qs = qs.exclude(exclude_q)
+            else:
+                exts = None
+
+            if file_type != 'other' and exts:
+                ext_q = db_models.Q()
+                for ext in exts:
+                    ext_q |= db_models.Q(
+                        private_share__user_file__original_name__iendswith=f'.{ext}'
+                    )
+                qs = qs.filter(ext_q)
+
+        # --- People filter ---
+        shared_by = request.query_params.get("sharedBy")
+        if shared_by:
+            qs = qs.filter(private_share__owner__email__iexact=shared_by)
+
+        # --- Expires filter ---
+        expires = request.query_params.get("expires")
+        if expires:
+            now = timezone.now()
+            if expires == 'never':
+                qs = qs.filter(private_share__expires_at__isnull=True)
+            elif expires == 'past':
+                qs = qs.filter(private_share__expires_at__lt=now)
+            elif expires == 'week':
+                qs = qs.filter(
+                    private_share__expires_at__gte=now,
+                    private_share__expires_at__lte=now + timedelta(days=7)
+                )
+            elif expires == 'month':
+                qs = qs.filter(
+                    private_share__expires_at__gte=now,
+                    private_share__expires_at__lte=now + timedelta(days=30)
+                )
+
+        # --- Status filter ---
+        status_filter = request.query_params.get("status")
+        if status_filter:
+            now = timezone.now()
+            if status_filter == 'accessible':
+                qs = qs.filter(
+                    is_revoked=False,
+                    private_share__is_revoked=False,
+                ).filter(
+                    db_models.Q(private_share__expires_at__isnull=True) |
+                    db_models.Q(private_share__expires_at__gt=now)
+                )
+            elif status_filter == 'expired':
+                qs = qs.filter(
+                    is_revoked=False,
+                    private_share__is_revoked=False,
+                    private_share__expires_at__lt=now,
+                )
+            elif status_filter == 'revoked':
+                qs = qs.filter(
+                    db_models.Q(is_revoked=True) |
+                    db_models.Q(private_share__is_revoked=True)
+                )
+
         paginator = FilePagination()
         page = paginator.paginate_queryset(qs, request)
         serializer = PrivateShareInboxSerializer(page, many=True, context={"request": request})
         return paginator.get_paginated_response({"shares": serializer.data})
-
 
 class PrivateShareDetailView(APIView):
     permission_classes = [IsAuthenticated]

@@ -158,25 +158,27 @@ export default function SharedWithMePage() {
   ];
 
   const runProtectedAction = async (share, pwd, action) => {
-    const isPreview = action === 'preview';
-    const { data } = await downloadPrivateShareApi(share.share_id, pwd, isPreview);
-    const url = window.URL.createObjectURL(
-      new Blob([data], { type: data.type || 'application/octet-stream' })
-    );
-    if (isPreview) {
-      const extension = share.file_name.split('.').pop().toLowerCase();
-      const isImage = ['jpg','jpeg','png','gif','svg','webp','bmp'].includes(extension);
-      const isPDF = extension === 'pdf';
-      setPreviewFile({ ...share, url, isImage, isPDF });
-    } else {
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = share.file_name;
-      link.click();
-      window.URL.revokeObjectURL(url);
-    }
-    return true;
-  };
+  const isPreview = action === 'preview';
+  const { data } = await downloadPrivateShareApi(share.share_id, pwd, isPreview);
+  const url = window.URL.createObjectURL(
+    new Blob([data], { type: data.type || 'application/octet-stream' })
+  );
+  if (isPreview) {
+    const extension = share.file_name.split('.').pop().toLowerCase();
+    const isImage = ['jpg','jpeg','png','gif','svg','webp','bmp'].includes(extension);
+    const isPDF   = extension === 'pdf';
+    const isVideo = ['mp4','webm','mov','avi','mkv'].includes(extension);
+    const isAudio = ['mp3','wav','ogg','aac','flac','m4a'].includes(extension);
+    setPreviewFile({ ...share, url, isImage, isPDF, isVideo, isAudio });
+  } else {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = share.file_name;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  }
+  return true;
+};
 
   const handleDownload = async (share, pwd = '', silent = false) => {
     try {
@@ -588,20 +590,52 @@ export default function SharedWithMePage() {
               </button>
             </div>
             <div className="ps-preview-container">
-              {previewFile.isImage ? (
-                <img src={previewFile.url} alt="Preview" className="ps-preview-image" />
-              ) : previewFile.isPDF ? (
-                <iframe
-                  src={`${previewFile.url}#toolbar=0&navpanes=0&scrollbar=1`}
-                  className="ps-preview-pdf"
-                  title="PDF Preview"
-                />
-              ) : (
-                <div className="ps-preview-unavailable">
-                  Preview not available for this file type. Please download to view.
-                </div>
-              )}
-            </div>
+  {previewFile.isImage ? (
+    <img src={previewFile.url} alt="Preview" className="ps-preview-image" />
+  ) : previewFile.isPDF ? (
+    <iframe
+      src={`${previewFile.url}#toolbar=0&navpanes=0&scrollbar=1`}
+      className="ps-preview-pdf"
+      title="PDF Preview"
+    />
+  ) : previewFile.isVideo ? (
+    <video
+  src={previewFile.url}
+  controls
+  autoPlay
+  style={{
+    width: '100%',
+    height: '100%',
+    maxHeight: '70vh',      /* ← add this */
+    objectFit: 'contain',
+    background: '#000',
+    borderRadius: '0 0 12px 12px',
+    display: 'block',
+  }}
+/>
+  ) : previewFile.isAudio ? (
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      gap: '24px', height: '100%', padding: '40px',
+    }}>
+      <div style={{ opacity: 0.2 }}>
+        <FileIcon size={64} color="#e11d48" />
+      </div>
+      <audio
+        src={previewFile.url}
+        controls
+        autoPlay
+        style={{ width: '85%', accentColor: '#e11d48' }}
+      />
+      <p style={{ color: '#71717a', fontSize: '13px' }}>{previewFile.file_name}</p>
+    </div>
+  ) : (
+    <div className="ps-preview-unavailable">
+      Preview not available for this file type. Please download to view.
+    </div>
+  )}
+</div>
           </div>
         </div>
       )}

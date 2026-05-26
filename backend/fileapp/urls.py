@@ -59,7 +59,7 @@ urlpatterns = [
     path('reset-password/', ResetPasswordView.as_view()),
     path("upload/check/", UploadCheckView.as_view(), name="upload-check"),
     path("upload/", FileUploadView.as_view(), name="file-upload"),
-    path("", FileListView.as_view(), name="file-list"),
+    path("fetch/", FileListView.as_view(), name="file-list"),
 
     
 

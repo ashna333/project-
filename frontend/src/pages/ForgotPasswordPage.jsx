@@ -68,7 +68,7 @@ export default function ForgotPasswordPage() {
           <div className="form-group">
             <label className="form-label">Email</label>
             <input
-              className={`form-input ${fieldError ? 'input-error' : ''}`}
+              className={`form-inputt ${fieldError ? 'input-error' : ''}`}
               type="email"
               placeholder="name@company.com"
               value={email}
@@ -82,7 +82,7 @@ export default function ForgotPasswordPage() {
           </div>
 
           <button
-            className="btn-primary"
+            className="submit-btn"
             type="submit"
             disabled={loading}
           >
