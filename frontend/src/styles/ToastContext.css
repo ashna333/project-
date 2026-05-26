@@ -1,15 +1,24 @@
 .toast-notification {
   position: fixed !important;
-  top: 80px !important; 
+  top: 80px !important;
   right: 142px !important;
   z-index: 999999 !important;
   display: block;
-  animation: toastSlideTop 2s ease-out;
-  transform: translate3d(0, 0, 0); 
+  animation: toastSlideIn 0.35s ease-out forwards;
+  transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
 }
 
-
+@keyframes toastSlideIn {
+  0% {
+    transform: translateY(-120%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
 
 
 .toast-icon {
@@ -40,7 +49,7 @@
   min-width: 190px;
 }
 
-@keyframes toastSlideTop {
+/* @keyframes toastSlideTop {
   0% {
     transform: translateY(-120%);
     opacity: 0;
@@ -63,5 +72,5 @@
     transform: translateY(-120%);
     opacity: 0;
   }
-}
+} */
 

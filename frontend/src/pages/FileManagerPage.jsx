@@ -5,12 +5,13 @@ import {
   File as FileIcon,
   Download, Trash2,
   Edit2, FileText, Image as ImageIcon, X, Star, Zap, ChevronDown,
-  ArrowUp, ArrowDown,
+  ArrowUp, ArrowDown,Music,Video
 } from 'lucide-react';
 import { fetchFiles, downloadFile, toggleFileStar } from '../store/fileThunks';
 import { setSearchQuery } from '../store/fileSlice';
 import '../styles/DashboardPage.css';
 import '../styles/FileManager.css';
+import '../styles/responsive.css';
 import ShareModal from '../components/ShareModal';
 import RenameModal from '../components/RenameModal';
 import { deleteFileApi } from '../store/fileApi';
@@ -31,6 +32,8 @@ const FILTER_CONFIG = [
       { value: 'image',    label: 'Images' },
       { value: 'pdf',      label: 'PDF' },
       { value: 'document', label: 'Documents' },
+      { value: 'video', label: 'Videos' },
+      { value: 'audio', label: 'Audio' },
       { value: 'other',    label: 'Other' },
     ],
   },
@@ -67,7 +70,8 @@ export default function FileManagerPage() {
   const [currentPage, setCurrentPage]             = useState(1);
   const [totalPages, setTotalPages]               = useState(1);
   const pageSize                                   = 12;
-
+  const [aiInsight, setAiInsight]       = useState('');
+  const [aiInsightLoading, setAiInsightLoading] = useState(false);  
   const [filters, setFilters]       = useState({});
   const [openFilter, setOpenFilter] = useState(null);
   const [ordering, setOrdering]     = useState('-uploaded_at');
@@ -96,11 +100,11 @@ export default function FileManagerPage() {
     document.addEventListener('click', close);
     return () => document.removeEventListener('click', close);
   }, []);
-
   useEffect(() => {
-    const params = { ordering, ...filters };
-    dispatch(fetchFiles(currentPage, pageSize, searchQuery, params));
-  }, [dispatch, currentPage, pageSize, searchQuery, filters, ordering]);
+  const params = { ordering, ...filters };
+  dispatch(fetchFiles(currentPage, pageSize, searchQuery, params));
+}, [dispatch, currentPage, pageSize, searchQuery, JSON.stringify(filters), ordering]);
+
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -118,6 +122,14 @@ export default function FileManagerPage() {
       setTotalPages(Math.ceil((pagination.count || 0) / pageSize) || 1);
     }
   }, [pagination, pageSize]);
+
+  useEffect(() => {
+  if (selectedFile) {
+    fetchAiInsight(selectedFile);
+  } else {
+    setAiInsight('');
+  }
+}, [selectedFile?.id]);
 
   const handleRefresh = async () => {
     const params = { ordering, ...filters };
@@ -138,20 +150,19 @@ export default function FileManagerPage() {
   const isNameSort = ordering === 'original_name' || ordering === '-original_name';
   const nameAsc    = ordering === 'original_name';
 
-  const handleFilterChange = (key, value) => {
-    const newFilters = { ...filters, [key]: filters[key] === value ? undefined : value };
-    Object.keys(newFilters).forEach(k => newFilters[k] === undefined && delete newFilters[k]);
-    setFilters(newFilters);
-    setCurrentPage(1);
-    setOpenFilter(null);
-    const params = { ordering, ...newFilters };
-    dispatch(fetchFiles(1, pageSize, searchQuery, params));
-  };
+const handleFilterChange = (key, value) => {
+  const newFilters = { ...filters, [key]: filters[key] === value ? undefined : value };
+  Object.keys(newFilters).forEach(k => newFilters[k] === undefined && delete newFilters[k]);
+  setFilters(newFilters);
+  setCurrentPage(1);
+  setOpenFilter(null);
+
+};
 
   const clearFilters = () => {
     setFilters({});
     setCurrentPage(1);
-    dispatch(fetchFiles(1, pageSize, searchQuery, { ordering }));
+    
   };
 
   const activeFilterCount = Object.keys(filters).length;
@@ -168,33 +179,106 @@ export default function FileManagerPage() {
     setIsDeleteModalOpen(true);
   };
 
+  const handleBulkMoveToTrash = async () => {
+    if (!someSelected) return;
+    try {
+      let successCount = 0;
+      for (const id of selectedIds) {
+        try {
+          await deleteFileApi(id);
+          successCount++;
+        } catch (err) {
+          if (err.response?.status !== 404) throw err;
+        }
+      }
+
+      showToast(`${successCount} file(s) moved to trash.`);
+      clearSelection();
+
+      const remainingOnPage = safeFiles.filter(f => !selectedIds.includes(f.id)).length;
+      const newPage = remainingOnPage === 0 && currentPage > 1 ? currentPage - 1 : currentPage;
+      setCurrentPage(newPage);
+
+      const params = { ordering, ...filters };
+      await dispatch(fetchFiles(newPage, pageSize, searchQuery, params));
+    } catch {
+      showToast('Failed to move some files to trash.');
+    }
+  };
+
+  const fetchAiInsight = async (file) => {
+  setAiInsightLoading(true);
+  setAiInsight('');
+  try {
+    const prompt = `You are a file assistant. Given this file metadata, write a short 1-2 sentence insight about the file that would be useful to the user. Be specific and helpful, not generic.
+
+File name: ${file.original_name}
+File type: ${file.file_type || 'unknown'}
+File size: ${formatFileSize(file.file_size)}
+Uploaded: ${new Date(file.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+
+Respond with just the insight text, no preamble.`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyCb7JhZMICu_hh9J_5RIk-QqR3KexD-x4Y`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      }
+    );
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Could not generate insight.';
+    setAiInsight(text);
+  } catch {
+    setAiInsight('Could not generate insight.');
+  } finally {
+    setAiInsightLoading(false);
+  }
+};
+const generateLocalInsight = (file) => {
+  const ext = file.original_name?.split('.').pop()?.toLowerCase();
+  const size = file.file_size;
+  const name = file.original_name || '';
+
+  if (['mp4','webm','mov'].includes(ext)) {
+    return `Video file${size > 50_000_000 ? ' — large file, may take time to download.' : ' — ready for quick sharing.'}`;
+  }
+  if (['mp3','wav','aac','flac','m4a'].includes(ext)) {
+    return `Audio file${size > 10_000_000 ? ' — high quality or long recording.' : ' — compact audio, easy to share.'}`;
+  }
+  if (ext === 'pdf') {
+    return `PDF document — ${size > 5_000_000 ? 'large document, may contain many pages or images.' : 'lightweight document, ideal for sharing.'}`;
+  }
+  if (['jpg','jpeg','png','webp'].includes(ext)) {
+    return `Image file${size > 2_000_000 ? ' — high resolution, consider compressing before sharing.' : ' — well sized for sharing.'}`;
+  }
+  if (['doc','docx'].includes(ext)) return `Word document — editable file, best shared as PDF for viewing.`;
+  if (['xls','xlsx'].includes(ext)) return `Spreadsheet — contains tabular data, open in Excel or Google Sheets.`;
+  if (['zip','rar'].includes(ext)) return `Archive file — contains compressed files inside.`;
+  return `File uploaded on ${new Date(file.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}.`;
+};
+
   const confirmDelete = async () => {
     if (!fileToDelete) return;
     try {
       await deleteFileApi(fileToDelete.id);
       showToast('File moved to trash');
+
+      const newPage = safeFiles.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage;
+      setCurrentPage(newPage);
+
       const params = { ordering, ...filters };
-      await dispatch(fetchFiles(pagination.currentPage, pagination.pageSize, searchQuery, params));
+      await dispatch(fetchFiles(newPage, pageSize, searchQuery, params));
+
       setIsDeleteModalOpen(false);
       setSelectedFile(null);
       setFileToDelete(null);
       restoreScroll();
     } catch {
       showToast('Failed to delete file');
-    }
-  };
-
-  // Bulk move to trash
-  const handleBulkMoveToTrash = async () => {
-    if (!someSelected) return;
-    try {
-      await Promise.all(selectedIds.map(id => deleteFileApi(id)));
-      showToast(`${selectedIds.length} file(s) moved to trash.`);
-      clearSelection();
-      const params = { ordering, ...filters };
-      dispatch(fetchFiles(currentPage, pageSize, searchQuery, params));
-    } catch {
-      showToast('Failed to move some files to trash.');
     }
   };
 
@@ -211,6 +295,19 @@ export default function FileManagerPage() {
     }
   };
 
+  const handleFileSelect = (file) => {
+    if (selectedFile && selectedFile.id === file.id && file.url) {
+      window.open(file.url, '_blank');
+    } else {
+      setSelectedFile(file);
+    }
+  };
+
+  // Opens file in a new browser tab
+  const handleOpenInNewTab = () => {
+    if (selectedFile?.url) window.open(selectedFile.url, '_blank');
+  };
+
   const getFileIcon = (file) => {
     const type = (file?.file_type || '').toLowerCase();
     const name = (file?.original_name || '').toLowerCase();
@@ -220,6 +317,12 @@ export default function FileManagerPage() {
     if (type.includes('image') || name.match(/\.(jpg|jpeg|png|gif|svg|webp|bmp)$/)) {
       return <ImageIcon size={viewMode === 'grid' ? 40 : 20} className="text-rose" />;
     }
+    if (type.includes('audio') || name.match(/\.(mp3|wav|aac|flac|m4a|ogg)$/)) {
+    return <Music size={viewMode === 'grid' ? 40 : 20} className="text-rose" />;  // add Music to lucide imports
+  }
+  if (type.includes('video') || name.match(/\.(mp4|webm|mov|avi|mkv)$/)) {
+    return <Video size={viewMode === 'grid' ? 40 : 20} className="text-rose" />;
+  }
     return <FileIcon size={viewMode === 'grid' ? 40 : 20} className="text-rose" />;
   };
 
@@ -244,6 +347,12 @@ export default function FileManagerPage() {
       mp4: 'Video File', mp3: 'Audio File',
       js: 'JavaScript File', py: 'Python File',
       html: 'HTML File', css: 'CSS File', json: 'JSON File',
+       mp3: 'Audio File',
+        wav: 'Audio File',
+        aac: 'Audio File',
+        flac: 'Audio File',
+        m4a: 'Audio File',
+        ogg: 'Audio File',
     };
     if (['jpg', 'jpeg', 'png', 'svg', 'webp', 'bmp'].includes(extension)) {
       return `Image (${extension.toUpperCase()})`;
@@ -343,7 +452,6 @@ export default function FileManagerPage() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
 
-            {/* Select toolbar always on the left */}
             <SelectToolbar
               files={safeFiles}
               selectMode={selectMode}
@@ -356,7 +464,6 @@ export default function FileManagerPage() {
               actionLoading={null}
             />
 
-            {/* Sort buttons — hidden when select mode is active */}
             {!selectMode && (
               <>
                 <button style={sortBtnStyle(isNameSort)} onClick={handleNameSort}>
@@ -413,7 +520,7 @@ export default function FileManagerPage() {
             <FileGrid
               files={safeFiles}
               viewMode={viewMode}
-              onSelect={selectMode ? undefined : setSelectedFile}
+              onSelect={selectMode ? undefined : handleFileSelect}
               onStar={handleToggleStar}
               onRename={(file) => { saveScroll(); setActiveFile(file); setIsRenameModalOpen(true); }}
               onShare={(file) => { saveScroll(); setActiveFile(file); setIsModalOpen(true); }}
@@ -438,105 +545,226 @@ export default function FileManagerPage() {
         <footer className="fm-footer">CloudShare - Secure file sharing, built for teams.</footer>
       </main>
 
-      {/* File details modal */}
-      {selectedFile && (
-        <div className="modal-overlay" onClick={() => setSelectedFile(null)}>
-          <div className="file-details-modal fade-in-up" onClick={(e) => e.stopPropagation()}>
+    {/* File details modal */}
+{selectedFile && (
+  <div className="modal-overlay" onClick={() => setSelectedFile(null)}>
+    <div className="file-details-modal fade-in-up" onClick={(e) => e.stopPropagation()}>
 
-            <div className="modal-header-section">
-              <h3>File Details</h3>
-              <button className="close-sidebar" onClick={() => setSelectedFile(null)}>
-                <X size={18} />
+      <div className="modal-header-section">
+        <h3>File Details</h3>
+        <button className="close-sidebar" onClick={() => setSelectedFile(null)}>
+          <X size={18} />
+        </button>
+      </div>
+
+      {/* Preview — video gets its own non-clickable container */}
+      {(() => {
+        const ext = selectedFile.original_name?.split('.').pop()?.toLowerCase();
+        const isImage = ['jpg','jpeg','png','gif','svg','webp','bmp'].includes(ext);
+        const isPDF   = ext === 'pdf';
+        const isVideo = ['mp4','webm','ogg','mov'].includes(ext);
+        const isAudio = ['mp3','wav','ogg','aac','flac','m4a'].includes(ext);
+
+       if (isVideo) return (
+        <div className="modal-preview-box" style={{ cursor: 'default' }}>
+          <video
+            src={selectedFile?.url}
+            controls
+            style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000', display: 'block' }}
+          />
+          <button
+            onClick={handleOpenInNewTab}
+            style={{
+              position: 'absolute', top: '10px', right: '10px',
+              background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.15)',
+              color: '#fff', fontSize: '12px', padding: '5px 10px',
+              borderRadius: '6px', cursor: 'pointer', zIndex: 10,
+              display: 'flex', alignItems: 'center', gap: '4px',
+            }}
+           >
+           ↗ Open in new tab
+          </button>
+        </div>
+);
+  if (isPDF) return (
+    <div className="modal-preview-box" style={{ cursor: 'default' }}>
+      <iframe
+        src={`${selectedFile?.url}#toolbar=0&scrollbar=0&navpanes=0&view=FitH`}
+        style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+        title="PDF Preview"
+      />
+      <button
+        onClick={(e) => { e.stopPropagation(); handleOpenInNewTab(); }}
+        style={{
+          position: 'absolute', top: '10px', right: '10px',
+          background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.15)',
+          color: '#fff', fontSize: '12px', padding: '5px 10px',
+          borderRadius: '6px', cursor: 'pointer', zIndex: 10,
+          display: 'flex', alignItems: 'center', gap: '4px',
+        }}
+      >
+        ↗ Open in new tab
+      </button>
+    </div>
+  );
+  // Audio — inline player
+if (isAudio) return (
+  <div className="modal-preview-box" style={{ cursor: 'default', flexDirection: 'column', gap: '16px' }}>
+    <div style={{ opacity: 0.15 }}>
+      {getFileIcon(selectedFile)}
+    </div>
+    <audio
+      src={selectedFile?.url}
+      controls
+      style={{ width: '85%', accentColor: '#e11d48' }}
+    />
+    <button
+      onClick={handleOpenInNewTab}
+      style={{
+        position: 'absolute', top: '10px', right: '10px',
+        background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.15)',
+        color: '#fff', fontSize: '12px', padding: '5px 10px',
+        borderRadius: '6px', cursor: 'pointer', zIndex: 10,
+        display: 'flex', alignItems: 'center', gap: '4px',
+      }}
+    >
+      ↗ Open in new tab
+    </button>
+  </div>
+);
+        return (
+          <div
+            className="modal-preview-box modal-preview-clickable"
+            onClick={handleOpenInNewTab}
+            title="Click to open in new tab"
+          >
+            {isImage && (
+              <img src={selectedFile?.url} alt="Preview" className="modal-img-preview" />
+            )}
+          {isPDF && (
+            <>
+              <iframe
+                src={`${selectedFile?.url}#toolbar=0&scrollbar=0&navpanes=0&view=FitH`}
+                style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+                title="PDF Preview"
+              />
+              <button
+                onClick={(e) => { e.stopPropagation(); handleOpenInNewTab(); }}
+                style={{
+                  position: 'absolute', top: '10px', right: '10px',
+                  background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.15)',
+                  color: '#fff', fontSize: '12px', padding: '5px 10px',
+                  borderRadius: '6px', cursor: 'pointer', zIndex: 10,
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                }}
+              >
+                ↗ Open in new tab
               </button>
-            </div>
-
-            <div className="modal-preview-box">
-              {(() => {
-                const ext = selectedFile.original_name?.split('.').pop()?.toLowerCase();
-                const isImage = ['jpg','jpeg','png','gif','svg','webp','bmp'].includes(ext);
-                const isPDF   = ext === 'pdf';
-                if (isImage) return <img src={selectedFile?.url} alt="Preview" className="modal-img-preview" />;
-                if (isPDF)   return <embed src={selectedFile?.url} type="application/pdf" width="100%" height="100%" />;
-                return <div className="modal-icon-placeholder">{getFileIcon(selectedFile)}</div>;
-              })()}
-            </div>
-
-            <div className="modal-body-content">
-              <div className="detail-title-row">
-                <h2 className="detail-filename">{selectedFile.original_name}</h2>
-                <div
-                  onClick={(e) => handleToggleStar(selectedFile, e)}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '6px',
-                    cursor: 'pointer', width: 'fit-content',
-                    color: selectedFile.is_starred ? '#fbbf24' : '#52525b',
-                    fontSize: '12px', marginTop: '4px',
-                  }}
-                >
-                  <Star
-                    size={13}
-                    fill={selectedFile.is_starred ? '#fbbf24' : 'none'}
-                    color={selectedFile.is_starred ? '#fbbf24' : '#52525b'}
-                  />
-                  {selectedFile.is_starred ? 'Starred' : 'Add to starred'}
-                </div>
-              </div>
-
-              <div className="detail-info-grid">
-                <div className="info-group">
-                  <label>Size</label>
-                  <span>{formatFileSize(selectedFile.file_size)}</span>
-                </div>
-                <div className="info-group">
-                  <label>Type</label>
-                  <span>{getReadableFileType(selectedFile)}</span>
-                </div>
-                <div className="info-group">
-                  <label>Uploaded</label>
-                  <span>{new Date(selectedFile.uploaded_at).toLocaleDateString('en-GB', {
-                    day: 'numeric', month: 'short', year: 'numeric'
-                  })}</span>
-                </div>
-              </div>
-
-              <div className="sidebar-actions-main">
-                <button onClick={() => { dispatch(downloadFile(selectedFile.id, selectedFile.original_name)); setSelectedFile(null); }}>
-                  <Download size={16} /> Download
-                </button>
-                <button
-                  className="sidebar-btn-share"
-                  onClick={() => { setActiveFile(selectedFile); setIsModalOpen(true); setSelectedFile(null); }}
-                >
-                  <Share2 size={16} /> Share
-                </button>
-                <button
-                  className="sidebar-btn-delete"
-                  onClick={() => { handleDeleteTrigger(selectedFile); setSelectedFile(null); }}
-                >
-                  <Trash2 size={16} /> Delete
-                </button>
-              </div>
-
-              <div className="ai-insights-card">
-                <div className="insights-header">
-                  <div className="insights-title">
-                    <Zap size={12} color="#e11d48" /> AI Insights
-                  </div>
-                  <button className="insights-regen">Regenerate</button>
-                </div>
-                <p className="insights-text">
-                  A {selectedFile.file_type || 'document'} named '{selectedFile.original_name}'.
-                  {selectedFile.file_size > 1000000 ? ' This is a large file.' : ' Optimized for quick sharing.'}
-                </p>
-                <span className="insight-tag">
-                  {selectedFile.original_name?.split('.').pop()?.toUpperCase() || 'FILE'}
+            </>
+          )}
+            {!isImage && !isPDF && (
+              <div className="modal-icon-placeholder">
+                {getFileIcon(selectedFile)}
+                <span style={{ fontSize: '12px', color: '#71717a', marginTop: '8px', display: 'block' }}>
+                  Preview not available
                 </span>
               </div>
-            </div>
+            )}
+            
+          </div>
+        );
+      })()}
+
+      <div className="modal-body-content">
+        <div className="detail-title-row">
+          <h2 className="detail-filename">{selectedFile.original_name}</h2>
+          <div
+            onClick={(e) => handleToggleStar(selectedFile, e)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              cursor: 'pointer', width: 'fit-content',
+              color: selectedFile.is_starred ? '#fbbf24' : '#52525b',
+              fontSize: '12px', marginTop: '4px',
+            }}
+          >
+            <Star
+              size={13}
+              fill={selectedFile.is_starred ? '#fbbf24' : 'none'}
+              color={selectedFile.is_starred ? '#fbbf24' : '#52525b'}
+            />
+            {selectedFile.is_starred ? 'Starred' : 'Add to starred'}
           </div>
         </div>
-      )}
 
+        <div className="detail-info-grid">
+          <div className="info-group">
+            <label>Size</label>
+            <span>{formatFileSize(selectedFile.file_size)}</span>
+          </div>
+          <div className="info-group">
+            <label>Type</label>
+            <span>{getReadableFileType(selectedFile)}</span>
+          </div>
+          <div className="info-group">
+            <label>Uploaded</label>
+            <span>{new Date(selectedFile.uploaded_at).toLocaleDateString('en-GB', {
+              day: 'numeric', month: 'short', year: 'numeric'
+            })}</span>
+          </div>
+        </div>
+
+        <div className="sidebar-actions-main">
+          <button
+            className="sidebar-btn-share"
+            onClick={() => { setActiveFile(selectedFile); setIsRenameModalOpen(true); setSelectedFile(null); }}
+          >
+            <Edit2 size={16} /> Edit
+          </button>
+          <button onClick={() => { dispatch(downloadFile(selectedFile.id, selectedFile.original_name)); setSelectedFile(null); }}>
+            <Download size={16} /> Download
+          </button>
+          <button
+            className="sidebar-btn-share"
+            onClick={() => { setActiveFile(selectedFile); setIsModalOpen(true); setSelectedFile(null); }}
+          >
+            <Share2 size={16} /> Share
+          </button>
+          <button
+            className="sidebar-btn-delete"
+            onClick={() => { handleDeleteTrigger(selectedFile); setSelectedFile(null); }}
+          >
+            <Trash2 size={16} /> Delete
+          </button>
+        </div>
+
+        <div className="ai-insights-card">
+            <div className="insights-header">
+              <div className="insights-title">
+                <Zap size={12} color="#e11d48" /> AI Insights
+              </div>
+              <button
+                className="insights-regen"
+                onClick={() => fetchAiInsight(selectedFile)}
+                disabled={aiInsightLoading}
+              >
+                {aiInsightLoading ? 'Thinking...' : 'Regenerate'}
+              </button>
+            </div>
+            <p className="insights-text">
+              {aiInsightLoading
+                ? <span style={{ color: '#52525b', fontStyle: 'italic' }}>Analysing file...</span>
+                : aiInsight || 'No insight yet.'
+              }
+            </p>
+            <span className="insight-tag">
+              {selectedFile.original_name?.split('.').pop()?.toUpperCase() || 'FILE'}
+            </span>
+          </div>
+      </div>
+
+    </div>
+  </div>
+)}
       <ShareModal
         file={activeFile}
         isOpen={isModalOpen}

@@ -29,16 +29,28 @@ const processQueue = (error, token = null) => {
 // Soft logout — clears tokens + updates Zustand without a full page reload.
 // Uses a dynamic import to avoid a circular dependency between
 // axiosInstance ↔ authStore.
+// const softLogout = () => {
+//   localStorage.removeItem('access_token')
+//   localStorage.removeItem('refresh_token')
+//   localStorage.removeItem('auth_user')
+//   // Dynamically import the store so there is no circular import at module load time.
+//   import('../store/authStore').then(({ default: useAuthStore }) => {
+//     useAuthStore.getState().logout()
+//   })
+// }
+
+
+
 const softLogout = () => {
   localStorage.removeItem('access_token')
   localStorage.removeItem('refresh_token')
   localStorage.removeItem('auth_user')
-  // Dynamically import the store so there is no circular import at module load time.
   import('../store/authStore').then(({ default: useAuthStore }) => {
     useAuthStore.getState().logout()
   })
+  // Always redirect to login, never back to previous page
+  window.location.href = '/login'
 }
-
 api.interceptors.response.use(
   (res) => res,
   async (error) => {

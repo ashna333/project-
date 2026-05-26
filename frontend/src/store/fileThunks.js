@@ -25,7 +25,7 @@ export const fetchFiles = (page = 1, pageSize = 12, search = '', filters = {}) =
   try {
     // Pass filters into your API function
     const { data } = await fetchFilesApi(page, pageSize, search, filters)
-    console.log('API response:', data) 
+ 
 
     dispatch(fetchFilesSuccess({
       files: data.results.files,
@@ -181,9 +181,7 @@ export const changePasswordAction = (passwordData) => async (dispatch) => {
     };
 
   } catch (error) {
-    console.log("Full Error:", error);
-
-    console.log("RAW BACKEND RESPONSE:", error?.response?.data);
+   
 
     const backendMessage =
       error?.response?.data?.detail ||
@@ -194,8 +192,7 @@ export const changePasswordAction = (passwordData) => async (dispatch) => {
       JSON.stringify(error?.response?.data) ||
       "Password update failed. Please try again.";
 
-    console.log("Backend Error Details:", backendMessage);
-
+   
     return {
       success: false,
       error: backendMessage,

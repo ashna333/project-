@@ -58,69 +58,33 @@ export default function SharedWithMePage() {
   useBodyScrollLock(anyModalOpen);
 
   const load = async (page = 1, currentFilters = filters) => {
-    setLoading(true);
-    try {
-      const { data } = await fetchPrivateSharesInboxApi(page, pageSize);
+  setLoading(true);
+  try {
+    // Pass filters directly to the API instead of filtering client-side
+    const { data } = await fetchPrivateSharesInboxApi(page, pageSize, currentFilters);
 
-      let list =
-        data.results?.shares ??
-        data.shares ??
-        (Array.isArray(data.results) ? data.results : []);
+    let list =
+      data.results?.shares ??
+      data.shares ??
+      (Array.isArray(data.results) ? data.results : []);
 
-      // collect senders before filtering
-      const uniqueSenders = [...new Set(list.map(s => s.shared_by_email).filter(Boolean))];
-      setSenders(uniqueSenders);
+    // Collect senders from this page for the People filter dropdown
+    // (ideally you'd fetch all senders separately, but this works for now)
+    const uniqueSenders = [...new Set(list.map(s => s.shared_by_email).filter(Boolean))];
+    setSenders(prev => [...new Set([...prev, ...uniqueSenders])]);
 
-      // Type filter — based on file_name extension
-      if (currentFilters.type) {
-        list = list.filter(s => {
-          const ext = (s.file_name || '').split('.').pop().toLowerCase();
-          if (currentFilters.type === 'image') return ['jpg','jpeg','png','gif','svg','webp','bmp'].includes(ext);
-          if (currentFilters.type === 'pdf') return ext === 'pdf';
-          if (currentFilters.type === 'document') return ['doc','docx','xls','xlsx','txt','csv','ppt','pptx'].includes(ext);
-          if (currentFilters.type === 'other') return !['jpg','jpeg','png','gif','svg','webp','bmp','pdf','doc','docx','xls','xlsx','txt','csv','ppt','pptx'].includes(ext);
-          return true;
-        });
-      }
+    setTotalPages(Math.ceil((data.count || 0) / pageSize) || 1);
+    setShares(list);
 
-      // People filter
-      if (currentFilters.sharedBy) {
-        list = list.filter(s => s.shared_by_email === currentFilters.sharedBy);
-      }
-
-      // Expires filter
-      if (currentFilters.expires) {
-        const now = new Date();
-        list = list.filter(s => {
-          const exp = s.expires_at ? new Date(s.expires_at) : null;
-          if (currentFilters.expires === 'never') return !exp;
-          if (currentFilters.expires === 'past') return exp && exp < now;
-          if (currentFilters.expires === 'week') return exp && exp >= now && exp <= new Date(Date.now() + 7 * 86400000);
-          if (currentFilters.expires === 'month') return exp && exp >= now && exp <= new Date(Date.now() + 30 * 86400000);
-          return true;
-        });
-      }
-
-      // Status filter
-      if (currentFilters.status) {
-        list = list.filter(s => {
-          const st = (s.access_status || '').toLowerCase().replace(/\.$/, '').trim();
-          return st === currentFilters.status.toLowerCase();
-        });
-      }
-
-      setTotalPages(Math.ceil((data.count || 0) / pageSize) || 1);
-      setShares(list);
-
-      localStorage.setItem('inbox_last_seen', new Date().toISOString());
-      window.dispatchEvent(new Event('inbox-seen'));
-    } catch (err) {
-      console.error('load error:', err);
-      setShares([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+    localStorage.setItem('inbox_last_seen', new Date().toISOString());
+    window.dispatchEvent(new Event('inbox-seen'));
+  } catch (err) {
+    console.error('load error:', err);
+    setShares([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleFilterChange = (key, value) => {
     const newFilters = { ...filters };
@@ -137,6 +101,7 @@ export default function SharedWithMePage() {
 
   const clearFilters = () => {
     setFilters({});
+    setSenders([]);
     setCurrentPage(1);
     load(1, {});
   };

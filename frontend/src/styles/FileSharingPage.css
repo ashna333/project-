@@ -226,6 +226,35 @@
   color: rgb(113 113 122); /* zinc-500 */
 }
 
+/* Filter Buttons & Spacing */
+.outbox-filters {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.filter-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #3f3f46;
+  background: #18181b;
+  color: #a1a1aa;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.filter-btn:hover {
+  border-color: #52525b;
+  color: #ffffff;
+}
+
+.filter-btn.active {
+  border-color: #e11d48;
+  color: #fda4af;
+  background: rgba(225, 29, 72, 0.1);
+}
+
 @media (max-width: 768px) {
   .outbox-container {
     padding: 100px 12px 40px !important;

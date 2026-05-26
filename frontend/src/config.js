@@ -8,5 +8,3 @@ export const GOOGLE_AUTH_URL = import.meta.env.VITE_GOOGLE_AUTH_URL;
 // Since your API is at /api, the file base is likely the parent
 export const FILE_BASE_URL = API_URL.replace('/api', '');
 
-console.log("API_URL:", API_URL);
-console.log("FILE_BASE_URL:", FILE_BASE_URL);

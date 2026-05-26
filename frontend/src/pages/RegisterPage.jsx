@@ -140,16 +140,16 @@ export default function Registeauthage() {
               </div>
 
 
-<div className="auth-group">
-  <label className="auth-label">Date of Birth</label>
-  <DateOfBirthSelect
-    value={form.dob}
-    onChange={handleChange}
-    name="dob"
-    error={fieldErrors.dob}
-  />
-  {fieldErrors.dob && <span className="field-error">⚠ {fieldErrors.dob}</span>}
-</div>
+                  <div className="auth-group">
+                    <label className="auth-label">Date of Birth</label>
+                    <DateOfBirthSelect
+                      value={form.dob}
+                      onChange={handleChange}
+                      name="dob"
+                      error={fieldErrors.dob}
+                    />
+                    {fieldErrors.dob && <span className="field-error">⚠ {fieldErrors.dob}</span>}
+                  </div>
 
               <div className="auth-group">
                 <label className="auth-label">Password</label>
@@ -178,6 +178,9 @@ export default function Registeauthage() {
                     type={showConfirm ? 'text' : 'password'} 
                     value={form.confirm_password}
                     onChange={handleChange} 
+                     onCopy={(e) => e.preventDefault()}
+                      onPaste={(e) => e.preventDefault()}
+                      onCut={(e) => e.preventDefault()}
                   />
                   <button type="button" className="auth-input-icon-btn" onClick={() => setShowConfirm(!showConfirm)}>
                     <EyeIcon open={showConfirm} />

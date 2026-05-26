@@ -16,10 +16,15 @@ export default function useSelectMode(files) {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.length === files.length) {
-      setSelectedIds([]);
+    const currentPageIds = files.map(f => f.id);
+    const allCurrentPageSelected = currentPageIds.every(id => selectedIds.includes(id));
+
+    if (allCurrentPageSelected) {
+      // Deselect only current page, keep other pages' selections
+      setSelectedIds(prev => prev.filter(id => !currentPageIds.includes(id)));
     } else {
-      setSelectedIds(files.map(f => f.id));
+      // Add current page's IDs to existing selections
+      setSelectedIds(prev => [...new Set([...prev, ...currentPageIds])]);
     }
   };
 
@@ -28,7 +33,8 @@ export default function useSelectMode(files) {
     setSelectMode(false);
   };
 
-  const allSelected = files.length > 0 && selectedIds.length === files.length;
+  // allSelected = every file on the current page is selected
+  const allSelected = files.length > 0 && files.every(f => selectedIds.includes(f.id));
   const someSelected = selectedIds.length > 0;
 
   return {

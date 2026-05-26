@@ -24,7 +24,7 @@ export default function LoginPage() {
   const { login, loading, error, clearMessages } = useAuthStore()
   const { showToast } = useToast()
 
-  const from = location.state?.from?.pathname || '/dashboard'
+  const from =  '/dashboard'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Star, Download, Share2, Edit2, X,
-  FileText, Image as ImageIcon, File as FileIcon,
+  FileText, Image as ImageIcon, File as FileIcon,Trash2
 } from 'lucide-react';
 import { fetchFiles, downloadFile, toggleFileStar } from '../store/fileThunks';
 import { setPage } from '../store/fileSlice';
@@ -91,6 +91,14 @@ export default function StarredPage() {
     }
   };
 
+  const handleFileSelect = (file) => {
+    if (selectedFile && selectedFile.id === file.id && file.url) {
+      window.open(file.url, '_blank');
+    } else {
+      setSelectedFile(file);
+    }
+  };
+
   const handleDeleteTrigger = (file) => {
     setDeleteTarget(file);
   };
@@ -138,7 +146,7 @@ export default function StarredPage() {
             <FileGrid
               files={files}
               viewMode={viewMode}
-              onSelect={setSelectedFile}
+              onSelect={handleFileSelect}
               onStar={handleToggleStar}
               onRename={(file) => { setActiveFile(file); setIsRenameModalOpen(true); }}
               onShare={(file) => { setActiveFile(file); setIsModalOpen(true); }}
@@ -169,11 +177,14 @@ export default function StarredPage() {
             </div>
             <div className="modal-body-content">
               <div className="modal-preview-box">
-                {selectedFile.mime_type?.includes('image') && selectedFile.url ? (
-                  <img src={selectedFile.url} alt="" className="modal-img-preview" />
-                ) : (
-                  <div className="modal-icon-placeholder">{getFileIcon(selectedFile)}</div>
-                )}
+                {(() => {
+                  const ext = selectedFile.original_name?.split('.').pop()?.toLowerCase();
+                  const isImage = ['jpg','jpeg','png','gif','svg','webp','bmp'].includes(ext) || selectedFile.mime_type?.includes('image');
+                  const isPDF   = ext === 'pdf' || selectedFile.mime_type?.includes('pdf');
+                  if (isImage) return <img src={selectedFile.url} alt="Preview" className="modal-img-preview" />;
+                  if (isPDF)   return <embed src={selectedFile.url} type="application/pdf" width="100%" height="100%" />;
+                  return <div className="modal-icon-placeholder">{getFileIcon(selectedFile)}</div>;
+                })()}
               </div>
               <div className="detail-title-row">
                 <h2 className="detail-filename">{selectedFile.original_name}</h2>
@@ -201,6 +212,10 @@ export default function StarredPage() {
                 </div>
               </div>
               <div className="sidebar-actions-main">
+                <button type="button"
+                  onClick={() => { setActiveFile(selectedFile); setIsRenameModalOpen(true); }}>
+                  <Edit2 size={18} /> Rename
+                </button>
                 <button type="button" onClick={() => dispatch(downloadFile(selectedFile.id, selectedFile.original_name))}>
                   <Download size={18} /> Download
                 </button>
@@ -208,12 +223,9 @@ export default function StarredPage() {
                   onClick={() => { setActiveFile(selectedFile); setIsModalOpen(true); }}>
                   <Share2 size={18} /> Share
                 </button>
-                <button type="button"
-                  onClick={() => { setActiveFile(selectedFile); setIsRenameModalOpen(true); }}>
-                  <Edit2 size={18} /> Rename
-                </button>
+                
                 <button type="button" onClick={() => setDeleteTarget(selectedFile)}>
-                  <Star size={18} /> Unstar
+                   <Trash2 size={16}/> Delete
                 </button>
               </div>
             </div>

@@ -36,7 +36,8 @@
 
 .ps-filters {
   display: flex;
-  gap: 8px;
+  gap: 12px;
+  margin-top: 24px;
   margin-bottom: 20px;
 }
 
@@ -731,8 +732,9 @@
 .ps-filter-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
+  margin-top: 24px;
   margin-bottom: 16px;
 }
 

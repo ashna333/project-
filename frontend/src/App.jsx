@@ -26,7 +26,7 @@ import TrashPage from './pages/TrashPage'
 import UploadPage from './pages/UploadPage'
 import StarredPage from './pages/Starredpage'
 import ProfilePage from './pages/ProfilePage'
-import ChangePasswordPage from './pages/ChangePasswordPage'
+
 import PublicShare from './pages/PublicShare'
 import { ToastProvider } from './components/ToastContext';
 
@@ -72,7 +72,7 @@ export default function App() {
             <Route path="/starred" element={<StarredPage />} />
             <Route path="/trash" element={<TrashPage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/settings" element={<ChangePasswordPage />} />
+        
           </Route>
 
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

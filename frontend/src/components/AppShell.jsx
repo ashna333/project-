@@ -13,11 +13,11 @@ export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const hasNewShares = useInboxBadge();
 
   const rawUser = JSON.parse(localStorage.getItem('auth_user')) || {};
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
-  const menuRef = React.useRef(null);
   const userEmail = rawUser.email || '';
   const displayName = formatUserDisplayName(rawUser);
   const initials = userInitials(rawUser);
@@ -34,7 +34,20 @@ export default function AppShell() {
     fetchStorage();
   }, []);
 
-  useBodyScrollLock(showLogoutConfirm);
+  // Close sidebar and dropdown when route changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+    setShowProfileDropdown(false);
+  }, [location.pathname]);
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    const closeDropdown = () => setShowProfileDropdown(false);
+    document.addEventListener('click', closeDropdown);
+    return () => document.removeEventListener('click', closeDropdown);
+  }, []);
+
+  useBodyScrollLock(showLogoutConfirm || isMobileMenuOpen);
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
@@ -45,37 +58,49 @@ export default function AppShell() {
     navigate('/login');
   };
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        // menu close logic if needed
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   const isActive = (path) => location.pathname === path ? 'active' : '';
+
+  const navTo = (path) => {
+    navigate(path);
+    setIsMobileMenuOpen(false);
+  };
 
   return (
     <div className="dashboard-container app-layout">
-      {/* Sidebar Navigation */}
+
+      {/* Mobile overlay backdrop */}
+      {isMobileMenuOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
       <aside className={`app-sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
+
+        {/* Mobile close button inside sidebar */}
+        <button
+          className="sidebar-close-btn"
+          onClick={() => setIsMobileMenuOpen(false)}
+        >
+          <X size={20} color="white" />
+        </button>
 
         {/* Brand */}
         <div
           className="sidebar-brand"
-          onClick={() => navigate('/dashboard')}
+          onClick={() => navTo('/dashboard')}
           style={{ cursor: 'pointer', marginBottom: '20px' }}
         >
           <div className="brand-icon"><CloudUpload size={20} color="white" /></div>
           <span>Cloud<span className="rose-text">Share</span></span>
         </div>
 
-        {/* + New Button (Google Drive style) */}
+        {/* + New Button */}
         <button
           className="sidebar-fab"
-          onClick={() => { navigate('/upload'); setIsMobileMenuOpen(false); }}
+          onClick={() => navTo('/upload')}
           title="Upload files"
         >
           <Plus size={20} strokeWidth={2} />
@@ -83,58 +108,51 @@ export default function AppShell() {
         </button>
 
         <nav className="sidebar-nav">
-          {/* Main */}
           <div className="sidebar-section-label">Main</div>
-          <button className={`nav-btn ${isActive('/dashboard')}`} onClick={() => { navigate('/dashboard'); setIsMobileMenuOpen(false); }}>
+          <button className={`nav-btn ${isActive('/dashboard')}`} onClick={() => navTo('/dashboard')}>
             <Layers size={16} /> Dashboard
           </button>
-          <button className={`nav-btn ${isActive('/files')}`} onClick={() => { navigate('/files'); setIsMobileMenuOpen(false); }}>
+          <button className={`nav-btn ${isActive('/files')}`} onClick={() => navTo('/files')}>
             <Files size={16} /> My Files
           </button>
 
-          {/* Sharing */}
           <div className="sidebar-divider" />
           <div className="sidebar-section-label">Sharing</div>
-          <button className={`nav-btn ${isActive('/shared')}`} onClick={() => { navigate('/shared'); setIsMobileMenuOpen(false); }}>
+          <button className={`nav-btn ${isActive('/shared')}`} onClick={() => navTo('/shared')}>
             <Share2 size={16} /> Public Links
           </button>
-          <button
-            className={`nav-btn ${isActive('/private-shares/inbox')}`}
-            onClick={() => { navigate('/private-shares/inbox'); setIsMobileMenuOpen(false); }}
-          >
+          <button className={`nav-btn ${isActive('/private-shares/inbox')}`} onClick={() => navTo('/private-shares/inbox')}>
             <Inbox size={16} />
             Shared With Me
             {hasNewShares && <span className="nav-dot" />}
           </button>
-          <button className={`nav-btn ${isActive('/private-shares/owned')}`} onClick={() => { navigate('/private-shares/owned'); setIsMobileMenuOpen(false); }}>
+          <button className={`nav-btn ${isActive('/private-shares/owned')}`} onClick={() => navTo('/private-shares/owned')}>
             <Shield size={16} /> Shared By Me
           </button>
 
-          {/* Collections */}
           <div className="sidebar-divider" />
           <div className="sidebar-section-label">Collections</div>
-          <button className={`nav-btn ${isActive('/starred')}`} onClick={() => { navigate('/starred'); setIsMobileMenuOpen(false); }}>
+          <button className={`nav-btn ${isActive('/starred')}`} onClick={() => navTo('/starred')}>
             <Star size={16} /> Starred
           </button>
-          <button className={`nav-btn ${isActive('/trash')}`} onClick={() => { navigate('/trash'); setIsMobileMenuOpen(false); }}>
+          <button className={`nav-btn ${isActive('/trash')}`} onClick={() => navTo('/trash')}>
             <Trash2 size={16} /> Trash
           </button>
 
           <div className="sidebar-divider" style={{ marginTop: 'auto' }} />
           <div className="sidebar-section-label">Account</div>
-          <button className={`nav-btn ${isActive('/profile')}`} onClick={() => { navigate('/profile'); setIsMobileMenuOpen(false); }}>
+          <button className={`nav-btn ${isActive('/profile')}`} onClick={() => navTo('/profile')}>
             <User size={16} /> My Profile
           </button>
           <button className="nav-btn" style={{ color: '#fda4af' }} onClick={() => { setShowLogoutConfirm(true); setIsMobileMenuOpen(false); }}>
             <LogOut size={16} /> Logout
           </button>
 
-          {/* Storage Bar */}
           {storage && (
             <div className="sidebar-storage">
               <div className="sidebar-storage-top">
                 <span className="sidebar-storage-label">Storage</span>
-                <span className="sidebar-storage-pct">{storage.used_percent.toFixed(1)}% full</span>
+                <span className="sidebar-storage-pct">{storage.used_percent?.toFixed(1)}% full</span>
               </div>
               <div className="sidebar-storage-bar">
                 <div
@@ -150,7 +168,7 @@ export default function AppShell() {
         </nav>
       </aside>
 
-      {/* Main Content Area */}
+      {/* Main Content */}
       <div className="app-main">
         <header className="app-topbar">
           <div className="mobile-brand-container">
@@ -158,27 +176,45 @@ export default function AppShell() {
               className="mobile-menu-btn"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             >
-              {isMobileMenuOpen ? <X size={24} color="white" /> : <Menu size={24} color="white" />}
+              {isMobileMenuOpen
+                ? <X size={24} color="white" />
+                : <Menu size={24} color="white" />}
             </button>
-            <div className="brand mobile-brand" onClick={() => navigate('/dashboard')}>
+            <div className="brand mobile-brand" onClick={() => navTo('/dashboard')} style={{ cursor: 'pointer' }}>
               <div className="brand-icon"><CloudUpload size={20} color="white" /></div>
               <span>Cloud<span className="rose-text">Share</span></span>
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginLeft: 'auto' }}>
-            <div className="user-dropdown-container">
-              <div className="user-profile-trigger" style={{ cursor: 'default' }}>
+            <div 
+              className="user-dropdown-container"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowProfileDropdown(!showProfileDropdown);
+              }}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="user-profile-trigger" style={{ cursor: 'pointer' }}>
                 <div style={{ textAlign: 'right' }} className="user-details-text">
-                  <div style={{ fontSize: '14px', fontWeight: '500', color: 'white' }}>
-                    {displayName}
-                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: '500', color: 'white' }}>{displayName}</div>
                   <div style={{ fontSize: '11px', color: '#71717a' }}>{userEmail}</div>
                 </div>
               </div>
-              <div className="avatar-circle">
-                {initials}
-              </div>
+              <div className="avatar-circle">{initials}</div>
+
+              {showProfileDropdown && (
+                <div className="profile-dropdown-menu" onClick={(e) => e.stopPropagation()}>
+                  <button className="dropdown-item" onClick={() => { setShowProfileDropdown(false); navigate('/profile'); }}>
+                    <User size={14} /> My Profile
+                  </button>
+                  
+                  <div className="dropdown-divider" />
+                  <button className="dropdown-item logout-item" onClick={() => { setShowProfileDropdown(false); setShowLogoutConfirm(true); }}>
+                    <LogOut size={14} /> Logout
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>

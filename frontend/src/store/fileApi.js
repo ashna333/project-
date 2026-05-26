@@ -10,7 +10,7 @@ const authHeaders = () => ({
 
 
 export const fetchFilesApi = (page = 1, pageSize = 9, search = '', filters = {}) =>
-  api.get(`${API_BASE}/`, {
+  api.get('fetch/', {
     headers: authHeaders(),
     params: { 
       page, 
@@ -61,8 +61,14 @@ export const toggleStarApi = (fileId) =>
 export const storageSummaryApi = () =>
   api.get('/storage/')
 
-export const fetchSharesApi = (page = 1, pageSize = 9, search = '') =>
-  api.get('/shares/', { params: { page, page_size: pageSize, search: search || undefined } })
+export const fetchSharesApi = (page = 1, pageSize = 9, filter = '') =>
+  api.get('/shares/', { 
+    params: { 
+      page, 
+      page_size: pageSize, 
+      status: filter || undefined  // sends ?status=active / revoked / expired
+    } 
+  })
 
 export const createShareApi = (payload) =>
   api.post('/shares/', payload)

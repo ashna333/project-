@@ -94,7 +94,9 @@ export default function TrashPage() {
       onConfirm: async () => {
         setActionLoading('bulk-selected-restore');
         try {
-          await Promise.all(selectedIds.map(id => restoreTrashFileApi(id)));
+          for (const id of selectedIds) {
+            await restoreTrashFileApi(id);
+          }
           showToast(`${selectedIds.length} file(s) restored.`);
           clearSelection();
           loadTrash(currentPage);
@@ -117,7 +119,9 @@ export default function TrashPage() {
       onConfirm: async () => {
         setActionLoading('bulk-selected-delete');
         try {
-          await Promise.all(selectedIds.map(id => destroyTrashFileApi(id)));
+          for (const id of selectedIds) {
+            await destroyTrashFileApi(id);
+          }
           showToast(`${selectedIds.length} file(s) permanently deleted.`);
           clearSelection();
           loadTrash(currentPage);
@@ -231,53 +235,53 @@ export default function TrashPage() {
             <p style={{ color: '#71717a' }}>{count} items · Restore or clear permanently</p>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-            {files.length > 0 && !selectMode && (
-              <>
-                <button
-                  className="p-btn active-btn"
-                  style={{ padding: '8px 16px', fontSize: '13px' }}
-                  onClick={handleRestoreAll}
-                  disabled={!!actionLoading}
-                >
-                  <RotateCcw size={16} style={{ marginRight: '8px' }} />
-                  Restore All
-                </button>
-                <button
-                  className="btn-revoke"
-                  onClick={handleEmptyTrash}
-                  disabled={!!actionLoading}
-                >
-                  <Trash2 size={16} style={{ marginRight: '8px' }} />
-                  Empty Trash
-                </button>
-              </>
-            )}
-          </div>
+          {files.length > 0 && !selectMode && (
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                className="p-btn active-btn"
+                style={{ padding: '8px 16px', fontSize: '13px' }}
+                onClick={handleRestoreAll}
+                disabled={!!actionLoading}
+              >
+                <RotateCcw size={16} style={{ marginRight: '8px' }} />
+                Restore All
+              </button>
+              <button
+                className="btn-revoke"
+                onClick={handleEmptyTrash}
+                disabled={!!actionLoading}
+              >
+                <Trash2 size={16} style={{ marginRight: '8px' }} />
+                Empty Trash
+              </button>
+            </div>
+          )}
         </div>
 
         <section className="file-list-container">
 
-          {/* Toolbar row */}
-          <div style={{
-            display: 'flex', justifyContent: 'space-between',
-            alignItems: 'center', marginBottom: '16px',
-            flexWrap: 'wrap', gap: '10px',
-          }}>
-            <SelectToolbar
-              files={files}
-              selectMode={selectMode}
-              selectedIds={selectedIds}
-              allSelected={allSelected}
-              someSelected={someSelected}
-              onToggleSelectMode={toggleSelectMode}
-              onToggleSelectAll={toggleSelectAll}
-              onBulkRestore={handleBulkRestore}
-              onBulkDelete={handleBulkDelete}
-              actionLoading={actionLoading}
-            />
-            <ViewToggle viewMode={viewMode} onChange={handleViewMode} />
-          </div>
+          {/* Toolbar row — only when files exist */}
+          {files.length > 0 && (
+            <div style={{
+              display: 'flex', justifyContent: 'space-between',
+              alignItems: 'center', marginBottom: '16px',
+              flexWrap: 'wrap', gap: '10px',
+            }}>
+              <SelectToolbar
+                files={files}
+                selectMode={selectMode}
+                selectedIds={selectedIds}
+                allSelected={allSelected}
+                someSelected={someSelected}
+                onToggleSelectMode={toggleSelectMode}
+                onToggleSelectAll={toggleSelectAll}
+                onBulkRestore={handleBulkRestore}
+                onBulkDelete={handleBulkDelete}
+                actionLoading={actionLoading}
+              />
+              <ViewToggle viewMode={viewMode} onChange={handleViewMode} />
+            </div>
+          )}
 
           {loading ? (
             <div className="fm-empty-state"><div className="fm-spinner" /></div>
@@ -301,12 +305,14 @@ export default function TrashPage() {
             />
           )}
 
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={handlePageChange}
-            loading={loading}
-          />
+          {files.length > 0 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+              loading={loading}
+            />
+          )}
         </section>
       </main>
 

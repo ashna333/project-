@@ -1,9 +1,10 @@
 .profile-wrapper {
   max-width: 700px;
-  margin: 0 auto;
   padding: 24px 24px 40px;
+    margin: 140px auto 0;
   width: 100%;
   box-sizing: border-box;
+
 }
 
 .profile-wrapper .field-error-text {
@@ -29,6 +30,7 @@
   border: 1px solid #27272a;
   border-radius: 12px;
   padding: 40px;
+  
 }
 
 .profile-card-header {

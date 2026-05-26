@@ -15,7 +15,7 @@ import ConfirmModal from '../components/ConfirmModal';
 
 export default function PrivateSharesByMePage() {
   const [shares, setShares] = useState([]);
-  const [filter, setFilter] = useState('active');
+  const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [auditLogs, setAuditLogs] = useState(null);
   const [commentsOpen, setCommentsOpen] = useState(null);
@@ -127,7 +127,12 @@ const getAuditActionColor = (action) => {
 
       <div className="ps-filters">
         {['active', 'expired', 'revoked'].map((f) => (
-          <button key={f} type="button" className={`filter-btn ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>
+          <button
+            key={f}
+            type="button"
+            className={`filter-btn ${filter === f ? 'active' : ''}`}
+            onClick={() => setFilter((prevFilter) => (prevFilter === f ? '' : f))}
+          >
             {f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
         ))}
@@ -136,7 +141,7 @@ const getAuditActionColor = (action) => {
       {loading ? (
         <p className="ps-muted">Loading...</p>
       ) : shares.length === 0 ? (
-        <div className="ps-empty">No {filter} private shares.</div>
+        <div className="ps-empty">No {filter ? `${filter} ` : ''}private shares.</div>
       ) : (
         <div className="ps-cards">
           {shares.map((s) => (
