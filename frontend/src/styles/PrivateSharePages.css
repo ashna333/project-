@@ -100,7 +100,7 @@
 
 .ps-col-file    { width: 22%; }
 .ps-col-shared  { width: 20%; }
-.ps-col-perms   { width: 20%; }
+.ps-col-perms   { width: 24%; overflow: visible; }
 .ps-col-expires { width: 18%; }
 .ps-col-status  { width: 16%; min-width: unset; }
 .ps-col-actions {
@@ -201,10 +201,11 @@
 
 .perm-badges {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 4px;
   align-items: center;
-  overflow: hidden;
+  overflow: visible;
+  max-width: 100%;
 }
 
 .perm-badges span {
@@ -219,7 +220,7 @@
 
 .perm-badges {
   display: flex;
-  flex-wrap: nowrap;       /* single line */
+  flex-wrap: wrap;       /* allow wrap instead of clipping */
   gap: 4px;
   align-items: center;
   

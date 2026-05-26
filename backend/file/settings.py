@@ -206,6 +206,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'fileapp.tasks.purge_expired_records',
         'schedule': 86400.0, # Every 24 hours (in seconds)
     },
+    'weekly_space_digest': {
+        'task': 'fileapp.tasks.send_weekly_space_digest',
+        'schedule': 604800.0,  # Every 7 days (in seconds)
+    },
 }
 
 

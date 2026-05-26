@@ -271,7 +271,9 @@ class PrivateShareDownloadView(APIView):
         if not user_file.file or not os.path.isfile(user_file.file.path):
             return Response({"error": "File not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        file_path = apply_watermark_to_file(user_file, request.user)
+        # Avoid watermark processing for previews to reduce perceived latency.
+        # (Watermarking is applied for actual downloads.)
+        file_path = apply_watermark_to_file(user_file, request.user) if not is_preview else user_file.file.path
         response = FileResponse(
             open(file_path, "rb"),
             as_attachment=as_attachment,
