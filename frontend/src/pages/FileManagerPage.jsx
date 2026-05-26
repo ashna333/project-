@@ -220,7 +220,7 @@ Uploaded: ${new Date(file.uploaded_at).toLocaleDateString('en-GB', { day: 'numer
 Respond with just the insight text, no preamble.`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=AIzaSyCb7JhZMICu_hh9J_5RIk-QqR3KexD-x4Y`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${import.meta.env.VITE_GEMINI_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
