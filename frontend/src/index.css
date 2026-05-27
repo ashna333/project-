@@ -848,8 +848,11 @@ body,
   padding: 24px;
   display: grid;
   gap: 20px;
-
+  max-width: 200;        /* prevents grid blowout */
+  overflow: hidden;    /* clips anything that tries to escape */
+  box-sizing: border-box;
 }
+
 
 .dashboard-hero-card {
   background: linear-gradient(160deg, #ffffff 0%, #f4f8ff 100%);

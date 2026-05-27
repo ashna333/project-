@@ -612,9 +612,7 @@ console.log(data.models.map(m => m.name));
                       </div>
                     )
                   }
-                  <div className="preview-open-overlay">
-                    <span className="preview-open-label">Open in new tab ↗</span>
-                  </div>
+                 
                 </div>
               );
             })()}

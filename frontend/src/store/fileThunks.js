@@ -18,6 +18,16 @@ import { updateProfileApi } from '../api/authApi';
 
 // FIX THIS PART inside fetchFiles thunk
 
+const formatBytes = (bytes) => {
+  if (!bytes || bytes === 0) return '0 Bytes';
+
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+}; 
 
 export const fetchFiles = (page = 1, pageSize = 12, search = '', filters = {}) => async (dispatch) => {
   dispatch(fetchFilesStart())
@@ -52,32 +62,33 @@ export const checkUploadConflicts = (files) => async () => {
 };
 
 export const uploadFiles = (files, options = {}) => async (dispatch) => {
-  dispatch(uploadStart());
   try {
-    const { data } = await uploadFilesApi(files, options);
-    dispatch(uploadSuccess({ message: data.message }));
-    dispatch(fetchFiles());
-    return {
-        success: true,
-        message: data.message,
-        skipped: data.skipped || [],
-        createdCount: data.created_count
-      };
- } catch (err) {
-    const errors = err.response?.data;
-    let message = 'Upload failed.';
-    
-    if (errors) {
-      // If Django returns {"files": ["error message"]}, this flattens it
-      message = Object.values(errors).flat().join(' ');
+    const formData = new FormData()
+    files.forEach(f => formData.append('files', f))
+    if (options.resolutions) {
+      formData.append('resolutions', JSON.stringify(options.resolutions))
     }
     
-    dispatch(uploadFailure(message));
-    // Return the message so the component can use it
-    return { success: false, error: message }; 
+    const { data } = await api.post('/upload/', formData)
+    return { success: true, message: data.message, skipped: data.skipped }
+    
+  } catch (error) {
+    const errMsg = error.response?.data?.error || 'Upload failed.'
+    
+    // Surface storage limit error clearly
+    if (errMsg === 'Storage limit exceeded.') {
+      const available = error.response?.data?.available_bytes
+      return {
+        success: false,
+        error: available
+          ? `Storage limit reached. You have ${formatBytes(available)} remaining.`
+          : 'Storage limit exceeded. Please delete some files first.',
+      }
+    }
+    
+    return { success: false, error: errMsg }
+  }
 }
-};
-
 
 export const deleteFile = (fileId) => async (dispatch) => {
   try {

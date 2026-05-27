@@ -32,6 +32,7 @@ from .service import (
     toggle_file_star,
 )
 from django.conf import settings
+from django.db.models import Sum
 from django.utils import timezone
 
 class RegisterView(APIView):
@@ -227,33 +228,84 @@ class UploadCheckView(APIView):
 
 
 class FileUploadView(APIView):
-    permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = FileUploadSerializer(data=request.data, context={'request': request})
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        used = UserFile.objects.filter(
+            user=request.user,
+            is_deleted=False
+        ).aggregate(total=Sum('file_size'))['total'] or 0
+
+        limit = getattr(
+            settings,
+            'USER_STORAGE_LIMIT_BYTES',
+            1 * 1024 * 1024 * 1024
+        )
+
+        remaining = limit - used
 
         files = request.FILES.getlist('files')
+
+        serializer = FileUploadSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+
+        if not serializer.is_valid():
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         resolutions = {}
         raw_resolutions = request.data.get("resolutions")
+
         if raw_resolutions:
             import json
-            resolutions = json.loads(raw_resolutions) if isinstance(raw_resolutions, str) else raw_resolutions
+            resolutions = (
+                json.loads(raw_resolutions)
+                if isinstance(raw_resolutions, str)
+                else raw_resolutions
+            )
 
-        created, skipped = upload_files(request.user, files, resolutions=resolutions)
+        allowed_files = []
+        skipped = []
+
+        for file in files:
+
+            if file.size <= remaining:
+                allowed_files.append(file)
+                remaining -= file.size
+
+            else:
+                skipped.append({
+                    "name": file.name,
+                    "reason": "Storage limit exceeded"
+                })
+
+        created = []
+
+        if allowed_files:
+            created, upload_skipped = upload_files(
+                request.user,
+                allowed_files,
+                resolutions=resolutions
+            )
+
+            skipped.extend(upload_skipped)
 
         if len(created) > 0:
             msg = f"Successfully uploaded {len(created)} file(s)."
         else:
-            msg = "No new files were uploaded."
+            msg = "No files could be uploaded."
 
         return Response({
             "message": msg,
+            "created_count": len(created),
+            "uploaded": [f.original_name for f in created],
             "skipped": skipped,
-            "created_count": len(created)
+            "remaining_bytes": remaining,
         }, status=status.HTTP_201_CREATED)
-
 
 from django.utils import timezone
 from datetime import timedelta

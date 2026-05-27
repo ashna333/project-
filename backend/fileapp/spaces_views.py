@@ -169,9 +169,10 @@ class SpaceFileUploadView(APIView):
     if not files:
       return Response({"error": "No files uploaded."}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Ensure duplicates still create a new Space version record even if the same bytes already exist.
     resolutions = {f.name: "replace" for f in files}
+    print("FILES:", [f.name for f in files])
     created, skipped = upload_files(request.user, files, resolutions=resolutions)
+    print("CREATED:", [(uf.original_name, uf.id) for uf in created])
 
     # Map by original_name (upload_files sets it to f.name for replace).
     by_name = {}

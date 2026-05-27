@@ -9,9 +9,14 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+  
+  // ← ADD THIS: remove default JSON content type for FormData
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type']
+  }
+  
   return config
 })
-
 let isRefreshing = false
 let failedQueue = []
 
@@ -76,7 +81,7 @@ api.interceptors.response.use(
       
       if (refresh) {
         try {
-          const baseURL = api.defaults.baseURL || 'http://127.0.0.1:800/api';
+          const baseURL = api.defaults.baseURL || 'http://127.0.0.1:8000/api';
           const { data } = await axios.post(`${baseURL}/token/refresh/`, { refresh })
           
           localStorage.setItem('access_token', data.access)

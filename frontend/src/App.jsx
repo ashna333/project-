@@ -28,6 +28,7 @@ import StarredPage from './pages/Starredpage'
 import ProfilePage from './pages/ProfilePage'
 import SpacesPage from './pages/SpacesPage'
 import SpaceDetailPage from './pages/SpaceDetailPage'
+import StorageManager from './pages/Storagemanager'
 
 import PublicShare from './pages/PublicShare'
 import { ToastProvider } from './components/ToastContext';
@@ -74,6 +75,7 @@ export default function App() {
             <Route path="/starred" element={<StarredPage />} />
             <Route path="/trash" element={<TrashPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+           <Route path="/storage-manager" element={<StorageManager />} />
 
             <Route path="/spaces" element={<SpacesPage />} />
             <Route path="/spaces/:spaceId" element={<SpaceDetailPage />} />

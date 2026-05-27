@@ -247,7 +247,7 @@ export default function AppShell() {
                 <button
                   className="nav-btn"
                   style={{ marginTop: '10px', justifyContent: 'center', fontSize: '13px' }}
-                  onClick={() => navTo('/trash')}
+                  onClick={() => navTo('/storage-manager')}
                   title="Delete files from Trash to free space"
                 >
                   Free up space

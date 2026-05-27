@@ -99,23 +99,24 @@ export default function SpaceDetailPage() {
   };
 
   const refreshAll = async () => {
-    setLoading(true);
-    try {
-      const [membersRes, filesRes] = await Promise.all([
-        fetchSpaceMembersApi(spaceId),
-        fetchSpaceFilesApi(spaceId),
-      ]);
-      setMembers(membersRes.data?.members || []);
-      const nextFiles = filesRes.data?.files || [];
-      setFiles(nextFiles);
-      const first = nextFiles[0]?.id || null;
-      setSelectedFileId((cur) => cur || first);
-    } catch (e) {
-      showToast('Failed to load space.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+  try {
+    const [membersRes, filesRes] = await Promise.all([
+      fetchSpaceMembersApi(spaceId),
+      fetchSpaceFilesApi(spaceId),
+    ]);
+    setMembers(membersRes.data?.members || []);
+    const nextFiles = filesRes.data?.files || [];
+    setFiles(nextFiles);
+    const first = nextFiles[0]?.id || null;
+    // Always update selectedFileId after upload so versions load correctly
+    setSelectedFileId((cur) => cur || first);
+  } catch (e) {
+    showToast('Failed to load space.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const refreshThreadsAndTasks = async (fileId) => {
     if (!fileId) return;
@@ -176,30 +177,30 @@ export default function SpaceDetailPage() {
     return () => clearInterval(id);
   }, [spaceId]);
 
-  const handleUpload = async () => {
-    if (!pendingUploadFiles.length) {
-      showToast('Pick files to upload.');
-      return;
-    }
-    if (!selectedFileId) {
-      showToast('Select a space file first.');
-      return;
-    }
-    // Backend expects file versions created under SpaceFile by file name, so selectedFileId is just for the UI.
-    setUploading(true);
-    try {
-      await uploadSpaceFilesApi(spaceId, pendingUploadFiles, { change_note: uploadNote });
-      showToast('Uploaded to Space.');
-      setPendingUploadFiles([]);
-      setUploadNote('');
-      await refreshAll();
-      await loadVersions(selectedFileId);
-    } catch (e) {
-      showToast('Upload failed.');
-    } finally {
-      setUploading(false);
-    }
-  };
+const handleUpload = async () => {
+  if (!pendingUploadFiles.length) {
+    showToast('Pick files to upload.');
+    return;
+  }
+  console.log('pendingUploadFiles:', pendingUploadFiles) // ← add this
+  console.log('files length:', pendingUploadFiles.length)
+  // ← remove the selectedFileId check here, it blocks first uploads
+
+  setUploading(true);
+  try {
+    await uploadSpaceFilesApi(spaceId, pendingUploadFiles, { change_note: uploadNote });
+    showToast('Uploaded to Space.');
+    setPendingUploadFiles([]);
+    setUploadNote('');
+    await refreshAll();
+    // Only load versions if a file is selected (may now be set after refreshAll)
+    if (selectedFileId) await loadVersions(selectedFileId);
+  } catch (e) {
+    showToast('Upload failed.');
+  } finally {
+    setUploading(false);
+  }
+};
 
   const handleRestoreVersion = async (versionId) => {
     if (!selectedFileId) return;
@@ -395,149 +396,293 @@ export default function SpaceDetailPage() {
             </button>
           </div>
 
-          {activeTab === 'files' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
-                <label style={{ color: '#a1a1aa', fontSize: 13, width: '100%' }}>
-                  Upload new version(s) (creates a new timeline entry per file name)
-                </label>
-                <input
-                  type="file"
-                  multiple
-                  onChange={(e) => setPendingUploadFiles(Array.from(e.target.files || []))}
-                  className="modal-input"
-                  style={{ width: '100%' }}
-                />
-                <input
-                  value={uploadNote}
-                  onChange={(e) => setUploadNote(e.target.value)}
-                  placeholder="Change note (optional)"
-                  className="modal-input"
-                  style={{ width: '100%' }}
-                />
-                <button className="share-submit-btn" onClick={handleUpload} disabled={uploading}>
-                  {uploading ? 'Uploading…' : 'Upload'}
-                </button>
+{activeTab === 'files' && (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+    {/* Upload bar */}
+    <div style={{
+      background: '#111113',
+      border: '1px solid #27272a',
+      borderRadius: 14,
+      padding: '16px 20px',
+    }}>
+      <div style={{ fontSize: 12, color: '#52525b', fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>
+        Upload new version
+      </div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: '#1c1c1f', border: '1px solid #3f3f46',
+          borderRadius: 8, padding: '8px 14px', cursor: 'pointer',
+          fontSize: 13, color: '#a1a1aa', flexShrink: 0,
+          transition: 'border-color .15s',
+        }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = '#71717a'}
+          onMouseLeave={e => e.currentTarget.style.borderColor = '#3f3f46'}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          {pendingUploadFiles.length > 0 ? `${pendingUploadFiles.length} file${pendingUploadFiles.length > 1 ? 's' : ''} selected` : 'Choose files'}
+          <input type="file" multiple style={{ display: 'none' }}
+            onChange={(e) => setPendingUploadFiles(Array.from(e.target.files || []))} />
+        </label>
+
+        <input
+          value={uploadNote}
+          onChange={(e) => setUploadNote(e.target.value)}
+          placeholder="Add a change note… (optional)"
+          style={{
+            flex: 1, minWidth: 180,
+            background: '#1c1c1f', border: '1px solid #3f3f46',
+            borderRadius: 8, padding: '8px 14px',
+            fontSize: 13, color: '#e4e4e7',
+            outline: 'none',
+          }}
+          onFocus={e => e.target.style.borderColor = '#e11d48'}
+          onBlur={e => e.target.style.borderColor = '#3f3f46'}
+        />
+
+        <button
+          onClick={handleUpload}
+          disabled={uploading || !pendingUploadFiles.length}
+          style={{
+            background: uploading || !pendingUploadFiles.length ? '#1c1c1f' : '#e11d48',
+            border: '1px solid ' + (uploading || !pendingUploadFiles.length ? '#3f3f46' : '#e11d48'),
+            borderRadius: 8, padding: '8px 18px',
+            fontSize: 13, fontWeight: 600, color: uploading || !pendingUploadFiles.length ? '#52525b' : 'white',
+            cursor: uploading || !pendingUploadFiles.length ? 'not-allowed' : 'pointer',
+            flexShrink: 0, transition: 'all .15s',
+          }}
+        >
+          {uploading ? 'Uploading…' : 'Upload'}
+        </button>
+      </div>
+    </div>
+
+    {/* Files grid + version panel */}
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16, alignItems: 'start' }}>
+
+      {/* File list */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {files.length === 0 ? (
+          <div style={{
+            background: '#111113', border: '1px dashed #27272a',
+            borderRadius: 14, padding: '48px 24px', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>📂</div>
+            <div style={{ color: '#52525b', fontSize: 13 }}>No files yet. Upload the first one above.</div>
+          </div>
+        ) : files.map((f) => {
+          const isSelected = String(selectedFileId) === String(f.id);
+          const ext = f.display_name.split('.').pop().toLowerCase();
+          const iconColor = {
+            pdf: '#f97316', png: '#3b82f6', jpg: '#3b82f6', jpeg: '#3b82f6',
+            mp4: '#a855f7', mp3: '#a855f7', fig: '#22c55e',
+            xlsx: '#22c55e', xls: '#22c55e', doc: '#3b82f6', docx: '#3b82f6',
+          }[ext] || '#71717a';
+
+          const fileEmoji = {
+            pdf: '📄', png: '🖼', jpg: '🖼', jpeg: '🖼',
+            mp4: '🎬', mp3: '🎵', fig: '🎨',
+            xlsx: '📊', xls: '📊', doc: '📝', docx: '📝',
+          }[ext] || '📁';
+
+          return (
+            <button
+              key={f.id}
+              onClick={() => setSelectedFileId(f.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                background: isSelected ? '#1a0a0e' : '#111113',
+                border: `1px solid ${isSelected ? '#e11d48' : '#27272a'}`,
+                borderRadius: 12, padding: '12px 16px',
+                cursor: 'pointer', textAlign: 'left', width: '100%',
+                transition: 'all .15s',
+              }}
+              onMouseEnter={e => { if (!isSelected) e.currentTarget.style.borderColor = '#3f3f46' }}
+              onMouseLeave={e => { if (!isSelected) e.currentTarget.style.borderColor = '#27272a' }}
+            >
+              {/* Icon */}
+              <div style={{
+                width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                background: iconColor + '18',
+                border: `1px solid ${iconColor}30`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18,
+              }}>
+                {fileEmoji}
               </div>
 
-              <div>
-                <div style={{ display: 'grid', gap: 12 }}>
-                  {files.map((f) => (
-                    <button
-                      key={f.id}
-                      className="ps-card"
-                      style={{
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        borderColor: String(selectedFileId) === String(f.id) ? '#e11d48' : '#27272a',
-                      }}
-                      onClick={() => setSelectedFileId(f.id)}
-                    >
-                      <div className="ps-card-top">
-                        <h3 style={{ margin: 0 }}>
-                          {f.is_pinned ? '📌 ' : ''}{f.display_name}
-                        </h3>
-                      </div>
-                      <div style={{ color: '#71717a', fontSize: 13, lineHeight: 1.5, marginTop: 6 }}>
-                        {f.current_version ? (
-                          <>
-                            Current version: <strong>{f.current_version.version_number}</strong>
-                            {f.pinned_version ? (
-                              <span style={{ marginLeft: 8 }}>
-                                · Pinned: <strong>{f.pinned_version.version_number}</strong>
-                              </span>
-                            ) : null}
-                          </>
-                        ) : (
-                          'No versions yet'
-                        )}
-                      </div>
-                    </button>
-                  ))}
+              {/* Name + meta */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 13, fontWeight: 600, color: 'white',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  {f.is_pinned && <span style={{ fontSize: 11 }}>📌</span>}
+                  {f.display_name}
+                </div>
+                <div style={{ fontSize: 12, color: '#52525b', marginTop: 3 }}>
+                  {f.current_version
+                    ? `v${f.current_version.version_number} · uploaded by ${f.current_version.uploaded_by_name || 'unknown'}`
+                    : 'No versions yet'}
+                  {f.pinned_version && f.pinned_version.id !== f.current_version?.id
+                    ? <span style={{ marginLeft: 8, color: '#3f3f46' }}>· pinned v{f.pinned_version.version_number}</span>
+                    : null}
                 </div>
               </div>
 
-              <div className="ps-card" style={{ padding: 16 }}>
-                {!selectedFile ? (
-                  <div style={{ color: '#71717a', fontSize: 13 }}>Select a file to view its version timeline.</div>
-                ) : (
-                  <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ color: '#a1a1aa', fontSize: 12 }}>Selected file</div>
-                        <div style={{ color: 'white', fontWeight: 700, marginTop: 6, wordBreak: 'break-word' }}>
-                          {selectedFile.display_name}
-                        </div>
-                      </div>
-                      <button className="p-btn" type="button" style={{ padding: '8px 14px' }} onClick={handleTogglePinFile} disabled={pinningFile}>
-                        {selectedFile.is_pinned ? 'Unpin file' : 'Pin file'}
-                      </button>
-                    </div>
-
-                    <div style={{ marginTop: 14, color: '#a1a1aa', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Version timeline
-                    </div>
-
-                    {versionsLoading ? (
-                      <div style={{ color: '#71717a', fontSize: 13, marginTop: 10 }}>Loading versions…</div>
-                    ) : versions.length === 0 ? (
-                      <div style={{ color: '#71717a', fontSize: 13, marginTop: 10 }}>No versions yet.</div>
-                    ) : (
-                      <div style={{ display: 'grid', gap: 10, marginTop: 12, maxHeight: 520, overflow: 'auto', paddingRight: 6 }}>
-                        {versions.map((v) => {
-                          const isCurrent = Number(selectedFile.current_version?.id) === Number(v.id);
-                          const isPinned = Number(selectedFile.pinned_version?.id) === Number(v.id);
-                          return (
-                            <div key={v.id} style={{ border: '1px solid #27272a', borderRadius: 12, padding: 12 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={{ color: 'white', fontWeight: 700 }}>
-                                    v{v.version_number}{isCurrent ? ' · Current' : ''}{isPinned ? ' · Pinned' : ''}
-                                  </div>
-                                  <div style={{ color: '#71717a', fontSize: 12, marginTop: 4 }}>
-                                    {v.created_at ? new Date(v.created_at).toLocaleString() : ''}{v.uploaded_by_name ? ` · ${v.uploaded_by_name}` : ''}
-                                  </div>
-                                  {v.change_note ? (
-                                    <div style={{ color: '#a1a1aa', fontSize: 13, marginTop: 6, whiteSpace: 'pre-wrap' }}>
-                                      {v.change_note}
-                                    </div>
-                                  ) : null}
-                                </div>
-
-                                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                                  <button
-                                    className="p-btn"
-                                    type="button"
-                                    style={{ padding: '8px 12px' }}
-                                    onClick={() => handlePinVersion(v.id)}
-                                    disabled={pinningVersionId === v.id}
-                                    title="Pin this version"
-                                  >
-                                    {pinningVersionId === v.id ? 'Pinning…' : 'Pin'}
-                                  </button>
-                                  <button
-                                    className="share-submit-btn"
-                                    type="button"
-                                    style={{ padding: '8px 12px' }}
-                                    onClick={() => handleRestoreVersion(v.id)}
-                                    disabled={isCurrent || restoringVersionId === v.id}
-                                    title="Restore as current version"
-                                  >
-                                    {isCurrent ? 'Current' : restoringVersionId === v.id ? 'Restoring…' : 'Restore'}
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </>
+              {/* Badges */}
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+                <span style={{
+                  fontSize: 11, fontWeight: 600,
+                  background: '#1c1c1f', border: '1px solid #3f3f46',
+                  color: '#71717a', padding: '3px 8px', borderRadius: 6,
+                }}>
+                  v{f.current_version?.version_number ?? '—'}
+                </span>
+                {isSelected && (
+                  <span style={{
+                    fontSize: 11, fontWeight: 600,
+                    background: '#e11d4815', border: '1px solid #e11d4840',
+                    color: '#e11d48', padding: '3px 8px', borderRadius: 6,
+                  }}>
+                    selected
+                  </span>
                 )}
               </div>
-            </div>
-          )}
+            </button>
+          );
+        })}
+      </div>
 
+      {/* Version timeline panel */}
+      <div style={{
+        background: '#111113', border: '1px solid #27272a',
+        borderRadius: 14, padding: '16px', position: 'sticky', top: 16,
+      }}>
+        {!selectedFile ? (
+          <div style={{ textAlign: 'center', padding: '32px 16px' }}>
+            <div style={{ fontSize: 28, marginBottom: 10 }}>🗂</div>
+            <div style={{ color: '#3f3f46', fontSize: 13 }}>Select a file to view its version history</div>
+          </div>
+        ) : (
+          <>
+            {/* File header */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: '#52525b', fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>
+                Selected file
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'white', wordBreak: 'break-all', lineHeight: 1.4, marginBottom: 10 }}>
+                {selectedFile.display_name}
+              </div>
+              <button
+                onClick={handleTogglePinFile}
+                disabled={pinningFile}
+                style={{
+                  background: 'none', border: '1px solid #3f3f46',
+                  borderRadius: 7, padding: '5px 12px',
+                  fontSize: 12, color: '#71717a', cursor: 'pointer',
+                  width: '100%', transition: 'all .15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#71717a'; e.currentTarget.style.color = 'white'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#3f3f46'; e.currentTarget.style.color = '#71717a'; }}
+              >
+                {selectedFile.is_pinned ? '📌 Unpin file' : '📌 Pin file'}
+              </button>
+            </div>
+
+            <div style={{ borderTop: '1px solid #1f1f22', paddingTop: 14 }}>
+              <div style={{ fontSize: 11, color: '#52525b', fontWeight: 500, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>
+                Version timeline
+              </div>
+
+              {versionsLoading ? (
+                <div style={{ color: '#3f3f46', fontSize: 13, padding: '16px 0', textAlign: 'center' }}>Loading…</div>
+              ) : versions.length === 0 ? (
+                <div style={{ color: '#3f3f46', fontSize: 13, padding: '16px 0', textAlign: 'center' }}>No versions yet</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 420, overflowY: 'auto', paddingRight: 2 }}>
+                  {versions.map((v) => {
+                    const isCurrent = Number(selectedFile.current_version?.id) === Number(v.id);
+                    const isPinned = Number(selectedFile.pinned_version?.id) === Number(v.id);
+                    return (
+                      <div key={v.id} style={{
+                        background: isCurrent ? '#0f1a0f' : '#18181b',
+                        border: `1px solid ${isCurrent ? '#16a34a40' : '#27272a'}`,
+                        borderRadius: 10, padding: '10px 12px',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                          <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                            <span style={{
+                              fontSize: 12, fontWeight: 700,
+                              color: isCurrent ? '#4ade80' : '#71717a',
+                            }}>
+                              v{v.version_number}
+                            </span>
+                            {isCurrent && (
+                              <span style={{ fontSize: 10, fontWeight: 600, background: '#16a34a20', border: '1px solid #16a34a40', color: '#4ade80', padding: '1px 6px', borderRadius: 4 }}>
+                                current
+                              </span>
+                            )}
+                            {isPinned && (
+                              <span style={{ fontSize: 10, fontWeight: 600, background: '#78350f20', border: '1px solid #78350f40', color: '#fb923c', padding: '1px 6px', borderRadius: 4 }}>
+                                pinned
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: 5 }}>
+                            <button
+                              onClick={() => handlePinVersion(v.id)}
+                              disabled={pinningVersionId === v.id}
+                              style={{
+                                fontSize: 10, fontWeight: 600,
+                                background: 'none', border: '1px solid #3f3f46',
+                                borderRadius: 5, padding: '3px 7px',
+                                color: '#71717a', cursor: 'pointer',
+                              }}
+                            >
+                              {pinningVersionId === v.id ? '…' : 'Pin'}
+                            </button>
+                            <button
+                              onClick={() => handleRestoreVersion(v.id)}
+                              disabled={isCurrent || restoringVersionId === v.id}
+                              style={{
+                                fontSize: 10, fontWeight: 600,
+                                background: isCurrent ? 'none' : '#e11d4815',
+                                border: `1px solid ${isCurrent ? '#27272a' : '#e11d4840'}`,
+                                borderRadius: 5, padding: '3px 7px',
+                                color: isCurrent ? '#3f3f46' : '#e11d48',
+                                cursor: isCurrent ? 'not-allowed' : 'pointer',
+                              }}
+                            >
+                              {isCurrent ? 'Active' : restoringVersionId === v.id ? '…' : 'Restore'}
+                            </button>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#52525b', lineHeight: 1.5 }}>
+                          {v.uploaded_by_name || 'Unknown'}
+                          {v.created_at ? ` · ${new Date(v.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
+                        </div>
+                        {v.change_note ? (
+                          <div style={{ fontSize: 11, color: '#71717a', marginTop: 5, fontStyle: 'italic' }}>
+                            "{v.change_note}"
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  </div>
+)}
           {activeTab === 'threads' && (
             <div>
               <div style={{ marginBottom: 14 }}>

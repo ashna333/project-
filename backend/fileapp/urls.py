@@ -59,7 +59,15 @@ from .spaces_views import (
     SpacePresenceHeartbeatView,
     SpaceMyMuteView,
 )
-
+from .storage_views import (
+    StorageManagerSummaryView,
+    StorageDuplicatesView,
+    StorageDeleteDuplicateGroupView,
+    StorageLargeFilesView,
+    StorageStaleDownloadsView,
+    StorageDeleteFilesView,
+    StorageCleanAllView,
+)
 from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
@@ -178,5 +186,16 @@ path("shares/expiring-soon/", ExpiringSoonView.as_view(), name="shares-expiring-
         name="space-presence-heartbeat",
     ),
     path("spaces/<int:space_id>/my/mute/", SpaceMyMuteView.as_view(), name="space-my-mute"),
+
+
+
+        # ─── Storage Manager ────────────────────────────────────────────────
+    path("storage-manager/summary/",      StorageManagerSummaryView.as_view(),        name="storage-manager-summary"),
+    path("storage-manager/duplicates/",   StorageDuplicatesView.as_view(),            name="storage-manager-duplicates"),
+    path("storage-manager/duplicates/<str:file_hash>/", StorageDeleteDuplicateGroupView.as_view(), name="storage-manager-delete-duplicate"),
+    path("storage-manager/large-files/",  StorageLargeFilesView.as_view(),            name="storage-manager-large-files"),
+    path("storage-manager/stale/",        StorageStaleDownloadsView.as_view(),        name="storage-manager-stale"),
+    path("storage-manager/files/",        StorageDeleteFilesView.as_view(),           name="storage-manager-delete-files"),
+    path("storage-manager/clean-all/",    StorageCleanAllView.as_view(),              name="storage-manager-clean-all"),
 ]
 

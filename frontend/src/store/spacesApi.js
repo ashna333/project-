@@ -3,9 +3,8 @@ import api from '../api/axiosInstance'
 const authHeaders = () => ({
   Authorization: `Bearer ${localStorage.getItem('access_token')}`,
 })
-
 export const fetchSpacesApi = () =>
-  api.get('/spaces/', { headers: authHeaders() })
+  api.get('/spaces/')
 
 export const createSpaceApi = (payload) =>
   api.post('/spaces/', payload, { headers: authHeaders() })
@@ -18,14 +17,12 @@ export const fetchSpaceFilesApi = (spaceId) =>
 
 export const uploadSpaceFilesApi = (spaceId, files, options = {}) => {
   const formData = new FormData()
-  files.forEach((f) => formData.append('files', f))
-  if (options.change_note) formData.append('change_note', options.change_note)
-  return api.post(`/spaces/${spaceId}/files/upload/`, formData, {
-    headers: {
-      ...authHeaders(),
-      'Content-Type': 'multipart/form-data',
-    },
+  files.forEach((f) => {
+    console.log('Appending file:', f.name, f.size) // ← add this
+    formData.append('files', f)
   })
+  if (options.change_note) formData.append('change_note', options.change_note)
+  return api.post(`/spaces/${spaceId}/files/upload/`, formData)
 }
 
 export const fetchSpaceVersionsApi = (spaceId, spaceFileId) =>
