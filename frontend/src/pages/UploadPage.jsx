@@ -1,40 +1,127 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  CloudUpload, 
-  Layers, 
-  Files, 
-  Share2, 
-  KeyRound, 
-  LogOut, 
-  FileText, 
+import {
+  CloudUpload,
+  FileText,
   X,
   CircleCheck,
-  CircleAlert
+  CircleAlert,
 } from 'lucide-react';
-import '../styles/DashboardPage.css'; // Reusing your existing styles
-import { useNavigate } from 'react-router-dom'; // Add this import
-import {useDispatch} from 'react-redux';
-import axios from 'axios'; // Recommended for easy progress tracking
+import '../styles/DashboardPage.css';
+import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
 import { uploadFiles, checkUploadConflicts } from '../store/fileThunks';
 import DuplicateFileDialog from '../components/DuplicateFileDialog';
 import AlertModal from '../components/AlertModal';
 import { useToast } from '../components/ToastContext';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
-
 import { validateUploadFiles } from '../utils/validation';
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+
+const ALLOWED_EXTENSIONS = new Set([
+  // Documents
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'rtf', 'odt', 'ods', 'odp',
+  // Images
+  'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tiff',
+  // Video
+  'mp4', 'webm', 'mov', 'avi', 'mkv', 'flv', 'wmv',
+  // Audio
+  'mp3', 'wav', 'aac', 'flac', 'm4a', 'ogg', 'wma',
+  // Archives
+  'zip', 'rar', '7z', 'tar', 'gz',
+  // Code
+  'json', 'xml', 'html', 'css', 'js', 'py', 'md',
+]);
+
+// ─── Standalone validation (can also live in ../utils/validation) ─────────────
+
+export function validateFiles(files) {
+  const errors = [];
+  for (const file of files) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
+      errors.push(`"${file.name}": .${ext} files are not allowed.`);
+      continue;
+    }
+    if (file.size === 0) {
+      errors.push(`"${file.name}": File is empty or is a folder.`);
+      continue;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      errors.push(`"${file.name}": Exceeds the 100 MB limit.`);
+      continue;
+    }
+  }
+  return errors; // empty array = all valid
+}
+
+// ─── Sub-component ────────────────────────────────────────────────────────────
+
+const UploadItem = ({ fileObj, onRemove }) => {
+  const { file, progress, status, sizeString, id } = fileObj;
+
+  let statusIcon = <X size={16} />;
+  if (status === 'completed') statusIcon = <CircleCheck size={18} className="text-emerald-500" />;
+  if (status === 'error') statusIcon = <CircleAlert size={18} className="text-red-500" />;
+
+  return (
+    <div className={`file-item ${status === 'completed' ? 'file-completed' : ''}`}>
+      <div className="file-item-left">
+        <FileText size={20} className="file-icon" />
+        <div className="file-content-block">
+          <div className="file-details">
+            <div className="file-name">{file.name}</div>
+            <div className="file-status-info">
+              {status === 'uploading' && (
+                <span className="rose-text percentage-text">{Math.round(progress)}%</span>
+              )}
+              {status !== 'uploading' && (
+                <span className="file-size">{sizeString}</span>
+              )}
+            </div>
+          </div>
+
+          {status === 'uploading' && (
+            <div className="file-loading-bar-container">
+              <div
+                className="file-loading-bar-fill"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <button
+        className="remove-file-btn"
+        onClick={(e) => { e.stopPropagation(); onRemove(id); }}
+        disabled={status === 'uploading'}
+      >
+        {statusIcon}
+      </button>
+    </div>
+  );
+};
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function UploadPage() {
-  // Store files as objects to track their specific progress
   const [filesInQueue, setFilesInQueue] = useState([]);
   const [isUploadingGlobal, setIsUploadingGlobal] = useState(false);
-  const fileInputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
   const [conflicts, setConflicts] = useState(null);
   const [alertModal, setAlertModal] = useState(null);
+
+  const fileInputRef = useRef(null);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { showToast } = useToast();
 
   useBodyScrollLock(!!conflicts || !!alertModal);
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
 
   const formatSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
@@ -64,23 +151,44 @@ export default function UploadPage() {
     setFilesInQueue((prev) => [...prev, ...newFiles]);
   };
 
+  // ── Handlers ───────────────────────────────────────────────────────────────
+
   const handleFileChange = (e) => {
     if (e.target.files?.length) addFilesToQueue(e.target.files);
     e.target.value = '';
   };
 
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
 
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files?.length) addFilesToQueue(e.dataTransfer.files);
+  };
 
+  const removeFile = (id) => {
+    setFilesInQueue((prev) => prev.filter((f) => f.id !== id));
+  };
 
+  const clearAll = () => setFilesInQueue([]);
 
-// ... inside your UploadPage component
-const dispatch = useDispatch(); // Get the Redux dispatch function
-const navigate = useNavigate();
+  // ── Upload flow ────────────────────────────────────────────────────────────
 
   const performUpload = async (rawFiles, resolutions = null) => {
     setIsUploadingGlobal(true);
     try {
-      const result = await dispatch(uploadFiles(rawFiles, resolutions ? { resolutions } : {}));
+      const result = await dispatch(
+        uploadFiles(rawFiles, resolutions ? { resolutions } : {})
+      );
       if (result.success) {
         let alertMsg = result.message;
         if (result.skipped?.length > 0) {
@@ -90,10 +198,7 @@ const navigate = useNavigate();
           alertMsg += '\n\nSkipped:\n' + skippedNames.join('\n');
         }
         showToast('Upload complete');
-        setAlertModal({
-          title: 'Upload complete',
-          message: alertMsg,
-        });
+        setAlertModal({ title: 'Upload complete', message: alertMsg });
         setFilesInQueue((prev) => prev.map((f) => ({ ...f, status: 'completed' })));
         setTimeout(() => navigate('/files'), 2000);
       } else {
@@ -113,7 +218,6 @@ const navigate = useNavigate();
   const startUpload = async () => {
     if (filesInQueue.length === 0 || isUploadingGlobal) return;
     const rawFiles = filesInQueue.map((f) => f.file);
-
     const check = await dispatch(checkUploadConflicts(rawFiles));
     if (check.success && check.has_conflicts && check.conflicts?.length > 0) {
       setConflicts(check.conflicts);
@@ -128,142 +232,86 @@ const navigate = useNavigate();
     await performUpload(rawFiles, resolutions);
   };
 
-  // Turn off global upload state when all files finish
+  // ── Effects ────────────────────────────────────────────────────────────────
+
+  // Reset global upload state only when every file has actually finished
   useEffect(() => {
     if (isUploadingGlobal && filesInQueue.length > 0) {
-        const allFinished = filesInQueue.every(f => f.status === 'completed' || f.status === 'error' || f.status === 'queued');
-        if (allFinished) {
-            setIsUploadingGlobal(false);
-        }
+      const allFinished = filesInQueue.every(
+        (f) => f.status === 'completed' || f.status === 'error'
+        // 'queued' intentionally excluded — it means not yet processed
+      );
+      if (allFinished) setIsUploadingGlobal(false);
     }
   }, [filesInQueue, isUploadingGlobal]);
 
-
-  const removeFile = (id) => {
-    setFilesInQueue((prev) => prev.filter((f) => f.id !== id));
-  };
-
-  const clearAll = () => setFilesInQueue([]);
-
-  const handleDrag = (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  if (e.type === "dragenter" || e.type === "dragover") {
-    setDragActive(true);
-  } else if (e.type === "dragleave") {
-    setDragActive(false);
-  }
-};
-
-const handleDrop = (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  setDragActive(false);
-
-  if (e.dataTransfer.files?.length) {
-    addFilesToQueue(e.dataTransfer.files);
-  }
-};
-
-  // Sub-component for individual file item to manage its own layout
-  const UploadItem = ({ fileObj, onRemove }) => {
-    const { file, progress, status, sizeString, id } = fileObj;
-    
-    // Status Icon Logic
-    let statusIcon = <X size={16} />;
-    if (status === 'completed') statusIcon = <CircleCheck size={18} className="text-emerald-500" />;
-    if (status === 'error') statusIcon = <CircleAlert size={18} className="text-red-500" />;
-
-    return (
-        <div className={`file-item ${status === 'completed' ? 'file-completed' : ''}`}>
-          <div className="file-item-left">
-            <FileText size={20} className="file-icon" />
-            <div className="file-content-block">
-                <div className="file-details">
-                    <div className="file-name">{file.name}</div>
-                    <div className="file-status-info">
-                        {status === 'uploading' && <span className="rose-text percentage-text">{Math.round(progress)}%</span>}
-                        {status !== 'uploading' && <span className="file-size">{sizeString}</span>}
-                    </div>
-                </div>
-
- 
-                
-                {/* Specific Loading Bar Container - Rose-600 colored */}
-                {status === 'uploading' && (
-                    <div className="file-loading-bar-container">
-                        <div 
-                          className="file-loading-bar-fill" 
-                          style={{ width: `${progress}%` }}
-                        ></div>
-                    </div>
-                )}
-            </div>
-          </div>
-          
-          <button 
-            className="remove-file-btn" 
-            onClick={(e) => { e.stopPropagation(); onRemove(id); }}
-            disabled={status === 'uploading'} // Disable removal while uploading
-          >
-            {statusIcon}
-          </button>
-        </div>
-    );
-  };
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <>
-      {/* Header (reusing old design) */}
-     
-
       <main className="dashboard-main fade-in" style={{ maxWidth: '1000px', margin: '0 auto' }}>
-        {/* Header Section */}
         <div className="upload-header-text">
-          <div className="welcome-label" style={{ letterSpacing: '0.2em', textTransform: 'uppercase', fontSize: '12px' }}>Upload</div>
-          <h1 className="welcome-title" style={{ fontSize: '40px', fontWeight: '700' }}>Drop files here</h1>
-          <p style={{ color: '#a1a1aa', marginTop: '8px', fontSize: '14px' }}>Up to 100 MB per file. Multiple files supported.</p>
+          <div
+            className="welcome-label"
+            style={{ letterSpacing: '0.2em', textTransform: 'uppercase', fontSize: '12px' }}
+          >
+            Upload
+          </div>
+          <h1 className="welcome-title" style={{ fontSize: '40px', fontWeight: '700' }}>
+            Drop files here
+          </h1>
+          <p style={{ color: '#a1a1aa', marginTop: '8px', fontSize: '14px' }}>
+            Up to 100 MB per file. Multiple files supported.
+          </p>
         </div>
-        
-  
 
-        {/* Dropzone Area (Clickable to Browse) */}
-        
-        <div className={`dropzone-container ${dragActive ? "drag-active" : ""}`} 
-  onClick={() => fileInputRef.current.click()}
-  onDragEnter={handleDrag}
-  onDragLeave={handleDrag}
-  onDragOver={handleDrag}
-  onDrop={handleDrop}
-  
->
-
-<input 
-  type="file" 
-  multiple 
-  hidden 
-  ref={fileInputRef} 
-  onChange={handleFileChange}
-/>
-   <CloudUpload size={64} className="rose-text" style={{ opacity: 0.7 }} />
-          <h2 style={{ fontSize: '24px', fontWeight: '600', marginTop: '20px', color: 'white' }}>Drag & drop your files</h2>
+        {/* Dropzone */}
+        <div
+          className={`dropzone-container ${dragActive ? 'drag-active' : ''}`}
+          onClick={() => fileInputRef.current.click()}
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+        >
+          {/* Fixed: ref + onChange + style hidden */}
+          <input
+            type="file"
+            multiple
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+            accept="
+              .pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,
+              .jpg,.jpeg,.png,.gif,.webp,.svg,.bmp,
+              .mp4,.webm,.mov,.avi,.mkv,
+              .mp3,.wav,.aac,.flac,.m4a,.ogg,
+              .zip,.rar,.7z,.tar,.gz,
+              .json,.xml,.html,.css,.js,.py,.md
+            "
+          />
+          <CloudUpload size={64} className="rose-text" style={{ opacity: 0.7 }} />
+          <h2 style={{ fontSize: '24px', fontWeight: '600', marginTop: '20px', color: 'white' }}>
+            Drag & drop your files
+          </h2>
           <p style={{ color: '#71717a', marginTop: '8px', fontSize: '14px' }}>or click to browse</p>
-</div>
+        </div>
 
-
-        {/* File Queue Section */}
+        {/* File Queue */}
         {filesInQueue.length > 0 && (
           <div className="file-queue-card fade-in">
             <div className="queue-header">
               <span className="queue-count">{filesInQueue.length} file(s) in queue</span>
               <div className="queue-actions">
-                <button className="clear-btn" onClick={clearAll} disabled={isUploadingGlobal}>Clear</button>
-                <button 
-                    className="upload-all-btn" 
-                    onClick={startUpload}
-                    disabled={isUploadingGlobal}
+                <button className="clear-btn" onClick={clearAll} disabled={isUploadingGlobal}>
+                  Clear
+                </button>
+                <button
+                  className="upload-all-btn"
+                  onClick={startUpload}
+                  disabled={isUploadingGlobal}
                 >
-                    {isUploadingGlobal ? 'Uploading...' : 'Upload all'}
+                  {isUploadingGlobal ? 'Uploading...' : 'Upload all'}
                 </button>
               </div>
             </div>
@@ -274,7 +322,6 @@ const handleDrop = (e) => {
               ))}
             </div>
           </div>
-          
         )}
 
         <footer className="footer-text">CloudShare - Secure file sharing, built for teams.</footer>
@@ -298,7 +345,6 @@ const handleDrop = (e) => {
           if (alertModal?.variant !== 'error') navigate('/files');
         }}
       />
-      
     </>
   );
 }

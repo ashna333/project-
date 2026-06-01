@@ -339,13 +339,47 @@ def restore_user_file(user, file_id):
         return None
 
 
+from django.db.models import Exists, OuterRef
+
+from django.db.models import Exists, OuterRef
+
 def permanently_delete_user_file(user, file_id):
     try:
         user_file = UserFile.objects.get(id=file_id, user=user, is_deleted=True)
-        user_file.delete()
-        return True
     except UserFile.DoesNotExist:
-        return False
+        return "not_found"
+
+    user_file.delete()  # just delete, no share checks
+    return "deleted"
+
+# service.py
+def empty_user_trash(user):
+    trashed_files = UserFile.objects.filter(user=user, is_deleted=True)
+    deleted = 0
+    deferred = 0
+    for user_file in trashed_files:
+        active_recipient_exists = PrivateShareRecipient.objects.filter(
+            private_share__user_file=user_file,
+            private_share__is_revoked=False,
+            is_revoked=False,
+        ).filter(
+            db_models.Q(private_share__expires_at__isnull=True) |
+            db_models.Q(private_share__expires_at__gt=timezone.now())
+        ).filter(
+            db_models.Q(individual_expires_at__isnull=True) |
+            db_models.Q(individual_expires_at__gt=timezone.now())
+        )
+        if active_recipient_exists.exists():
+            deferred += 1
+            continue
+        if user_file.file:
+            user_file.file.delete(save=False)
+        user_file.delete()
+        deleted += 1
+    return deleted, deferred  # ← return tuple now
+
+        
+   
 
 
 def get_user_file(user, file_id):
@@ -391,6 +425,8 @@ def empty_user_trash(user):
             user_file.file.delete(save=False)
         user_file.delete()
     return count
+
+
 
 
 import hashlib
@@ -550,234 +586,27 @@ def create_file_share(*, owner, file_id, recipient_email, expires_in_hours, mess
     return share, share_url
 
 
-def _send_file_share_email(*, owner_email, recipient_email, message, share_url, expires_at,
-                            owner_name=None, file_name=None, file_size=None):
-    from django.core.mail import EmailMultiAlternatives
+def _cleanup_soft_deleted_file(user_file):
+    """Hard-deletes a file the owner soft-deleted, once no active recipients remain."""
+    if not user_file.is_deleted:
+        return
 
-    expires_formatted = expires_at.strftime("%B %d, %Y at %I:%M %p UTC")
-    sender_display = owner_name or owner_email or "Someone"
-    file_display = f'"{file_name}"' if file_name else "a file"
-    subject = f"{sender_display} shared {file_display} with you"
+    still_active = PrivateShare.objects.filter(
+        user_file=user_file,
+        is_revoked=False,
+    ).filter(
+        db_models.Q(expires_at__isnull=True) | db_models.Q(expires_at__gt=timezone.now())
+    ).filter(
+        recipients__is_revoked=False,
+    ).filter(
+        db_models.Q(recipients__individual_expires_at__isnull=True) |
+        db_models.Q(recipients__individual_expires_at__gt=timezone.now())
+    ).exists()
 
-    # ── Plain text fallback ───────────────────────────────────────────────────
-    text_body = (
-        f"Hi there,\n\n"
-        f"You have received a file share from {sender_display} ({owner_email}) via CloudShare.\n\n"
-        + (f"Message from {sender_display}:\n\"{message}\"\n\n" if message else "")
-        + (f"File: {file_name}\n\n" if file_name else "")
-        + f"To view and download the file, use the secure link below:\n"
-        f"{share_url}\n\n"
-        f"Please note that this link will expire on {expires_formatted}. "
-        f"Make sure to download the file before it expires.\n\n"
-        f"If you were not expecting this file or believe it was sent to you in error, "
-        f"you can safely ignore this email. The link will expire automatically.\n\n"
-        f"Best regards,\n"
-        f"The CloudShare Team\n\n"
-        f"---\n"
-        f"This is an automated message. Please do not reply to this email.\n"
-        f"Powered by CloudShare"
-    )
-
-    # ── HTML blocks ───────────────────────────────────────────────────────────
-#     message_block = (
-#         f"""
-#         <tr>
-#           <td style="padding: 0 40px 24px;">
-#             <div style="background:#2a2a2a; border-left:3px solid #e8294a;
-#                         border-radius:0 8px 8px 0; padding:14px 18px;">
-#               <p style="margin:0; color:#cccccc; font-style:italic;
-#                         font-size:14px; line-height:1.6;">"{message}"</p>
-#             </div>
-#           </td>
-#         </tr>
-#         """
-#         if message else ""
-#     )
-
-#     file_info_block = (
-#         f"""
-#         <tr>
-#           <td style="padding:0 40px 24px; text-align:center;">
-#             <div style="background:#2a2a2a; border-radius:12px; padding:20px;
-#                         width:100%; box-sizing:border-box;">
-#               <div style="width:56px; height:56px; background:#333333;
-#                           border-radius:14px; margin:0 auto 12px; line-height:56px;
-#                           text-align:center; font-size:24px;">📄</div>
-#               <p style="margin:0 0 4px; color:#ffffff; font-weight:700;
-#                         font-size:15px; word-break:break-all;">{file_name}</p>
-#               {f'<p style="margin:4px 0 0; color:#888888; font-size:13px;">{file_size}</p>' if file_size else ''}
-#             </div>
-#           </td>
-#         </tr>
-#         """
-#         if file_name else ""
-#     )
-
-#     # ── Full HTML email ───────────────────────────────────────────────────────
-#     html_body = f"""<!DOCTYPE html>
-# <html lang="en">
-# <head>
-#   <meta charset="UTF-8"/>
-#   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-# </head>
-# <body style="margin:0; padding:0; background-color:#0f0f0f;
-#              font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">
-
-#   <table width="100%" cellpadding="0" cellspacing="0"
-#          style="background-color:#0f0f0f; padding:40px 20px;">
-#     <tr>
-#       <td align="center">
-#         <table width="520" cellpadding="0" cellspacing="0"
-#                style="max-width:520px; width:100%;">
-
-#           <!-- Logo -->
-#           <tr>
-#             <td align="center" style="padding-bottom:28px;">
-#               <table cellpadding="0" cellspacing="0">
-#                 <tr>
-#                   <td style="vertical-align:middle; padding-right:10px;">
-#                     <div style="width:36px; height:36px; background:#e8294a;
-#                                 border-radius:9px; text-align:center;
-#                                 line-height:36px; font-size:20px;">☁️</div>
-#                   </td>
-#                   <td style="vertical-align:middle;">
-#                     <span style="font-size:20px; font-weight:700;">
-#                       <span style="color:#ffffff;">Cloud</span><span style="color:#e8294a;">Share</span>
-#                     </span>
-#                   </td>
-#                 </tr>
-#               </table>
-#             </td>
-#           </tr>
-
-#           <!-- Main card -->
-#           <tr>
-#             <td style="background:#1a1a1a; border-radius:16px;
-#                        border:1px solid #2a2a2a; overflow:hidden;">
-#               <table width="100%" cellpadding="0" cellspacing="0">
-
-#                 <!-- Header -->
-#                 <tr>
-#                   <td style="padding:32px 40px 24px; text-align:center;">
-#                     <p style="margin:0 0 4px; color:#888888; font-size:11px;
-#                               letter-spacing:2px; text-transform:uppercase;
-#                               font-weight:600;">Shared With You</p>
-#                     <p style="margin:0; color:#cccccc; font-size:15px;">
-#                       from <strong style="color:#ffffff;">{sender_display}</strong>
-#                     </p>
-#                   </td>
-#                 </tr>
-
-#                 <!-- File info -->
-#                 {file_info_block}
-
-#                 <!-- Message -->
-#                 {message_block}
-
-#                 <!-- Divider -->
-#                 <tr>
-#                   <td style="padding:0 40px;">
-#                     <hr style="border:none; border-top:1px solid #2a2a2a; margin:0 0 24px;"/>
-#                   </td>
-#                 </tr>
-
-#                 <!-- Body text -->
-#                 <tr>
-#                   <td style="padding:0 40px 16px;">
-#                     <p style="margin:0 0 10px; color:#888888; font-size:11px;
-#                               text-transform:uppercase; letter-spacing:2px;
-#                               font-weight:600;">🔗 Access Your File</p>
-#                     <p style="margin:0; color:#cccccc; font-size:14px; line-height:1.7;">
-#                       Hi there,<br/><br/>
-#                       You have received a file share from
-#                       <strong style="color:#ffffff;">{sender_display}</strong>
-#                       via CloudShare. Click the button below to view and download the file.
-#                     </p>
-#                   </td>
-#                 </tr>
-
-#                 <!-- CTA button -->
-#                 <tr>
-#                   <td style="padding:8px 40px 20px;" align="center">
-#                     <a href="{share_url}"
-#                        style="display:block; background:#e8294a; color:#ffffff;
-#                               text-decoration:none; text-align:center;
-#                               padding:15px 28px; border-radius:10px;
-#                               font-weight:700; font-size:15px; letter-spacing:0.3px;">
-#                       ⬇&nbsp; View &amp; Download File
-#                     </a>
-#                   </td>
-#                 </tr>
-
-#                 <!-- Expiry notice -->
-#                 <tr>
-#                   <td style="padding:0 40px 28px; text-align:center;">
-#                     <p style="margin:0; color:#666666; font-size:13px;">
-#                       ⏰ This link expires on:
-#                       <strong style="color:#888888;">{expires_formatted}</strong><br/>
-#                       <span style="color:#555555; font-size:12px;">
-#                         Please download the file before it expires.
-#                       </span>
-#                     </p>
-#                   </td>
-#                 </tr>
-
-#                 <!-- Divider -->
-#                 <tr>
-#                   <td style="padding:0 40px;">
-#                     <hr style="border:none; border-top:1px solid #2a2a2a; margin:0;"/>
-#                   </td>
-#                 </tr>
-
-#                 <!-- Footer note -->
-#                 <tr>
-#                   <td style="padding:20px 40px 28px; text-align:center;">
-#                     <p style="margin:0; color:#555555; font-size:12px; line-height:1.7;">
-#                       If you were not expecting this file or believe it was sent to you in error,
-#                       you can safely ignore this email. The link will expire automatically.<br/><br/>
-#                       This is an automated message — please do not reply to this email.
-#                     </p>
-#                   </td>
-#                 </tr>
-
-#               </table>
-#             </td>
-#           </tr>
-
-#           <!-- Powered by -->
-#           <tr>
-#             <td align="center" style="padding-top:24px;">
-#               <p style="margin:0; color:#444444; font-size:12px;">
-#                 Powered by
-#                 <a href="#" style="color:#e8294a; text-decoration:none;
-#                                    font-weight:600;">CloudShare</a>
-#               </p>
-#             </td>
-#           </tr>
-
-#         </table>
-#       </td>
-#     </tr>
-#   </table>
-
-# </body>
-# </html>"""
-
-    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@cloudshare.local")
-
-    try:
-        email = EmailMultiAlternatives(
-            subject=subject,
-            body=text_body,
-            from_email=from_email,
-            to=[recipient_email],
-        )
-        # email.attach_alternative(html_body, "text/html")
-        email.send(fail_silently=False)
-        logger.info("Public share email sent to %s", recipient_email)
-    except Exception as exc:
-        logger.exception("Failed to send public share email to %s: %s", recipient_email, exc)
-
+    if not still_active:
+        if user_file.file and os.path.isfile(user_file.file.path):
+            os.remove(user_file.file.path)
+        UserFile.objects.filter(pk=user_file.pk).delete()
 
 def list_user_shares(user, search=None):
     qs = FileShare.objects.select_related("user_file").filter(owner=user)
@@ -1204,6 +1033,7 @@ def revoke_private_share(user, share_id):
 
     cascade_revoke_share(share, user)
     _log_share_access(share, user, ShareAccessLog.ACTION_REVOKE)
+    _cleanup_soft_deleted_file(share.user_file)  # 👈 add this
     return True
 
 
@@ -1220,11 +1050,13 @@ def revoke_private_share_recipient(owner, share_id, recipient_id):
     grant.save(update_fields=["is_revoked", "revoked_at"])
 
     _log_share_access(grant.private_share, owner, ShareAccessLog.ACTION_REVOKE, metadata={"recipient": grant.recipient.email})
+    
 
     child_shares = PrivateShare.objects.filter(parent_share=grant.private_share, owner=grant.recipient, is_revoked=False)
     for cs in child_shares:
         cascade_revoke_share(cs, owner)
 
+    _cleanup_soft_deleted_file(grant.private_share.user_file)  # 👈 add this
     return True
 
 
@@ -1353,12 +1185,6 @@ def lookup_users_by_email(emails):
 
 
 def _share_is_accessible_for_action(share, grant=None, action='download'):
-    """
-    Gate checks by action type:
-    - 'download': all checks (revoked, expired, time window, download limit, one-time)
-    - 'preview':  all checks EXCEPT download limit
-    - 'comment' / 'reshare': only revoked + expired (download limit never blocks these)
-    """
     if share.is_revoked:
         return False, "Revoked."
     if share.is_expired:
@@ -1369,9 +1195,14 @@ def _share_is_accessible_for_action(share, grant=None, action='download'):
         if grant.individual_expires_at and timezone.now() >= grant.individual_expires_at:
             return False, "Expired."
 
+    # One-time access — block download entirely, only preview allowed once
+    if share.one_time_access:
+        if action == 'download':
+            return False, "Download not available for one-time access shares."
+        if action == 'preview' and share.download_count >= 1:
+            return False, "One time access already used."
+
     if action in ('download', 'preview'):
-        if share.one_time_access and share.download_count > 0:
-            return False, "One time access."
         if not _is_within_time_windows(share.time_windows):
             return False, "Time window expired."
 
@@ -1390,14 +1221,24 @@ def record_private_share_view(grant, request=None, *, preview=False):
     ok, err = _share_is_accessible_for_action(share, grant, action=action)
     if not ok:
         return False, err
+
     grant.view_count += 1
     grant.last_accessed_at = timezone.now()
     grant.save(update_fields=["view_count", "last_accessed_at"])
     share.last_accessed_at = timezone.now()
     share.save(update_fields=["last_accessed_at"])
+
     metadata = {"preview": True} if preview else {}
     _log_share_access(share, grant.recipient, ShareAccessLog.ACTION_VIEW, request, metadata=metadata)
     _notify_owner_read_receipt(share, grant.recipient, "viewed")
+
+    # ── One-time access: revoke after first view (WhatsApp style) ────────────
+    if share.one_time_access and not share.is_revoked:
+        share.is_revoked = True
+        share.revoked_at = timezone.now()
+        share.download_count += 1  # mark as used
+        share.save(update_fields=['is_revoked', 'revoked_at', 'download_count'])
+
     return True, None
 
 
@@ -1405,9 +1246,15 @@ def record_private_share_download(grant, request=None):
     share = grant.private_share
     if not grant.can_download:
         return False, "Download not permitted."
+
+    # Block download entirely for one-time access shares
+    if share.one_time_access:
+        return False, "Download not available for one-time access shares."
+
     ok, err = _share_is_accessible_for_action(share, grant, action='download')
     if not ok:
         return False, err
+
     grant.download_count += 1
     grant.last_accessed_at = timezone.now()
     grant.save(update_fields=["download_count", "last_accessed_at"])
@@ -1416,10 +1263,6 @@ def record_private_share_download(grant, request=None):
     share.save(update_fields=["download_count", "last_accessed_at"])
     _log_share_access(share, grant.recipient, ShareAccessLog.ACTION_DOWNLOAD, request)
     _notify_owner_read_receipt(share, grant.recipient, "downloaded")
-    if share.one_time_access and not share.is_revoked:
-        share.is_revoked = True
-        share.revoked_at = timezone.now()
-        share.save(update_fields=['is_revoked', 'revoked_at'])
     return True, None
 
 

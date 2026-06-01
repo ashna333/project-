@@ -111,29 +111,39 @@ export default function TrashPage() {
   };
 
   const handleBulkDelete = () => {
-    if (!someSelected) return;
-    setConfirmModal({
-      title: 'Permanently delete selected?',
-      message: `Delete ${selectedIds.length} file(s) forever? This cannot be undone.`,
-      confirmLabel: 'Delete Forever',
-      onConfirm: async () => {
-        setActionLoading('bulk-selected-delete');
-        try {
-          for (const id of selectedIds) {
-            await destroyTrashFileApi(id);
-          }
-          showToast(`${selectedIds.length} file(s) permanently deleted.`);
-          clearSelection();
-          loadTrash(currentPage);
-        } catch {
-          showToast('Failed to delete some files.');
-        } finally {
-          setActionLoading(null);
-          setConfirmModal(null);
+  if (!someSelected) return;
+  setConfirmModal({
+    title: 'Permanently delete selected?',
+    message: `Delete ${selectedIds.length} file(s) forever? This cannot be undone.`,
+    confirmLabel: 'Delete Forever',
+    onConfirm: async () => {
+      setActionLoading('bulk-selected-delete');
+      try {
+        let deferred = 0;
+        let deleted = 0;
+        for (const id of selectedIds) {
+          const { data } = await destroyTrashFileApi(id);
+          if (data?.status === 'deferred') deferred++;
+          else deleted++;
         }
-      },
-    });
-  };
+        if (deferred > 0 && deleted > 0) {
+          showToast(`${deleted} file(s) deleted, ${deferred} kept until active shares expire.`, 'info');
+        } else if (deferred > 0) {
+          showToast(`${deferred} file(s) will be deleted once all active shares expire.`, 'info');
+        } else {
+          showToast(`${deleted} file(s) permanently deleted.`);
+        }
+        clearSelection();
+        loadTrash(currentPage);
+      } catch {
+        showToast('Failed to delete some files.', 'error');
+      } finally {
+        setActionLoading(null);
+        setConfirmModal(null);
+      }
+    },
+  });
+};
 
   const handleRestore = (file) => {
     setConfirmModal({
@@ -157,27 +167,30 @@ export default function TrashPage() {
     });
   };
 
-  const handleDelete = (file) => {
-    setConfirmModal({
-      title: 'Permanently delete?',
-      message: 'This file will be deleted forever. This cannot be undone.',
-      confirmLabel: 'Delete Forever',
-      onConfirm: async () => {
-        setActionLoading(file.id);
-        try {
-          await destroyTrashFileApi(file.id);
+const handleDelete = (file) => {
+  setConfirmModal({
+    title: 'Permanently delete?',
+    message: 'This file will be deleted forever. This cannot be undone.',
+    confirmLabel: 'Delete Forever',
+    onConfirm: async () => {
+      setActionLoading(file.id);
+      try {
+        const { data } = await destroyTrashFileApi(file.id);
+        if (data?.status === 'deferred') {
+          showToast('File removed from your account. It will be permanently deleted once all active shares expire.', 'info');
+        } else {
           showToast('File permanently deleted.');
-          loadTrash(page);
-        } catch {
-          showToast('Failed to delete file.');
-        } finally {
-          setActionLoading(null);
-          setConfirmModal(null);
         }
-      },
-    });
-  };
-
+        loadTrash(page);
+      } catch {
+        showToast('Failed to delete file.', 'error');
+      } finally {
+        setActionLoading(null);
+        setConfirmModal(null);
+      }
+    },
+  });
+};
   const handleRestoreAll = () => {
     if (count === 0) return;
     setConfirmModal({
@@ -203,27 +216,32 @@ export default function TrashPage() {
   };
 
   const handleEmptyTrash = () => {
-    if (count === 0) return;
-    setConfirmModal({
-      title: 'Empty trash?',
-      message: `Permanently delete ALL ${count} files? This cannot be undone.`,
-      confirmLabel: 'Empty Trash',
-      onConfirm: async () => {
-        setActionLoading('bulk-delete');
-        try {
-          await deleteAllTrashFilesApi();
+  if (count === 0) return;
+  setConfirmModal({
+    title: 'Empty trash?',
+    message: `Permanently delete ALL ${count} files? This cannot be undone.`,
+    confirmLabel: 'Empty Trash',
+    onConfirm: async () => {
+      setActionLoading('bulk-delete');
+      try {
+        const { data } = await deleteAllTrashFilesApi();
+        const deferred = data?.deferred_count || 0;
+        if (deferred > 0) {
+          showToast(`Trash emptied. ${deferred} file(s) kept until active shares expire.`, 'info');
+        } else {
           showToast('Trash emptied.');
-          loadTrash(1);
-          setPage(1);
-        } catch {
-          showToast('Failed to clear trash.');
-        } finally {
-          setActionLoading(null);
-          setConfirmModal(null);
         }
-      },
-    });
-  };
+        loadTrash(1);
+        setPage(1);
+      } catch {
+        showToast('Failed to clear trash.', 'error');
+      } finally {
+        setActionLoading(null);
+        setConfirmModal(null);
+      }
+    },
+  });
+};
 
   return (
     <>

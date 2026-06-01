@@ -17,6 +17,8 @@ const WEEKDAYS = [
   { v: 3, l: 'Thu' }, { v: 4, l: 'Fri' }, { v: 5, l: 'Sat' }, { v: 6, l: 'Sun' },
 ];
 
+const ONE_TIME_LOCKED_PERMS = ['can_download', 'can_reshare', 'can_comment'];
+
 export default function ShareModal({ file, parentShare, isOpen, onClose, onRefresh, onSuccess }) {
   useBodyScrollLock(isOpen);
   const [mode, setMode] = useState(parentShare ? 'private' : 'public');
@@ -171,8 +173,13 @@ export default function ShareModal({ file, parentShare, isOpen, onClose, onRefre
         }
       }
 
+      // When one-time access is enabled, lock out the restricted permissions
+      const effectivePerms = oneTime
+        ? { ...defaultPerms, can_download: false, can_reshare: false, can_comment: false }
+        : { ...defaultPerms };
+
       const recipient_permissions = {};
-      emails.forEach((email) => { recipient_permissions[email] = { ...defaultPerms }; });
+      emails.forEach((email) => { recipient_permissions[email] = { ...effectivePerms }; });
       const time_windows = enableTimeWindow ? [{ days: windowDays, start: windowStart, end: windowEnd }] : [];
 
       const { data } = await createPrivateShareApi({
@@ -222,7 +229,6 @@ export default function ShareModal({ file, parentShare, isOpen, onClose, onRefre
             <div>
               <strong>Re-share: {file?.original_name || file?.file_name}</strong>
               <p>Only verified recipients will be able to access this file.</p>
-              
             </div>
           </div>
         )}
@@ -293,239 +299,247 @@ export default function ShareModal({ file, parentShare, isOpen, onClose, onRefre
             </div>
           </form>
         )}
-{/* ── PRIVATE FORM ── */}
-{mode === 'private' && (
-  <form onSubmit={handlePrivateSubmit} className="modal-form">
 
-    {/* Email input */}
-    <div className="input-group">
-      <label><UserPlus size={14} /> Recipient email (must be registered)</label>
-      <div className="email-chips-container">
-        {emails.map((email) => (
-          <div key={email} className="email-chip verified">
-            <span>{verifiedEmails[email] ? `${verifiedEmails[email]} · ` : ''}{email}</span>
-            <X size={14} onClick={() => setEmails(emails.filter((e) => e !== email))} className="remove-chip-icon" />
-          </div>
-        ))}
-        <input
-          className="chip-input"
-          placeholder="other-user@email.com"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onBlur={() => inputValue && addEmailPrivate(inputValue)}
-        />
-      </div>
-    </div>
+        {/* ── PRIVATE FORM ── */}
+        {mode === 'private' && (
+          <form onSubmit={handlePrivateSubmit} className="modal-form">
 
-    {/* Permissions — pill toggles */}
-    <div className="ps-form-group">
-      <label>Permissions</label>
-      <div className="perm-pills-row">
-        {PERMS.map((p) => {
-          const disabled = (parentShare && !parentShare[p.key]) || p.key === 'can_view';
-          const active = defaultPerms[p.key];
-          return (
-            <button
-              key={p.key}
-              type="button"
-              disabled={disabled}
-              className={`perm-pill ${active ? 'active' : ''} ${disabled ? 'disabled' : ''}`}
-              onClick={() => !disabled && setDefaultPerms({ ...defaultPerms, [p.key]: !active })}
-            >
-              {active ? '✓ ' : ''}{p.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+            {/* Email input */}
+            <div className="input-group">
+              <label><UserPlus size={14} /> Recipient email (must be registered)</label>
+              <div className="email-chips-container">
+                {emails.map((email) => (
+                  <div key={email} className="email-chip verified">
+                    <span>{verifiedEmails[email] ? `${verifiedEmails[email]} · ` : ''}{email}</span>
+                    <X size={14} onClick={() => setEmails(emails.filter((e) => e !== email))} className="remove-chip-icon" />
+                  </div>
+                ))}
+                <input
+                  className="chip-input"
+                  placeholder="other-user@email.com"
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onBlur={() => inputValue && addEmailPrivate(inputValue)}
+                />
+              </div>
+            </div>
 
-    {/* Password protect */}
-    <div className="ps-toggle-row">
-      <label className="ps-toggle-label"><Lock size={14} /> Password protect</label>
-      <button
-        type="button"
-        className={`ps-switch ${enablePassword ? 'on' : ''}`}
-        onClick={() => { setEnablePassword(v => { if (v) setPassword(''); return !v; }); }}
-      >
-        <span className="ps-switch-thumb" />
-      </button>
-    </div>
-    {enablePassword && (
-      <div className="input-group">
-        <div className="ps-password-wrap">
-          <input
-            type={showPassword ? 'text' : 'password'}
-            className="modal-input"
-            value={password}
-            placeholder="Min. 4 characters"
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-            name="private-share-password"
-          />
-          <button type="button" className="ps-password-eye" onClick={() => setShowPassword(!showPassword)}>
-            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
-        </div>
-      </div>
-    )}
+            {/* Permissions — pill toggles */}
+            <div className="ps-form-group">
+              <label>Permissions</label>
+              <div className="perm-pills-row">
+                {PERMS.map((p) => {
+                  const lockedByOneTime = oneTime && ONE_TIME_LOCKED_PERMS.includes(p.key);
+                  const disabled = (parentShare && !parentShare[p.key]) || p.key === 'can_view' || lockedByOneTime;
+                  const active = lockedByOneTime ? false : defaultPerms[p.key];
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      disabled={disabled}
+                      title={lockedByOneTime ? 'Not available for one-time access' : undefined}
+                      className={`perm-pill ${active ? 'active' : ''} ${disabled ? 'disabled' : ''}`}
+                      onClick={() => !disabled && setDefaultPerms({ ...defaultPerms, [p.key]: !active })}
+                    >
+                      {active ? '✓ ' : ''}{p.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {oneTime && (
+                <p className="ps-field-hint" style={{ marginTop: '6px' }}>
+                  Download, Re-share, and Comment are disabled for one-time access.
+                </p>
+              )}
+            </div>
 
-    {/* One-time access */}
-    <div className="ps-toggle-row">
-      <label className="ps-toggle-label">
-        <input
-          type="checkbox"
-          checked={oneTime}
-          style={{ marginRight: '6px' }}
-          onChange={(e) => setOneTime(e.target.checked)}
-        />
-        One-time access
-      </label>
-      <span className="ps-field-hint">Expires after first download</span>
-    </div>
-
-    {/* Expiry + Max downloads — side by side */}
-    {!oneTime && (
-      <div className="two-col-inputs">
-        <div className="input-group">
-          <label><Clock size={13} /> Expires (hours)</label>
-          <input
-            type="number"
-            className="modal-input"
-            value={privateExpiresInHours}
-            min={1}
-            max={720}
-            onChange={(e) => setPrivateExpiresInHours(e.target.value)}
-          />
-        </div>
-        <div className="input-group">
-          <label><DownloadCloud size={13} /> Max downloads</label>
-          <input
-            type="number"
-            className="modal-input"
-            value={maxDownloads}
-            min={1}
-            placeholder="Unlimited"
-            onChange={(e) => setMaxDownloads(e.target.value)}
-          />
-        </div>
-      </div>
-    )}
-
-    {/* Time window toggle */}
-    <div className="ps-toggle-row">
-      <label className="ps-toggle-label"><CalendarClock size={14} /> Restrict access hours</label>
-      <button
-        type="button"
-        className={`ps-switch ${enableTimeWindow ? 'on' : ''}`}
-        onClick={() => setEnableTimeWindow(v => !v)}
-      >
-        <span className="ps-switch-thumb" />
-      </button>
-    </div>
-
-    {/* Time window panel */}
-    {enableTimeWindow && (
-      <div className="ps-time-window-panel">
-
-        {/* Day selection */}
-        <div>
-          <p className="time-window-section-label">Active days</p>
-          <div className="day-pills-row">
-            {WEEKDAYS.map(({ v, l }) => (
+            {/* Password protect */}
+            <div className="ps-toggle-row">
+              <label className="ps-toggle-label"><Lock size={14} /> Password protect</label>
               <button
-                key={v}
                 type="button"
-                className={`day-pill-btn ${windowDays.includes(v) ? 'active' : ''}`}
-                onClick={() => setWindowDays(prev =>
-                  prev.includes(v) ? prev.filter(d => d !== v) : [...prev, v].sort()
-                )}
+                className={`ps-switch ${enablePassword ? 'on' : ''}`}
+                onClick={() => { setEnablePassword(v => { if (v) setPassword(''); return !v; }); }}
               >
-                {l}
+                <span className="ps-switch-thumb" />
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Time selection */}
-        <div>
-          <p className="time-window-section-label">Access hours</p>
-          <div className="time-selects-row">
-            <div className="time-select-wrap">
-              <label>From</label>
-              <select
-                className="modal-input"
-                value={windowStart}
-                onChange={(e) => setWindowStart(e.target.value)}
-              >
-                {Array.from({ length: 24 }, (_, i) => {
-                  const h = String(i).padStart(2, '0');
-                  return <option key={h} value={`${h}:00`}>{`${h}:00`}</option>;
-                })}
-              </select>
             </div>
-            <div className="time-arrow">→</div>
-            <div className="time-select-wrap">
-              <label>Until</label>
-              <select
-                className="modal-input"
-                value={windowEnd}
-                onChange={(e) => setWindowEnd(e.target.value)}
-              >
-                {Array.from({ length: 24 }, (_, i) => {
-                  const h = String(i).padStart(2, '0');
-                  return <option key={h} value={`${h}:00`}>{`${h}:00`}</option>;
-                })}
-              </select>
-            </div>
-          </div>
+            {enablePassword && (
+              <div className="input-group">
+                <div className="ps-password-wrap">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    className="modal-input"
+                    value={password}
+                    placeholder="Min. 4 characters"
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="new-password"
+                    name="private-share-password"
+                  />
+                  <button type="button" className="ps-password-eye" onClick={() => setShowPassword(!showPassword)}>
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+            )}
 
-          {/* Visual timeline bar */}
-          <div className="time-bar-wrap">
-            <div className="time-bar-track">
-              <div
-                className="time-bar-fill"
-                style={{
-                  left: `${(parseInt(windowStart) / 24) * 100}%`,
-                  width: `${Math.max(((parseInt(windowEnd) - parseInt(windowStart)) / 24) * 100, 2)}%`,
-                }}
+            {/* One-time access */}
+            <div className="ps-toggle-row">
+              <label className="ps-toggle-label">
+                <input
+                  type="checkbox"
+                  checked={oneTime}
+                  style={{ marginRight: '6px' }}
+                  onChange={(e) => setOneTime(e.target.checked)}
+                />
+                One-time access
+              </label>
+              <span className="ps-field-hint">Expires after first download</span>
+            </div>
+
+            {/* Expiry + Max downloads — side by side */}
+            <div className="two-col-inputs" style={{ opacity: oneTime ? 0.4 : 1, pointerEvents: oneTime ? 'none' : 'auto' }}>
+              <div className="input-group">
+                <label><Clock size={13} /> Expires (hours){oneTime && <span className="label-hint"> — disabled for one-time</span>}</label>
+                <input
+                  type="number"
+                  className="modal-input"
+                  value={privateExpiresInHours}
+                  min={1}
+                  max={720}
+                  disabled={oneTime}
+                  onChange={(e) => setPrivateExpiresInHours(e.target.value)}
+                />
+              </div>
+              <div className="input-group">
+                <label><DownloadCloud size={13} /> Max downloads</label>
+                <input
+                  type="number"
+                  className="modal-input"
+                  value={maxDownloads}
+                  min={1}
+                  placeholder="Unlimited"
+                  disabled={oneTime}
+                  onChange={(e) => setMaxDownloads(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Time window toggle */}
+            <div className="ps-toggle-row">
+              <label className="ps-toggle-label"><CalendarClock size={14} /> Restrict access hours</label>
+              <button
+                type="button"
+                className={`ps-switch ${enableTimeWindow ? 'on' : ''}`}
+                onClick={() => setEnableTimeWindow(v => !v)}
+              >
+                <span className="ps-switch-thumb" />
+              </button>
+            </div>
+
+            {/* Time window panel */}
+            {enableTimeWindow && (
+              <div className="ps-time-window-panel">
+
+                {/* Day selection */}
+                <div>
+                  <p className="time-window-section-label">Active days</p>
+                  <div className="day-pills-row">
+                    {WEEKDAYS.map(({ v, l }) => (
+                      <button
+                        key={v}
+                        type="button"
+                        className={`day-pill-btn ${windowDays.includes(v) ? 'active' : ''}`}
+                        onClick={() => setWindowDays(prev =>
+                          prev.includes(v) ? prev.filter(d => d !== v) : [...prev, v].sort()
+                        )}
+                      >
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Time selection */}
+                <div>
+                  <p className="time-window-section-label">Access hours</p>
+                  <div className="time-selects-row">
+                    <div className="time-select-wrap">
+                      <label>From</label>
+                      <select
+                        className="modal-input"
+                        value={windowStart}
+                        onChange={(e) => setWindowStart(e.target.value)}
+                      >
+                        {Array.from({ length: 24 }, (_, i) => {
+                          const h = String(i).padStart(2, '0');
+                          return <option key={h} value={`${h}:00`}>{`${h}:00`}</option>;
+                        })}
+                      </select>
+                    </div>
+                    <div className="time-arrow">→</div>
+                    <div className="time-select-wrap">
+                      <label>Until</label>
+                      <select
+                        className="modal-input"
+                        value={windowEnd}
+                        onChange={(e) => setWindowEnd(e.target.value)}
+                      >
+                        {Array.from({ length: 24 }, (_, i) => {
+                          const h = String(i).padStart(2, '0');
+                          return <option key={h} value={`${h}:00`}>{`${h}:00`}</option>;
+                        })}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Visual timeline bar */}
+                  <div className="time-bar-wrap">
+                    <div className="time-bar-track">
+                      <div
+                        className="time-bar-fill"
+                        style={{
+                          left: `${(parseInt(windowStart) / 24) * 100}%`,
+                          width: `${Math.max(((parseInt(windowEnd) - parseInt(windowStart)) / 24) * 100, 2)}%`,
+                        }}
+                      />
+                    </div>
+                    <div className="time-bar-labels">
+                      <span>12am</span>
+                      <span>6am</span>
+                      <span>12pm</span>
+                      <span>6pm</span>
+                      <span>12am</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Message */}
+            <div className="input-group">
+              <label>Message <span className="label-hint">(optional)</span></label>
+              <textarea
+                className="modal-textarea"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Add a note for the recipient..."
               />
             </div>
-            <div className="time-bar-labels">
-              <span>12am</span>
-              <span>6am</span>
-              <span>12pm</span>
-              <span>6pm</span>
-              <span>12am</span>
+
+            <div className="modal-footer">
+              <button type="button" className="cancel-btn" onClick={handleClose}>Cancel</button>
+              <button type="submit" className="share-submit-btn" disabled={loading || !!successInfo}>
+                {loading
+                  ? <><Loader2 size={16} className="spinner" /> Sharing...</>
+                  : `Share with ${emails.length} user(s)`
+                }
+              </button>
             </div>
-          </div>
-        </div>
-      </div>
-    )}
+          </form>
+        )}
 
-    {/* Message */}
-    <div className="input-group">
-      <label>Message <span className="label-hint">(optional)</span></label>
-      <textarea
-        className="modal-textarea"
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        placeholder="Add a note for the recipient..."
-      />
-    </div>
-
-    <div className="modal-footer">
-      <button type="button" className="cancel-btn" onClick={handleClose}>Cancel</button>
-      <button type="submit" className="share-submit-btn" disabled={loading || !!successInfo}>
-        {loading
-          ? <><Loader2 size={16} className="spinner" /> Sharing...</>
-          : `Share with ${emails.length} user(s)`
-        }
-      </button>
-    </div>
-  </form>
-)}
-  
       </div>
     </div>
   );

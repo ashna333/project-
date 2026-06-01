@@ -14,7 +14,7 @@ import GoogleAuthCallbackPage from './pages/GoogleAuthCallbackPage'
 import { InboxBadgeProvider } from './context/InboxBadgeContext';
 
 
-
+ import ExpiringSoonPage from './pages/ExpiringSoonPage';
 // Dashboard/App Pages
 import AppShell from './components/AppShell'; // Ensure this matches your filename
 import DashboardOverviewPage from './pages/DashboardOverviewPage'
@@ -26,8 +26,6 @@ import TrashPage from './pages/TrashPage'
 import UploadPage from './pages/UploadPage'
 import StarredPage from './pages/Starredpage'
 import ProfilePage from './pages/ProfilePage'
-import SpacesPage from './pages/SpacesPage'
-import SpaceDetailPage from './pages/SpaceDetailPage'
 import StorageManager from './pages/Storagemanager'
 
 import PublicShare from './pages/PublicShare'
@@ -76,9 +74,10 @@ export default function App() {
             <Route path="/trash" element={<TrashPage />} />
             <Route path="/profile" element={<ProfilePage />} />
            <Route path="/storage-manager" element={<StorageManager />} />
+          
+           <Route path="/expiring-soon" element={<ExpiringSoonPage />} />
 
-            <Route path="/spaces" element={<SpacesPage />} />
-            <Route path="/spaces/:spaceId" element={<SpaceDetailPage />} />
+            
         
           </Route>
 

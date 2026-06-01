@@ -23,6 +23,9 @@ import ViewToggle from '../components/ViewToggle';
 import useViewMode from '../hooks/useViewMode';
 import useSelectMode from '../hooks/useSelectMode';
 import SelectToolbar from '../components/SelectToolbar';
+import FilePreview from '../components/FilePreview';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const FILTER_CONFIG = [
   {
@@ -54,24 +57,26 @@ const SORT_OPTIONS = [
   { value: 'file_size',    label: 'Smallest' },
 ];
 
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
 export default function FileManagerPage() {
   const dispatch = useDispatch();
   const { files, pagination, loading, searchQuery } = useSelector((s) => s.files);
 
   const [searchInput, setSearchInput]             = useState(searchQuery);
-  const [viewMode, handleViewMode]                 = useViewMode('list');
+  const [viewMode, handleViewMode]                = useViewMode('list');
   const [isModalOpen, setIsModalOpen]             = useState(false);
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [activeFile, setActiveFile]               = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [fileToDelete, setFileToDelete]           = useState(null);
-  const { showToast }                              = useToast();
+  const { showToast }                             = useToast();
   const [selectedFile, setSelectedFile]           = useState(null);
   const [currentPage, setCurrentPage]             = useState(1);
   const [totalPages, setTotalPages]               = useState(1);
-  const pageSize                                   = 12;
+  const pageSize                                  = 12;
 
-  // AI Insights — shown only when user clicks "Analyse"
+  // AI Insights
   const [aiInsight, setAiInsight]               = useState('');
   const [aiInsightLoading, setAiInsightLoading] = useState(false);
   const [aiInsightVisible, setAiInsightVisible] = useState(false);
@@ -80,8 +85,8 @@ export default function FileManagerPage() {
   const [openFilter, setOpenFilter] = useState(null);
   const [ordering, setOrdering]     = useState('-uploaded_at');
 
-  const safeFiles       = Array.isArray(files) ? files : [];
-  const insightCacheRef = useRef({});
+  const safeFiles         = Array.isArray(files) ? files : [];
+  const insightCacheRef   = useRef({});
   const scrollPositionRef = useRef(0);
 
   const {
@@ -222,8 +227,6 @@ export default function FileManagerPage() {
     else setSelectedFile(file);
   };
 
-  const handleOpenInNewTab = () => { if (selectedFile?.url) window.open(selectedFile.url, '_blank'); };
-
   // ─── AI Insights ─────────────────────────────────────────────────────────────
 
   const formatFileSize = (bytes) => {
@@ -234,122 +237,205 @@ export default function FileManagerPage() {
   };
 
   const fetchAiInsight = async (file) => {
-    // Return cached result immediately
-    if (insightCacheRef.current[file.id]) {
-      setAiInsight(insightCacheRef.current[file.id]);
-      setAiInsightVisible(true);
-      return;
-    }
-
-    setAiInsightLoading(true);
+  if (insightCacheRef.current[file.id]) {
+    setAiInsight(insightCacheRef.current[file.id]);
     setAiInsightVisible(true);
-    setAiInsight('');
+    return;
+  }
 
-    const ext     = file.original_name?.split('.').pop()?.toLowerCase();
-    const isImage = ['jpg','jpeg','png','gif','webp','bmp'].includes(ext);
-    const isPDF   = ext === 'pdf';
-    const isText  = ['txt','js','py','html','css','json','csv','md','ts','tsx','jsx'].includes(ext);
-    const isVideo = ['mp4','webm','mov','avi','mkv'].includes(ext);
-    const isAudio = ['mp3','wav','aac','flac','m4a','ogg'].includes(ext);
+  setAiInsightLoading(true);
+  setAiInsightVisible(true);
+  setAiInsight('');
 
-    try {
-      let contents = [];
+  const ext       = file.original_name?.split('.').pop()?.toLowerCase();
+  const isImage   = ['jpg','jpeg','png','gif','webp','bmp','tiff','ico'].includes(ext);
+  const isPDF     = ext === 'pdf';
+  const isText    = ['txt','js','py','html','css','json','csv','md','ts','tsx','jsx','xml','rtf'].includes(ext);
+  const isOffice  = ['doc','docx','xls','xlsx','ppt','pptx','odt','ods','odp'].includes(ext);
+  const isVideo   = ['mp4','webm','mov','avi','mkv','flv','wmv'].includes(ext);
+  const isAudio   = ['mp3','wav','aac','flac','m4a','ogg','wma'].includes(ext);
+  const isArchive = ['zip','rar','7z','tar','gz'].includes(ext);
 
-      if (isImage) {
-        // Fetch and base64-encode the image, send it to Gemini vision
-        const imgRes  = await fetch(file.url);
-        const blob    = await imgRes.blob();
-        const base64  = await new Promise((res) => {
-          const reader = new FileReader();
-          reader.onload = () => res(reader.result.split(',')[1]);
-          reader.readAsDataURL(blob);
+  try {
+    let messages = [];
+    let model = 'llama-3.1-8b-instant';
+
+    if (isImage) {
+      const imgRes  = await fetch(file.url);
+      const blob    = await imgRes.blob();
+      const base64  = await new Promise((res) => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result.split(',')[1]);
+        reader.readAsDataURL(blob);
+      });
+      const mimeType = blob.type || `image/${ext}`;
+      model    = 'meta-llama/llama-4-scout-17b-16e-instruct';
+      messages = [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
+          { type: 'text', text: 'Describe what this image contains in 2-3 sentences. Be specific about content, objects, people, text, or scene visible. No preamble.' },
+        ],
+      }];
+
+    } else if (isPDF) {
+  let pdfBase64 = null;
+  try {
+    // Load pdf.js — preload the worker as a blob to avoid timing issues
+    const pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+    
+    // Wait for worker to be available
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    
+    pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    const loadingTask = pdfjs.getDocument({ url: file.url, disableRange: true });
+    const pdf         = await loadingTask.promise;
+    const page        = await pdf.getPage(1);
+    const viewport    = page.getViewport({ scale: 2 });
+    const canvas      = document.createElement('canvas');
+    canvas.width      = viewport.width;
+    canvas.height     = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    pdfBase64 = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+    console.log('PDF rendered OK, base64 length:', pdfBase64?.length);
+  } catch (pdfErr) {
+    console.warn('pdf.js failed:', pdfErr);
+  }
+
+  if (pdfBase64) {
+    model    = 'meta-llama/llama-4-scout-17b-16e-instruct';
+    messages = [{
+      role: 'user',
+      content: [
+        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${pdfBase64}` } },
+        { type: 'text', text: `This is the first page of a PDF named "${file.original_name}". Describe what this document is about in 2-3 sentences. Be specific about content, names, dates, or data visible. No preamble.` },
+      ],
+    }];
+  } else {
+    // Hard fallback — don't try to read binary, just use filename
+    messages = [{
+      role: 'user',
+      content: `Based only on the filename, describe in 2 sentences what this PDF document likely contains.\n\nFilename: ${file.original_name}\nSize: ${formatFileSize(file.file_size)}`,
+    }];
+  }
+
+    } else if (isText) {
+      const textRes  = await fetch(file.url);
+      const textBody = await textRes.text();
+      messages = [{
+        role: 'user',
+        content: `Analyse this file and describe what it contains in 2-3 sentences. Mention key topics, data, or purpose. No preamble.\n\nFile: ${file.original_name}\nContent:\n${textBody.slice(0, 3000)}`,
+      }];
+
+    } else if (isOffice) {
+      // Fetch binary and try to extract any readable strings
+      const res    = await fetch(file.url);
+      const buffer = await res.arrayBuffer();
+      const bytes  = new Uint8Array(buffer);
+      let readable = '';
+      for (let i = 0; i < bytes.length && readable.length < 3000; i++) {
+        if (bytes[i] >= 32 && bytes[i] < 127) readable += String.fromCharCode(bytes[i]);
+        else readable += ' ';
+      }
+      const snippet = readable.replace(/\s+/g, ' ').match(/[A-Za-z]{3,}/g)?.join(' ').slice(0, 2000) || '';
+      messages = [{
+        role: 'user',
+        content: `Describe what this ${ext?.toUpperCase()} Office document is about in 2-3 sentences. Use the filename and any readable content below.\n\nFilename: ${file.original_name}\nSize: ${formatFileSize(file.file_size)}\nReadable content: ${snippet || '(binary file, use filename only)'}`,
+      }];
+
+    } else if (isVideo) {
+      // Capture a frame from the video
+      let videoBase64 = null;
+      try {
+        videoBase64 = await new Promise((resolve, reject) => {
+          const video    = document.createElement('video');
+          video.crossOrigin = 'anonymous';
+          video.src      = file.url;
+          video.muted    = true;
+          video.currentTime = 2;
+          video.onloadeddata = () => {
+            video.currentTime = 2;
+          };
+          video.onseeked = () => {
+            const canvas  = document.createElement('canvas');
+            canvas.width  = video.videoWidth  || 640;
+            canvas.height = video.videoHeight || 360;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
+          };
+          video.onerror = reject;
+          setTimeout(() => reject(new Error('Video load timeout')), 8000);
         });
-        const mimeType = blob.type || `image/${ext}`;
+      } catch (e) {
+        console.warn('Video frame capture failed', e);
+      }
 
-        contents = [{
-          parts: [
-            { inline_data: { mime_type: mimeType, data: base64 } },
-            { text: 'Describe what this image contains in 2-3 sentences. Be specific about the content, objects, people, text, or scene visible. No preamble, no "This image shows" — just describe directly.' },
+      if (videoBase64) {
+        model    = 'meta-llama/llama-4-scout-17b-16e-instruct';
+        messages = [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${videoBase64}` } },
+            { type: 'text', text: `This is a frame from a video file named "${file.original_name}". Describe what this video appears to be about in 2 sentences based on what you see. No preamble.` },
           ],
         }];
-
-      } else if (isPDF || isText) {
-        // Fetch raw text content and send excerpt to Gemini
-        const textRes  = await fetch(file.url);
-        const textBody = await textRes.text();
-        const snippet  = textBody.slice(0, 4000);
-
-        contents = [{
-          parts: [{
-            text: `Analyse this file and describe what it contains in 2-3 sentences. Be specific about the actual content — mention key topics, data, names, or structure you see. Do not say "this file contains" — just describe the content directly.
-
-File name: ${file.original_name}
-Content:
-${snippet}`,
-          }],
-        }];
-
-      } else if (isVideo || isAudio) {
-        // Media files — describe based on filename heuristics via Gemini
-        contents = [{
-          parts: [{
-            text: `Based on this filename, describe in 1-2 sentences what this ${isVideo ? 'video' : 'audio'} file likely contains. Use the filename words as clues. Be specific and natural — no generic responses.
-
-Filename: ${file.original_name}
-Size: ${formatFileSize(file.file_size)}`,
-          }],
-        }];
-
       } else {
-        // Generic files
-        contents = [{
-          parts: [{
-            text: `Based on the filename and metadata below, describe in 1-2 sentences what this file likely contains or is used for. Be specific, no generic answers.
-
-Filename: ${file.original_name}
-Type: ${file.file_type || ext}
-Size: ${formatFileSize(file.file_size)}
-Uploaded: ${new Date(file.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`,
-          }],
+        messages = [{
+          role: 'user',
+          content: `Based on this video filename, describe in 2 sentences what it likely contains.\n\nFilename: ${file.original_name}\nSize: ${formatFileSize(file.file_size)}`,
         }];
       }
 
-     const response = await fetch(
-  `https://generativelanguage.googleapis.com/v1beta/models?key=${import.meta.env.VITE_GEMINI_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents }),
-        }
-      );
+    } else if (isAudio) {
+      messages = [{
+        role: 'user',
+        content: `Based on this audio filename, describe in 2 sentences what it likely is — is it music, a podcast, a recording, a sound effect? Use the filename words as clues.\n\nFilename: ${file.original_name}\nSize: ${formatFileSize(file.file_size)}`,
+      }];
 
-const data = await res.json();
-console.log(data.models.map(m => m.name));
-    
+    } else if (isArchive) {
+      messages = [{
+        role: 'user',
+        content: `Based on this archive filename, describe in 2 sentences what it likely contains.\n\nFilename: ${file.original_name}\nSize: ${formatFileSize(file.file_size)}`,
+      }];
 
-      // Surface any API-level error clearly
-      if (data.error) {
-        console.error('Gemini API error:', data.error);
-        throw new Error(data.error.message);
-      }
-
-      const text    = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      const insight = text?.trim() || 'Could not generate an insight for this file.';
-      insightCacheRef.current[file.id] = insight;
-      setAiInsight(insight);
-
-    } catch (err) {
-      console.error('AI insight error:', err);
-      setAiInsight(`Could not analyse this file: ${err.message || 'Unknown error'}`);
-    } finally {
-      setAiInsightLoading(false);
+    } else {
+      messages = [{
+        role: 'user',
+        content: `Based on filename and metadata, describe in 2 sentences what this file likely is and its purpose.\n\nFilename: ${file.original_name}\nType: ${file.file_type || ext}\nSize: ${formatFileSize(file.file_size)}`,
+      }];
     }
-  };
 
-  const handleAnalyseClick = () => {
-    if (selectedFile) fetchAiInsight(selectedFile);
-  };
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_GROQ_KEY}`,
+      },
+      body: JSON.stringify({ model, max_tokens: 250, messages }),
+    });
 
+    const data    = await response.json();
+    const insight = data.choices?.[0]?.message?.content?.trim();
+
+    if (!insight) {
+      console.error('Groq empty response:', data);
+      throw new Error(data.error?.message || 'Empty response from AI');
+    }
+
+    // Only cache successful results
+    insightCacheRef.current[file.id] = insight;
+    setAiInsight(insight);
+
+  } catch (err) {
+    console.error('AI insight error:', err);
+    setAiInsight(`Could not analyse this file: ${err.message || 'Unknown error'}`);
+    // Don't cache errors so user can retry
+  } finally {
+    setAiInsightLoading(false);
+  }
+};
+  const handleAnalyseClick    = () => { if (selectedFile) fetchAiInsight(selectedFile); };
   const handleRegenerateClick = () => {
     if (selectedFile) {
       delete insightCacheRef.current[selectedFile.id];
@@ -388,9 +474,10 @@ console.log(data.models.map(m => m.name));
       flac: 'Audio File', m4a: 'Audio File', ogg: 'Audio File',
       js: 'JavaScript File', py: 'Python File',
       html: 'HTML File', css: 'CSS File', json: 'JSON File',
+      md: 'Markdown File', xml: 'XML File',
     };
     if (['jpg','jpeg','png','svg','webp','bmp'].includes(extension))
-      return `Image (${extension.toUpperCase()})`;
+      return `Image (${extension?.toUpperCase()})`;
     return fileTypes[extension] || 'Unknown File';
   };
 
@@ -403,14 +490,6 @@ console.log(data.models.map(m => m.name));
     color: active ? '#f43f5e' : '#71717a',
     transition: 'all 0.15s ease', whiteSpace: 'nowrap',
   });
-
-  const openInNewTabBtnStyle = {
-    position: 'absolute', top: '10px', right: '10px',
-    background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.15)',
-    color: '#fff', fontSize: '12px', padding: '5px 10px',
-    borderRadius: '6px', cursor: 'pointer', zIndex: 10,
-    display: 'flex', alignItems: 'center', gap: '4px',
-  };
 
   // ─── Render ───────────────────────────────────────────────────────────────────
 
@@ -527,7 +606,10 @@ console.log(data.models.map(m => m.name));
                 {activeFilterCount > 0 ? 'No files match your filters' : 'No files yet'}
               </h2>
               {activeFilterCount > 0 && (
-                <button onClick={clearFilters} style={{ marginTop: '12px', background: 'none', border: '1px solid #3f3f46', color: '#a1a1aa', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                <button
+                  onClick={clearFilters}
+                  style={{ marginTop: '12px', background: 'none', border: '1px solid #3f3f46', color: '#a1a1aa', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}
+                >
                   Clear filters
                 </button>
               )}
@@ -549,7 +631,12 @@ console.log(data.models.map(m => m.name));
               onToggleSelect={toggleSelectFile}
             />
           )}
-          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={handlePageChange} loading={loading} />
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+            loading={loading}
+          />
         </section>
 
         <footer className="fm-footer">CloudShare - Secure file sharing, built for teams.</footer>
@@ -567,55 +654,8 @@ console.log(data.models.map(m => m.name));
               </button>
             </div>
 
-            {/* Preview area */}
-            {(() => {
-              const ext     = selectedFile.original_name?.split('.').pop()?.toLowerCase();
-              const isImage = ['jpg','jpeg','png','gif','svg','webp','bmp'].includes(ext);
-              const isPDF   = ext === 'pdf';
-              const isVideo = ['mp4','webm','mov','avi','mkv'].includes(ext);
-              const isAudio = ['mp3','wav','ogg','aac','flac','m4a'].includes(ext);
-
-              if (isVideo) return (
-                <div className="modal-preview-box" style={{ cursor: 'default' }}>
-                  <video src={selectedFile?.url} controls style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000', display: 'block' }} />
-                  <button onClick={handleOpenInNewTab} style={openInNewTabBtnStyle}>↗ Open</button>
-                </div>
-              );
-
-              if (isPDF) return (
-                <div className="modal-preview-box" style={{ cursor: 'default' }}>
-                  <iframe
-                    src={`${selectedFile?.url}#toolbar=0&scrollbar=0&navpanes=0&view=FitH`}
-                    style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-                    title="PDF Preview"
-                  />
-                  <button onClick={(e) => { e.stopPropagation(); handleOpenInNewTab(); }} style={openInNewTabBtnStyle}>↗ Open</button>
-                </div>
-              );
-
-              if (isAudio) return (
-                <div className="modal-preview-box" style={{ cursor: 'default', flexDirection: 'column', gap: '16px' }}>
-                  <div style={{ opacity: 0.15 }}>{getFileIcon(selectedFile)}</div>
-                  <audio src={selectedFile?.url} controls style={{ width: '85%', accentColor: '#e11d48' }} />
-                  <button onClick={handleOpenInNewTab} style={openInNewTabBtnStyle}>↗ Open</button>
-                </div>
-              );
-
-              return (
-                <div className="modal-preview-box modal-preview-clickable" onClick={handleOpenInNewTab} title="Click to open in new tab">
-                  {isImage
-                    ? <img src={selectedFile?.url} alt="Preview" className="modal-img-preview" />
-                    : (
-                      <div className="modal-icon-placeholder">
-                        {getFileIcon(selectedFile)}
-                        <span style={{ fontSize: '12px', color: '#71717a', marginTop: '8px', display: 'block' }}>Preview not available</span>
-                      </div>
-                    )
-                  }
-                 
-                </div>
-              );
-            })()}
+            {/* ── Preview ── */}
+            <FilePreview file={selectedFile} />
 
             <div className="modal-body-content">
 
@@ -624,17 +664,32 @@ console.log(data.models.map(m => m.name));
                 <h2 className="detail-filename">{selectedFile.original_name}</h2>
                 <div
                   onClick={(e) => handleToggleStar(selectedFile, e)}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', width: 'fit-content', color: selectedFile.is_starred ? '#fbbf24' : '#52525b', fontSize: '12px', marginTop: '4px' }}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    cursor: 'pointer', width: 'fit-content',
+                    color: selectedFile.is_starred ? '#fbbf24' : '#52525b',
+                    fontSize: '12px', marginTop: '4px',
+                  }}
                 >
-                  <Star size={13} fill={selectedFile.is_starred ? '#fbbf24' : 'none'} color={selectedFile.is_starred ? '#fbbf24' : '#52525b'} />
+                  <Star
+                    size={13}
+                    fill={selectedFile.is_starred ? '#fbbf24' : 'none'}
+                    color={selectedFile.is_starred ? '#fbbf24' : '#52525b'}
+                  />
                   {selectedFile.is_starred ? 'Starred' : 'Add to starred'}
                 </div>
               </div>
 
               {/* Metadata grid */}
               <div className="detail-info-grid">
-                <div className="info-group"><label>Size</label><span>{formatFileSize(selectedFile.file_size)}</span></div>
-                <div className="info-group"><label>Type</label><span>{getReadableFileType(selectedFile)}</span></div>
+                <div className="info-group">
+                  <label>Size</label>
+                  <span>{formatFileSize(selectedFile.file_size)}</span>
+                </div>
+                <div className="info-group">
+                  <label>Type</label>
+                  <span>{getReadableFileType(selectedFile)}</span>
+                </div>
                 <div className="info-group">
                   <label>Uploaded</label>
                   <span>{new Date(selectedFile.uploaded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
@@ -643,23 +698,31 @@ console.log(data.models.map(m => m.name));
 
               {/* Action buttons */}
               <div className="sidebar-actions-main">
-                <button className="sidebar-btn-share" onClick={() => { setActiveFile(selectedFile); setIsRenameModalOpen(true); setSelectedFile(null); }}>
+                <button
+                  className="sidebar-btn-share"
+                  onClick={() => { setActiveFile(selectedFile); setIsRenameModalOpen(true); setSelectedFile(null); }}
+                >
                   <Edit2 size={16} /> Edit
                 </button>
                 <button onClick={() => { dispatch(downloadFile(selectedFile.id, selectedFile.original_name)); setSelectedFile(null); }}>
                   <Download size={16} /> Download
                 </button>
-                <button className="sidebar-btn-share" onClick={() => { setActiveFile(selectedFile); setIsModalOpen(true); setSelectedFile(null); }}>
+                <button
+                  className="sidebar-btn-share"
+                  onClick={() => { setActiveFile(selectedFile); setIsModalOpen(true); setSelectedFile(null); }}
+                >
                   <Share2 size={16} /> Share
                 </button>
-                <button className="sidebar-btn-delete" onClick={() => { handleDeleteTrigger(selectedFile); setSelectedFile(null); }}>
+                <button
+                  className="sidebar-btn-delete"
+                  onClick={() => { handleDeleteTrigger(selectedFile); setSelectedFile(null); }}
+                >
                   <Trash2 size={16} /> Delete
                 </button>
               </div>
 
               {/* ── AI Insights ── */}
               {!aiInsightVisible ? (
-                // Button shown before analysis
                 <button
                   onClick={handleAnalyseClick}
                   style={{
@@ -676,7 +739,6 @@ console.log(data.models.map(m => m.name));
                   Analyse with AI
                 </button>
               ) : (
-                // Insight card shown after clicking Analyse
                 <div className="ai-insights-card">
                   <div className="insights-header">
                     <div className="insights-title">
@@ -699,14 +761,12 @@ console.log(data.models.map(m => m.name));
                       </button>
                     </div>
                   </div>
-
                   <p className="insights-text">
                     {aiInsightLoading
                       ? <span style={{ color: '#52525b', fontStyle: 'italic' }}>Analysing file...</span>
                       : aiInsight
                     }
                   </p>
-
                   <span className="insight-tag">
                     {selectedFile.original_name?.split('.').pop()?.toUpperCase() || 'FILE'}
                   </span>
@@ -718,8 +778,18 @@ console.log(data.models.map(m => m.name));
         </div>
       )}
 
-      <ShareModal file={activeFile} isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setActiveFile(null); }} onRefresh={handleRefresh} />
-      <RenameModal file={activeFile} isOpen={isRenameModalOpen} onClose={() => { setIsRenameModalOpen(false); setActiveFile(null); }} onRefresh={handleRefresh} />
+      <ShareModal
+        file={activeFile}
+        isOpen={isModalOpen}
+        onClose={() => { setIsModalOpen(false); setActiveFile(null); }}
+        onRefresh={handleRefresh}
+      />
+      <RenameModal
+        file={activeFile}
+        isOpen={isRenameModalOpen}
+        onClose={() => { setIsRenameModalOpen(false); setActiveFile(null); }}
+        onRefresh={handleRefresh}
+      />
 
       {isDeleteModalOpen && (
         <div className="modal-overlaydelete">
@@ -727,8 +797,12 @@ console.log(data.models.map(m => m.name));
             <h3 className="modal-title">Delete File?</h3>
             <p className="modal-subtitle">The file will be moved to trash.</p>
             <div className="modal-actions">
-              <button className="btn-cancel" onClick={() => { setIsDeleteModalOpen(false); setFileToDelete(null); }}>Cancel</button>
-                <button className="btn-revoke" onClick={confirmDelete}>Delete</button>
+              <button className="btn-cancel" onClick={() => { setIsDeleteModalOpen(false); setFileToDelete(null); }}>
+                Cancel
+              </button>
+              <button className="btn-revoke" onClick={confirmDelete}>
+                Delete
+              </button>
             </div>
           </div>
         </div>

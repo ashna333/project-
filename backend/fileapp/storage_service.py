@@ -114,12 +114,15 @@ def get_large_files(user, threshold_bytes: int = LARGE_FILE_THRESHOLD_BYTES):
 
 # ─── Stale files ──────────────────────────────────────────────────────────────
 
+# ✅ Fixed — actually filters by age
 def get_stale_downloads(user, days: int = STALE_DAYS):
+    cutoff = timezone.now() - timedelta(days=days)
     return (
         UserFile.objects.filter(
             user=user,
             is_deleted=False,
             is_starred=False,
+            uploaded_at__lte=cutoff,   # ← this was the missing line
         ).order_by("-file_size")
     )
 

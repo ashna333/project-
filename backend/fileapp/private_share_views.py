@@ -78,20 +78,17 @@ class PrivateShareCreateView(APIView):
         share, meta = result
         recipients = meta["recipients"]
         emails_sent = meta.get("emails_sent", 0)
-        msg = f"Shared with {len(recipients)} user(s)."
-        email_note = ""
-        if getattr(settings, "EMAIL_HOST", ""):
-            email_note = (
-                f" Notification email sent to {emails_sent} recipient(s) via SMTP."
-                if emails_sent == len(recipients)
-                else " Some emails could not be sent."
-            )
+
+        from .service import get_user_display_name
+
+        if len(recipients) == 1:
+            name = get_user_display_name(recipients[0].recipient)
+            msg = f"File shared with {name}."
         else:
-            email_note = (
-                f" Notification saved for {emails_sent} recipient(s) in backend/sent_emails/ "
-                f"and printed in the Django terminal. Add EMAIL_HOST to .env for real Gmail delivery."
-            )
-        msg += email_note
+            msg = f"File shared with {len(recipients)} people."
+
+        if emails_sent > 0:
+            msg += " A notification email has been sent."
 
         return Response(
             {
@@ -105,7 +102,6 @@ class PrivateShareCreateView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
-
 
 class PrivateShareOwnerListView(APIView):
     permission_classes = [IsAuthenticated]

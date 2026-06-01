@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 from pathlib import Path
 import os
 from decouple import Config, RepositoryEnv
+from celery.schedules import crontab
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -216,12 +217,8 @@ X_FRAME_OPTIONS = 'ALLOWALL'
 CELERY_BEAT_SCHEDULE = {
     'clear_trash_daily': {
         'task': 'fileapp.tasks.purge_expired_records',
-        'schedule': 86400.0, # Every 24 hours (in seconds)
-    },
-    'weekly_space_digest': {
-        'task': 'fileapp.tasks.send_weekly_space_digest',
-        'schedule': 604800.0,  # Every 7 days (in seconds)
-    },
+        'schedule': crontab(hour=0, minute=0), 
+    }
 }
 
 
@@ -234,3 +231,6 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Kolkata'
+
+
+

@@ -10,6 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from django.shortcuts import redirect
 from urllib.parse import urlencode
+from .models import FileShare, UserFile, PrivateShare,PrivateShareRecipient
 from .serializers import (
     RegisterSerializer,
     LoginSerializer,
@@ -503,15 +504,20 @@ class TrashRestoreView(APIView):
         return Response({"message": "File restored successfully."})
 
 
+
+
+
 class TrashDeletePermanentView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, file_id):
-        deleted = permanently_delete_user_file(request.user, file_id)
-        if not deleted:
-            return Response({"error": "File not found in trash."}, status=status.HTTP_404_NOT_FOUND)
-        return Response({"message": "File permanently deleted."})
-
+        result = permanently_delete_user_file(request.user, file_id)
+        if result == "not_found":
+            return Response(
+                {"error": "File not found in trash."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        return Response({"message": "File permanently deleted.", "status": "deleted"})
 
 from rest_framework.permissions import AllowAny
 from .serializers import (
@@ -706,14 +712,16 @@ class TrashRestoreAllView(APIView):
             "restored_count": count
         })
 
+# views.py
 class TrashDeleteAllPermanentView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request):
-        count = empty_user_trash(request.user) # Call Service
+        deleted, deferred = empty_user_trash(request.user)
         return Response({
-            "message": f"Permanently deleted {count} files.",
-            "deleted_count": count
+            "message": f"Permanently deleted {deleted} files.",
+            "deleted_count": deleted,
+            "deferred_count": deferred,
         })
 
 
@@ -721,21 +729,61 @@ from datetime import timedelta
 from django.utils import timezone
 
 class ExpiringSoonView(APIView):
-    """
-    GET /api/shares/expiring-soon/
-    Returns count of public shares expiring within the next 24 hours.
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         now = timezone.now()
         in_24h = now + timedelta(hours=24)
 
-        count = FileShare.objects.filter(
-            owner=request.user,
+        private_count = PrivateShareRecipient.objects.filter(
+            recipient=request.user,
             is_revoked=False,
-            expires_at__gt=now,
-            expires_at__lte=in_24h,
+            private_share__is_revoked=False,
+            private_share__expires_at__gt=now,
+            private_share__expires_at__lte=in_24h,
         ).count()
 
-        return Response({ "count": count })
+        return Response({"count": private_count})
+    
+
+
+
+
+class ExpiringSoonDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        now = timezone.now()
+        in_24h = now + timedelta(hours=24)
+
+        # Private: shares RECEIVED BY YOU expiring soon
+        private_grants = PrivateShareRecipient.objects.filter(
+            recipient=request.user,
+            is_revoked=False,
+            private_share__is_revoked=False,
+            private_share__expires_at__gt=now,
+            private_share__expires_at__lte=in_24h,
+        ).select_related('private_share__user_file', 'private_share__owner')
+
+
+        private_data = []
+        for g in private_grants:
+            share = g.private_share
+            private_data.append({
+                'id': share.id,
+                'grant_id': g.id,
+                'file_name': share.user_file.original_name,
+                'shared_by': share.owner.email,
+                'expires_at': share.expires_at,
+                'can_download': g.can_download,
+                'can_view': g.can_view,
+                'can_comment': g.can_comment,
+                'download_count': g.download_count,
+                'one_time_access': share.one_time_access,
+            })
+
+        return Response({
+            
+            'private': private_data,
+            'total':len(private_data),
+        })

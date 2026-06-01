@@ -50,7 +50,7 @@ export default function StatsGrid({ totalFiles, totalShares, sharedWithMe, expir
       icon: ClockAlert,
       label: 'Expiring soon',
       value: expiringSoon,
-      href: '/files?filter=expiring',
+      href: '/expiring-soon',
       badge: '24h',
     },
   ];

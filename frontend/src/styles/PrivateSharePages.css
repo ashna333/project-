@@ -880,3 +880,90 @@
   
  
 }
+
+
+/* ── Inline permission action buttons ──────────────────────────── */
+/* Add these rules to your PrivateSharePages.css */
+
+.perm-action-btns {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.perm-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, opacity 0.15s;
+  white-space: nowrap;
+  position: relative;
+}
+
+
+
+
+/* Disabled state */
+.perm-action-btn--disabled,
+.perm-action-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Lock icon inside button */
+.perm-action-lock {
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+/* View count badge */
+.perm-action-count {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 10px;
+  color: #a1a1aa;
+  margin-left: 2px;
+}
+
+/* Download limit badge */
+.perm-action-limit {
+  background: rgba(225, 29, 72, 0.2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 10px;
+  color: #fb7185;
+  margin-left: 2px;
+}
+
+/* View button */
+.perm-action-btn--view {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.10);
+  color: #d4d4d8;
+}
+.perm-action-btn--view:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+/* Download button — same neutral resting state, rose only on hover */
+.perm-action-btn--download {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.10);
+  color: #d4d4d8;
+}
+.perm-action-btn--download:hover:not(:disabled) {
+  background: rgba(225, 29, 72, 0.15);
+  border-color: rgba(225, 29, 72, 0.35);
+  color: #fda4af;
+}

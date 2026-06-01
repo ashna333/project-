@@ -59,33 +59,30 @@ export default function SharedWithMePage() {
   useBodyScrollLock(anyModalOpen);
 
   const load = async (page = 1, currentFilters = filters) => {
-  setLoading(true);
-  try {
-    // Pass filters directly to the API instead of filtering client-side
-    const { data } = await fetchPrivateSharesInboxApi(page, pageSize, currentFilters);
+    setLoading(true);
+    try {
+      const { data } = await fetchPrivateSharesInboxApi(page, pageSize, currentFilters);
 
-    let list =
-      data.results?.shares ??
-      data.shares ??
-      (Array.isArray(data.results) ? data.results : []);
+      let list =
+        data.results?.shares ??
+        data.shares ??
+        (Array.isArray(data.results) ? data.results : []);
 
-    // Collect senders from this page for the People filter dropdown
-    // (ideally you'd fetch all senders separately, but this works for now)
-    const uniqueSenders = [...new Set(list.map(s => s.shared_by_email).filter(Boolean))];
-    setSenders(prev => [...new Set([...prev, ...uniqueSenders])]);
+      const uniqueSenders = [...new Set(list.map(s => s.shared_by_email).filter(Boolean))];
+      setSenders(prev => [...new Set([...prev, ...uniqueSenders])]);
 
-    setTotalPages(Math.ceil((data.count || 0) / pageSize) || 1);
-    setShares(list);
+      setTotalPages(Math.ceil((data.count || 0) / pageSize) || 1);
+      setShares(list);
 
-    localStorage.setItem('inbox_last_seen', new Date().toISOString());
-    window.dispatchEvent(new Event('inbox-seen'));
-  } catch (err) {
-    console.error('load error:', err);
-    setShares([]);
-  } finally {
-    setLoading(false);
-  }
-};
+      localStorage.setItem('inbox_last_seen', new Date().toISOString());
+      window.dispatchEvent(new Event('inbox-seen'));
+    } catch (err) {
+      console.error('load error:', err);
+      setShares([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleFilterChange = (key, value) => {
     const newFilters = { ...filters };
@@ -187,7 +184,7 @@ export default function SharedWithMePage() {
       load();
       if (!silent) showToast('Download started');
     } catch (err) {
-      if (silent) throw err; // let submitPassword handle it
+      if (silent) throw err;
       const msg = await parseApiError(err, 'Download failed.');
       if (err.response?.status === 403 &&
           (share.requires_password || msg.toLowerCase().includes('password'))) {
@@ -211,7 +208,7 @@ export default function SharedWithMePage() {
       await runProtectedAction(share, pwd, 'preview');
       load();
     } catch (err) {
-      if (silent) throw err; // let submitPassword handle it
+      if (silent) throw err;
       const msg = await parseApiError(err, 'Preview failed.');
       const isPasswordError = err.response?.status === 403 &&
         (share.requires_password || msg.toLowerCase().includes('password')) &&
@@ -223,8 +220,7 @@ export default function SharedWithMePage() {
       }
       setAlertModal({ title: 'Preview failed', message: msg, variant: 'error' });
       setPreviewFile(null);
-    }
-    finally {
+    } finally {
       setPreviewLoading(false);
     }
   };
@@ -233,11 +229,10 @@ export default function SharedWithMePage() {
     if (!password.trim()) { setPasswordError('Please enter the password.'); return; }
     setPasswordSubmitting(true);
     setPasswordError('');
-    const { share, action } = passwordPrompt; // capture before any state change
+    const { share, action } = passwordPrompt;
     try {
       if (action === 'download') await handleDownload(share, password, true);
       else await handlePreview(share, password, true);
-      // success — close modal then toast
       setPasswordPrompt(null);
       setPassword('');
       setShowPassword(false);
@@ -245,7 +240,6 @@ export default function SharedWithMePage() {
     } catch (err) {
       const msg = await parseApiError(err, 'Invalid password.');
       setPasswordError(msg);
-      // modal stays open, no success toast
     } finally {
       setPasswordSubmitting(false);
     }
@@ -270,6 +264,23 @@ export default function SharedWithMePage() {
     setNewComment('');
     setCommentsOpen(null);
     showToast('Comment posted');
+  };
+
+  // Helper: trigger view or download directly from the inline action button
+  const handleInlineView = (s) => {
+    if (s.requires_password) {
+      setPasswordPrompt({ share: s, action: 'preview' });
+    } else {
+      handlePreview(s);
+    }
+  };
+
+  const handleInlineDownload = (s) => {
+    if (s.requires_password) {
+      setPasswordPrompt({ share: s, action: 'download' });
+    } else {
+      handleDownload(s);
+    }
   };
 
   return (
@@ -357,7 +368,7 @@ export default function SharedWithMePage() {
               <tr>
                 <th className="ps-col-file">File</th>
                 <th className="ps-col-shared">Shared by</th>
-                <th className="ps-col-perms">Permissions</th>
+                <th className="ps-col-perms">Actions</th>
                 <th className="ps-col-expires">Expires</th>
                 <th className="ps-col-status">Status</th>
                 <th className="ps-col-actions" style={{ width: '44px' }}></th>
@@ -369,14 +380,18 @@ export default function SharedWithMePage() {
                 const status = (s.access_status || '').toLowerCase().replace(/\.$/, '').trim();
                 const isRevoked = status === 'revoked';
                 const isExpired = status === 'expired';
+                const isOneTimeUsed = status === 'one time access';
                 const downloadLimitReached =
                   status === 'download limit reached' || s.download_limit_reached === true;
+
+                const isAccessible = !isRevoked && !isExpired && !isOneTimeUsed;
 
                 const hasView     = s.can_view;
                 const hasDownload = s.can_download;
                 const hasReshare  = s.can_reshare;
                 const hasComment  = s.can_comment;
-                const hasAnyAction = hasView || (hasDownload && !downloadLimitReached) || hasReshare || hasComment;
+                // Only show 3-dot menu if there are secondary actions (reshare or comment)
+                const hasSecondaryActions = hasReshare || hasComment;
 
                 return (
                   <tr key={s.id}>
@@ -390,14 +405,49 @@ export default function SharedWithMePage() {
                         {s.shared_by_email}
                       </span>
                     </td>
+
+                    {/* ── ACTIONS CELL — inline clickable buttons ── */}
                     <td className="ps-col-perms">
-                      <div className="perm-badges">
-                        {s.can_view && <span>View</span>}
-                        {s.can_download && <span>Download</span>}
-                        {s.can_reshare && <span>Re-share</span>}
-                        {s.can_comment && <span>Comment</span>}
+                      <div className="perm-action-btns">
+                        {hasView && (
+                          <button
+                            className={`perm-action-btn perm-action-btn--view ${!isAccessible ? 'perm-action-btn--disabled' : ''}`}
+                            disabled={!isAccessible}
+                            title={!isAccessible ? statusInfo.label : 'Preview file'}
+                            onClick={() => isAccessible && handleInlineView(s)}
+                          >
+                            <Eye size={13} />
+                            View
+                            {s.requires_password && isAccessible && <Lock size={11} className="perm-action-lock" />}
+                            {s.view_count > 0 && (
+                              <span className="perm-action-count">{s.view_count}</span>
+                            )}
+                          </button>
+                        )}
+                        {hasDownload && (
+                          <button
+                            className={`perm-action-btn perm-action-btn--download ${(!isAccessible || downloadLimitReached) ? 'perm-action-btn--disabled' : ''}`}
+                            disabled={!isAccessible || downloadLimitReached}
+                            title={
+                              !isAccessible ? statusInfo.label
+                              : downloadLimitReached ? 'Download limit reached'
+                              : 'Download file'
+                            }
+                            onClick={() => isAccessible && !downloadLimitReached && handleInlineDownload(s)}
+                          >
+                            <Download size={13} />
+                            Download
+                            {s.requires_password && isAccessible && !downloadLimitReached && (
+                              <Lock size={11} className="perm-action-lock" />
+                            )}
+                            {downloadLimitReached && (
+                              <span className="perm-action-limit">Max</span>
+                            )}
+                          </button>
+                        )}
                       </div>
                     </td>
+
                     <td className="ps-col-expires ps-expires-cell">
                       {s.one_time_access
                         ? <span className="one-time-badge">One-time</span>
@@ -414,81 +464,41 @@ export default function SharedWithMePage() {
                         {statusInfo.label}
                       </span>
                     </td>
-                    <td className="ps-col-actions" style={{ position: 'relative' }}>
-                      {/* Hide all actions for revoked or expired */}
-                      {isRevoked || isExpired ? (
-                        <span className="ps-muted"></span>
-                      ) : (
-                        /* Show menu if there is at least one action available,
-                           OR if download limit is reached but other actions exist */
-                        (hasView || hasDownload || hasReshare || hasComment) && (
-                          <div className="ps-dot-wrap">
-                            <button
-                              className="ps-dot-btn"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenu(openMenu === s.id ? null : s.id);
-                              }}
-                              aria-label="Actions"
-                            >
-                              <MoreVertical size={16} />
-                            </button>
 
-                            {openMenu === s.id && (
-                              <div className="ps-dropdown">
-                                {hasView && (
-                                  <button className="ps-drop-item" onClick={() => {
-                                    setOpenMenu(null);
-                                    // If download limit is reached, skip password prompt — just preview directly
-                                    // (preview is still allowed; only download is blocked)
-                                    if (!downloadLimitReached && s.requires_password) {
-                                      setPasswordPrompt({ share: s, action: 'preview' });
-                                    } else {
-                                      handlePreview(s);
-                                    }
-                                  }}>
-                                    <Eye size={14} /> Preview
-                                    <span className="ps-drop-views">{s.view_count ?? 0}</span>
-                                  </button>
-                                )}
-                                {hasDownload && (
-                                  <button
-                                    className={`ps-drop-item${downloadLimitReached ? ' ps-drop-item--disabled' : ''}`}
-                                    disabled={downloadLimitReached}
-                                    title={downloadLimitReached ? 'Download limit reached' : undefined}
-                                    onClick={() => {
-                                      if (downloadLimitReached) return;
-                                      setOpenMenu(null);
-                                      s.requires_password
-                                        ? setPasswordPrompt({ share: s, action: 'download' })
-                                        : handleDownload(s);
-                                    }}
-                                  >
-                                    <Download size={14} /> Download
-                                    {downloadLimitReached
-                                      ? <span className="ps-drop-limit">Limit reached</span>
-                                      : s.requires_password && <Lock size={12} className="ps-drop-lock" />
-                                    }
-                                  </button>
-                                )}
-                                {hasReshare && (
-                                  <button className="ps-drop-item" onClick={() => {
-                                    setOpenMenu(null); setReshareShare(s);
-                                  }}>
-                                    <Share2 size={14} /> Re-share
-                                  </button>
-                                )}
-                                {hasComment && (
-                                  <button className="ps-drop-item" onClick={() => {
-                                    setOpenMenu(null); openComments(s.share_id);
-                                  }}>
-                                    <MessageSquare size={14} /> Comments
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )
+                    {/* ── 3-DOT MENU — only for Re-share / Comments ── */}
+                    <td className="ps-col-actions" style={{ position: 'relative' }}>
+                      {isAccessible && hasSecondaryActions && (
+                        <div className="ps-dot-wrap">
+                          <button
+                            className="ps-dot-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenu(openMenu === s.id ? null : s.id);
+                            }}
+                            aria-label="More actions"
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+
+                          {openMenu === s.id && (
+                            <div className="ps-dropdown">
+                              {hasReshare && (
+                                <button className="ps-drop-item" onClick={() => {
+                                  setOpenMenu(null); setReshareShare(s);
+                                }}>
+                                  <Share2 size={14} /> Re-share
+                                </button>
+                              )}
+                              {hasComment && (
+                                <button className="ps-drop-item" onClick={() => {
+                                  setOpenMenu(null); openComments(s.share_id);
+                                }}>
+                                  <MessageSquare size={14} /> Comments
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -506,6 +516,7 @@ export default function SharedWithMePage() {
         loading={loading}
       />
 
+      {/* Password modal */}
       {passwordPrompt && (
         <div className="modal-overlay" onClick={closePasswordModal}>
           <div className="ps-password-modal" onClick={(e) => e.stopPropagation()}>
@@ -552,6 +563,7 @@ export default function SharedWithMePage() {
         </div>
       )}
 
+      {/* Comments modal */}
       {commentsOpen && (
         <div className="modal-overlay" onClick={() => setCommentsOpen(null)}>
           <div className="ps-comments-modal" onClick={(e) => e.stopPropagation()}>
@@ -585,6 +597,7 @@ export default function SharedWithMePage() {
         </div>
       )}
 
+      {/* Preview modal */}
       {previewFile && (
         <div
           className="modal-overlay"
@@ -649,11 +662,12 @@ export default function SharedWithMePage() {
                   Preview not available for this file type. Please download to view.
                 </div>
               )}
-</div>
+            </div>
           </div>
         </div>
       )}
 
+      {/* Re-share modal */}
       {reshareShare && (
         <PrivateShareModal
           file={{ id: reshareShare.file_id, original_name: reshareShare.file_name }}

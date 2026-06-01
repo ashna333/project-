@@ -8,7 +8,6 @@ import { formatUserDisplayName, userInitials } from '../utils/userDisplay';
 import useBodyScrollLock from '../hooks/useBodyScrollLock';
 import { useInboxBadge } from '../context/InboxBadgeContext';
 import { storageSummaryApi } from '../store/fileApi';
-import { fetchUnresolvedThreadsApi, fetchSpaceNotificationsApi, markAllSpaceNotificationsReadApi } from '../store/spacesApi';
 
 export default function AppShell() {
   const navigate = useNavigate();
@@ -25,10 +24,6 @@ export default function AppShell() {
 
   const [storage, setStorage] = useState({ used_percent: 0, used_bytes: 0, max_bytes: 0 });
   const [unresolvedThreadsCount, setUnresolvedThreadsCount] = useState(0);
-  const [notifications, setNotifications] = useState([]);
-  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const totalGb = storage?.max_bytes ? (storage.max_bytes / (1024 ** 3)) : 0;
   const notifWrapRef = React.useRef(null);
 
@@ -52,59 +47,8 @@ export default function AppShell() {
     fetchUnresolved();
   }, []);
 
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      setNotificationsLoading(true);
-      try {
-        const { data } = await fetchSpaceNotificationsApi();
-        const list = data?.notifications || [];
-        setNotifications(list);
-        setUnreadNotificationsCount(list.filter((n) => !n.is_read).length);
-      } catch {}
-      finally {
-        setNotificationsLoading(false);
-      }
-    };
-    fetchNotifications();
-  }, []);
+  
 
-  useEffect(() => {
-    if (!notificationsOpen) return;
-    const onDocClick = (e) => {
-      if (!notifWrapRef.current) return;
-      if (!notifWrapRef.current.contains(e.target)) {
-        setNotificationsOpen(false);
-      }
-    };
-    document.addEventListener('click', onDocClick);
-    return () => document.removeEventListener('click', onDocClick);
-  }, [notificationsOpen]);
-
-  const handleOpenNotifications = async () => {
-    setNotificationsOpen(true);
-    if (notificationsLoading) return;
-    // Refresh when opening so new notifications appear.
-    try {
-      const { data } = await fetchSpaceNotificationsApi();
-      const list = data?.notifications || [];
-      setNotifications(list);
-      setUnreadNotificationsCount(list.filter((n) => !n.is_read).length);
-    } catch {}
-  };
-
-  const handleMarkAllRead = async () => {
-    setNotificationsLoading(true);
-    try {
-      await markAllSpaceNotificationsReadApi();
-      const { data } = await fetchSpaceNotificationsApi();
-      const list = data?.notifications || [];
-      setNotifications(list);
-      setUnreadNotificationsCount(0);
-    } catch {}
-    finally {
-      setNotificationsLoading(false);
-    }
-  };
 
   // Close sidebar and dropdown when route changes
   useEffect(() => {
@@ -198,14 +142,7 @@ export default function AppShell() {
             Shared With Me
             {hasNewShares && <span className="nav-dot" />}
           </button>
-          <button
-            className={`nav-btn ${isActive('/spaces')}`}
-            onClick={() => navTo('/spaces')}
-            title={unresolvedThreadsCount > 0 ? `Unresolved threads: ${unresolvedThreadsCount}` : 'Spaces'}
-          >
-            <Layers size={16} /> Spaces
-            {unresolvedThreadsCount > 0 && <span className="nav-dot" />}
-          </button>
+          
           <button className={`nav-btn ${isActive('/private-shares/owned')}`} onClick={() => navTo('/private-shares/owned')}>
             <Shield size={16} /> Shared By Me
           </button>
@@ -243,7 +180,7 @@ export default function AppShell() {
               <div className="sidebar-storage-info">
                 {(storage.used_bytes / (1024 ** 2)).toFixed(1)} MB of {totalGb.toFixed(0)} GB used
               </div>
-              {storage.used_percent >= 90 && (
+              {storage.used_percent >= 40 && (
                 <button
                   className="nav-btn"
                   style={{ marginTop: '10px', justifyContent: 'center', fontSize: '13px' }}
@@ -277,100 +214,7 @@ export default function AppShell() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginLeft: 'auto' }}>
-            <div ref={notifWrapRef} style={{ position: 'relative' }}>
-              <button
-                type="button"
-                className="nav-btn"
-                style={{ padding: '8px 12px', borderRadius: 10 }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (notificationsOpen) setNotificationsOpen(false);
-                  else handleOpenNotifications();
-                }}
-                title={unreadNotificationsCount > 0 ? `You have ${unreadNotificationsCount} notifications` : 'Notifications'}
-              >
-                <Bell size={18} color={unreadNotificationsCount > 0 ? '#e11d48' : '#a1a1aa'} />
-                {unreadNotificationsCount > 0 && (
-                  <span
-                    style={{
-                      position: 'absolute',
-                      top: -4,
-                      right: -4,
-                      background: '#e11d48',
-                      color: 'white',
-                      fontSize: 10,
-                      fontWeight: 700,
-                      borderRadius: 999,
-                      padding: '3px 6px',
-                      lineHeight: 1,
-                    }}
-                  >
-                    {unreadNotificationsCount}
-                  </span>
-                )}
-              </button>
-
-              {notificationsOpen && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '140%',
-                    right: 0,
-                    width: 360,
-                    maxWidth: '80vw',
-                    background: '#18181b',
-                    border: '1px solid #27272a',
-                    borderRadius: 12,
-                    zIndex: 10000,
-                    boxShadow: '0 18px 50px rgba(0,0,0,0.55)',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div style={{ padding: 12, borderBottom: '1px solid #27272a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                    <div style={{ color: 'white', fontWeight: 700 }}>Notifications</div>
-                    <button
-                      type="button"
-                      className="p-btn"
-                      style={{ padding: '6px 10px', fontSize: 13 }}
-                      onClick={(e) => { e.stopPropagation(); handleMarkAllRead(); }}
-                      disabled={notificationsLoading}
-                      title="Mark all as read"
-                    >
-                      Mark read
-                    </button>
-                  </div>
-
-                  {notificationsLoading ? (
-                    <div style={{ padding: 14, color: '#71717a', fontSize: 13 }}>Loading…</div>
-                  ) : notifications.length === 0 ? (
-                    <div style={{ padding: 14, color: '#71717a', fontSize: 13 }}>No notifications yet.</div>
-                  ) : (
-                    <div style={{ maxHeight: 360, overflow: 'auto' }}>
-                      {notifications.slice(0, 30).map((n) => (
-                        <div
-                          key={n.id}
-                          style={{
-                            padding: 12,
-                            borderBottom: '1px solid #27272a',
-                            background: n.is_read ? 'transparent' : 'rgba(225, 29, 72, 0.08)',
-                          }}
-                        >
-                          <div style={{ color: 'white', fontWeight: 650, fontSize: 13 }}>
-                            {n.title || 'Notification'}
-                          </div>
-                          <div style={{ color: '#a1a1aa', fontSize: 12, marginTop: 4, lineHeight: 1.4 }}>
-                            {n.message || ''}
-                          </div>
-                          <div style={{ color: '#71717a', fontSize: 11, marginTop: 6 }}>
-                            {n.created_at ? new Date(n.created_at).toLocaleString() : ''}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            
 
             <div 
               className="user-dropdown-container"

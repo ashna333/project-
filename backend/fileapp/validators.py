@@ -109,3 +109,99 @@ def validate_expires_in_hours(value):
     if value < 1 or value > 720:
         raise serializers.ValidationError("Expiry must be between 1 and 720 hours (30 days).")
     return value
+
+
+
+
+ALLOWED_EXTENSIONS = {
+    # Documents
+    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+    'txt', 'csv', 'rtf', 'odt', 'ods', 'odp',
+    # Images
+    'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tiff',
+    # Video
+    'mp4', 'webm', 'mov', 'avi', 'mkv', 'flv', 'wmv',
+    # Audio
+    'mp3', 'wav', 'aac', 'flac', 'm4a', 'ogg', 'wma',
+    # Archives
+    'zip', 'rar', '7z', 'tar', 'gz',
+    # Code/Text
+    'json', 'xml', 'html', 'css', 'js', 'py', 'md',
+}
+
+ALLOWED_MIME_TYPES = {
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/plain', 'text/csv', 'text/html', 'text/css',
+    'application/json', 'application/xml', 'text/xml',
+    'application/javascript',
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'image/svg+xml', 'image/bmp', 'image/tiff',
+    'video/mp4', 'video/webm', 'video/quicktime',
+    'video/x-msvideo', 'video/x-matroska',
+    'audio/mpeg', 'audio/wav', 'audio/aac', 'audio/flac',
+    'audio/mp4', 'audio/ogg',
+    'application/zip', 'application/x-rar-compressed',
+    'application/x-7z-compressed', 'application/x-tar',
+    'application/gzip',
+    'image/x-icon',           # .ico
+    'image/vnd.microsoft.icon', # .ico alternate
+    'image/tiff',             # .tiff
+    'video/x-msvideo',        # .avi
+    'video/x-matroska',       # .mkv
+    'video/x-flv',            # .flv
+    'video/x-ms-wmv',         # .wmv
+    'audio/x-wav',            # .wav alternate
+    'audio/x-flac',           # .flac alternate
+    'audio/x-m4a',            # .m4a alternate
+    'audio/wma',              # .wma
+    'audio/x-ms-wma',         # .wma alternate
+    'application/x-rar',      # .rar alternate
+    'application/vnd.rar',    # .rar alternate
+    'application/x-tar',      # .tar
+    'text/markdown',          # .md
+    'text/x-python',          # .py
+    'application/x-python',   # .py alternate
+    'text/javascript',        # .js alternate
+    'application/rtf',        # .rtf
+    'text/rtf',               # .rtf alternate
+    'application/vnd.oasis.opendocument.text',          # .odt
+    'application/vnd.oasis.opendocument.spreadsheet',   # .ods
+    'application/vnd.oasis.opendocument.presentation',  # .odp
+
+}
+
+def validate_file_type(file):
+    import os
+    ext = os.path.splitext(file.name)[1].lstrip('.').lower()
+    
+    if not ext:
+        raise serializers.ValidationError(
+            f'"{file.name}": File has no extension.'
+        )
+    
+    if ext not in ALLOWED_EXTENSIONS:
+        raise serializers.ValidationError(
+            f'"{file.name}": .{ext} files are not allowed.'
+        )
+    
+    # Skip MIME check for generic types browsers commonly report
+    SKIP_MIME_CHECK = {
+        'application/octet-stream',
+        'application/x-msdownload', 
+        '',
+    }
+    
+    mime = (getattr(file, 'content_type', '') or '').strip()
+    
+    if mime and mime not in SKIP_MIME_CHECK and mime not in ALLOWED_MIME_TYPES:
+        # Don't hard reject — extension already passed, MIME is unreliable
+        # Just log it in development, don't block the upload
+        pass
+    
+    return file

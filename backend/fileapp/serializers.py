@@ -13,9 +13,11 @@ from .validators import (
     MAX_FILES_PER_UPLOAD,
     MAX_MESSAGE_LENGTH,
 )
-User = get_user_model()
-from django.conf import settings
 
+from django.conf import settings
+from .validators import validate_file_type
+
+User = get_user_model()
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -185,6 +187,8 @@ class UserFileSerializer(serializers.ModelSerializer):
         return None
 
 
+
+
 class FileUploadSerializer(serializers.Serializer):
     files = serializers.ListField(child=serializers.FileField())
 
@@ -204,6 +208,7 @@ class FileUploadSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     f'"{f.name}" appears to be a folder. Please upload files only.'
                 )
+            validate_file_type(f)
             try:
                 validate_filename(f.name)
             except serializers.ValidationError as exc:
@@ -211,7 +216,6 @@ class FileUploadSerializer(serializers.Serializer):
                     f'"{f.name}": {exc.detail[0] if isinstance(exc.detail, list) else exc.detail}'
                 ) from exc
         return value
-
 
 class FileRenameSerializer(serializers.Serializer):
     new_name = serializers.CharField(max_length=255, trim_whitespace=True)

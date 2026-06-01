@@ -1,4 +1,5 @@
 import { Star, Edit2, Share2, Download, Trash2, RotateCcw, CheckSquare, Square } from 'lucide-react';
+import FilePreview from './FilePreview';
 
 export default function FileGrid({
   files,
@@ -20,10 +21,6 @@ export default function FileGrid({
   return (
     <div className={viewMode === 'grid' ? 'file-grid-inner' : 'file-list-card'}>
       {files.map((file) => {
-        const extension = file.original_name?.split('.').pop()?.toLowerCase();
-        const isImage = ['jpg','jpeg','png','gif','svg','webp','bmp'].includes(extension);
-        const isPDF = extension === 'pdf';
-        const isText = extension === 'txt';
         const isSelected = selectedIds.includes(file.id);
 
         return (
@@ -52,86 +49,40 @@ export default function FileGrid({
                 : { position: 'relative' }
             }
           >
-
-            {/* Grid view: checkbox as absolute badge top-left */}
+            {/* Grid view: checkbox badge top-left */}
             {selectMode && viewMode === 'grid' && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 8,
-                  left: 8,
-                  zIndex: 2,
-                  pointerEvents: 'none',
-                }}
-              >
-                {isSelected
-                  ? <CheckSquare size={18} color="#e11d48" />
-                  : <Square size={18} color="#52525b" />}
+              <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 2, pointerEvents: 'none' }}>
+                {isSelected ? <CheckSquare size={18} color="#e11d48" /> : <Square size={18} color="#52525b" />}
               </div>
             )}
 
-            {/* List view: checkbox as normal flex item BEFORE thumbnail, no absolute */}
+            {/* List view: checkbox before thumbnail */}
             {selectMode && viewMode === 'list' && (
-              <div
-                style={{
-                  flexShrink: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginLeft: '4px',
-                  marginRight: '10px',
-                  pointerEvents: 'none',
-                }}
-              >
-                {isSelected
-                  ? <CheckSquare size={18} color="#e11d48" />
-                  : <Square size={18} color="#52525b" />}
+              <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', marginLeft: '4px', marginRight: '10px', pointerEvents: 'none' }}>
+                {isSelected ? <CheckSquare size={18} color="#e11d48" /> : <Square size={18} color="#52525b" />}
               </div>
             )}
 
-            {/* File preview / icon */}
-            <div className={viewMode === 'grid' ? 'file-preview-container' : 'file-icon-square'}>
-              {isImage ? (
-                <img
-                  src={file.url}
-                  alt={file.original_name}
-                  className="file-image-preview"
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    e.target.parentElement.innerHTML = `<div class="file-type-preview">${extension?.toUpperCase() || 'FILE'}</div>`;
-                  }}
+            {/* ── File preview / icon ── */}
+            {viewMode === 'grid' ? (
+              // Grid: rich preview via FilePreview — same logic as the modal
+              <div className="file-preview-container" style={{ pointerEvents: 'none' }}>
+                <FilePreview compact
+                  file={file}
+                  iconSize={40}
+                  style={{ width: '100%', height: '100%', borderRadius: '8px', overflow: 'hidden' }}
                 />
-              ) : isPDF ? (
-                <div
-                  className="pdf-preview-container"
-                  style={{ overflow: 'hidden', pointerEvents: 'none' }}
-                >
-                  <iframe
-                    src={`${file.url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-                    width="100%"
-                    height="100%"
-                    title="PDF Preview"
-                    style={{ border: 'none' }}
-                    className="pdf-embed-no-scroll"
-                  />
-                </div>
-              ) : isText ? (
-                <div className="file-type-preview">TXT</div>
-              ) : (
-                getFileIcon(file)
-              )}
-            </div>
+              </div>
+            ) : (
+              // List: keep the small square icon (FilePreview would be too heavy here)
+              <div className="file-icon-square">
+                {getFileIcon(file)}
+              </div>
+            )}
 
             {/* File name + meta */}
             <div className="file-info-stack">
-              <div
-                className="file-name-container"
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
+              <div className="file-name-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                 <div className="file-name-main" title={file.original_name}>
                   {file.original_name}
                 </div>
@@ -145,10 +96,7 @@ export default function FileGrid({
                   />
                 )}
               </div>
-              <div
-                className="file-meta-sub"
-                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-              >
+              <div className="file-meta-sub" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {formatFileSize(file.file_size)} · {new Date(file.uploaded_at).toLocaleDateString('en-GB')}
                 {!isTrash && !selectMode && viewMode === 'list' && (
                   <>
@@ -171,49 +119,25 @@ export default function FileGrid({
               <div className="file-actions-strip">
                 {isTrash ? (
                   <>
-                    <button
-                      className="icon-action-btn hover-white"
-                      title="Restore"
-                      onClick={(e) => { e.stopPropagation(); onRestore?.(file); }}
-                    >
+                    <button className="icon-action-btn hover-white" title="Restore" onClick={(e) => { e.stopPropagation(); onRestore?.(file); }}>
                       <RotateCcw size={16} />
                     </button>
-                    <button
-                      className="icon-action-btn hover-rose"
-                      title="Delete Forever"
-                      onClick={(e) => { e.stopPropagation(); onDelete?.(file); }}
-                    >
+                    <button className="icon-action-btn hover-rose" title="Delete Forever" onClick={(e) => { e.stopPropagation(); onDelete?.(file); }}>
                       <Trash2 size={16} />
                     </button>
                   </>
                 ) : (
                   <>
-                    <button
-                      className="icon-action-btn hover-white"
-                      title="Rename"
-                      onClick={(e) => { e.stopPropagation(); onRename?.(file); }}
-                    >
+                    <button className="icon-action-btn hover-white" title="Rename" onClick={(e) => { e.stopPropagation(); onRename?.(file); }}>
                       <Edit2 size={16} />
                     </button>
-                    <button
-                      className="icon-action-btn hover-rose"
-                      title="Share"
-                      onClick={(e) => { e.stopPropagation(); onShare?.(file); }}
-                    >
+                    <button className="icon-action-btn hover-rose" title="Share" onClick={(e) => { e.stopPropagation(); onShare?.(file); }}>
                       <Share2 size={16} />
                     </button>
-                    <button
-                      className="icon-action-btn hover-white"
-                      title="Download"
-                      onClick={(e) => { e.stopPropagation(); onDownload?.(file); }}
-                    >
+                    <button className="icon-action-btn hover-white" title="Download" onClick={(e) => { e.stopPropagation(); onDownload?.(file); }}>
                       <Download size={16} />
                     </button>
-                    <button
-                      className="icon-action-btn hover-rose"
-                      title="Delete"
-                      onClick={(e) => { e.stopPropagation(); onDelete?.(file); }}
-                    >
+                    <button className="icon-action-btn hover-rose" title="Delete" onClick={(e) => { e.stopPropagation(); onDelete?.(file); }}>
                       <Trash2 size={16} />
                     </button>
                   </>

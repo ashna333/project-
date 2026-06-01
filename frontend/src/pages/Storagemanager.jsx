@@ -86,15 +86,22 @@ function PreviewModal({ file, onClose }) {
   if (!file) return null
 
   const mime = file.mime_type || ''
-  const url  = file.file_url || file.file || ''
+  const url  = file.url || file.file || ''
+  console.log('Preview file object:', file)
+console.log('URL:', file.file_url || file.file)
+console.log('MIME:', file.mime_type)
 
   const renderPreview = () => {
     if (mime.startsWith('image/'))
       return <img src={url} alt={file.original_name} className="sm-modal__preview-img" />
     if (mime.startsWith('video/'))
       return <video src={url} controls className="sm-modal__preview-video" />
-    if (mime === 'application/pdf')
-      return <iframe src={url} title={file.original_name} className="sm-modal__preview-iframe" />
+   if (mime === 'application/pdf')
+  return <iframe 
+    src={`${url}#toolbar=0&navpanes=0&view=FitH`} 
+    title={file.original_name} 
+    className="sm-modal__preview-iframe" 
+  />
     return (
       <div className="sm-modal__no-preview">
         <div className="sm-modal__no-preview-icon">

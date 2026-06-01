@@ -20,7 +20,8 @@ from .views import( RegisterView, LoginView,
                     PublicShareDetailView,
                     PublicShareDownloadView,
                     ExpiringSoonView,
-                    FileShareDeleteView)
+                    FileShareDeleteView,
+                    ExpiringSoonDetailView)
 from .private_share_views import (
     PrivateShareCreateView,
     PrivateShareOwnerListView,
@@ -40,25 +41,7 @@ from .private_share_views import (
     
 )
 
-from .spaces_views import (
-    SpacesListCreateView,
-    SpaceMembersView,
-    SpaceFilesView,
-    SpaceFileUploadView,
-    SpaceFileVersionsView,
-    SpaceFileRestoreView,
-    SpaceFilePinView,
-    SpaceFilePinVersionView,
-    SpaceFileThreadsView,
-    SpaceThreadCommentsView,
-    SpaceThreadResolveView,
-    SpaceUnresolvedThreadsView,
-    SpaceTasksView,
-    SpaceFileTasksView,
-    SpaceNotificationsView,
-    SpacePresenceHeartbeatView,
-    SpaceMyMuteView,
-)
+
 from .storage_views import (
     StorageManagerSummaryView,
     StorageDuplicatesView,
@@ -88,7 +71,7 @@ urlpatterns = [
     path("upload/check/", UploadCheckView.as_view(), name="upload-check"),
     path("upload/", FileUploadView.as_view(), name="file-upload"),
     path("fetch/", FileListView.as_view(), name="file-list"),
-
+    path("shares/expiring-soon/detail/", ExpiringSoonDetailView.as_view(), name="shares-expiring-soon-detail"),
     
 
     path('trash/restore-all/', TrashRestoreAllView.as_view(), name='trash-restore-all'),
@@ -134,60 +117,7 @@ urlpatterns = [
 
 path("shares/expiring-soon/", ExpiringSoonView.as_view(), name="shares-expiring-soon"),
 
-    # ─── Collaborative Workspaces (Spaces) ───────────────────────────────
-    path("spaces/", SpacesListCreateView.as_view(), name="spaces-list-create"),
-    path("spaces/unresolved-threads/", SpaceUnresolvedThreadsView.as_view(), name="spaces-unresolved-threads"),
-    path("spaces/notifications/", SpaceNotificationsView.as_view(), name="spaces-notifications"),
-
-    path("spaces/<int:space_id>/members/", SpaceMembersView.as_view(), name="space-members"),
-    path("spaces/<int:space_id>/files/", SpaceFilesView.as_view(), name="space-files"),
-    path("spaces/<int:space_id>/files/upload/", SpaceFileUploadView.as_view(), name="space-files-upload"),
-    path("spaces/<int:space_id>/files/<int:space_file_id>/pin/", SpaceFilePinView.as_view(), name="space-file-pin"),
-    path(
-        "spaces/<int:space_id>/files/<int:space_file_id>/versions/",
-        SpaceFileVersionsView.as_view(),
-        name="space-file-versions",
-    ),
-    path(
-        "spaces/<int:space_id>/files/<int:space_file_id>/pin-version/",
-        SpaceFilePinVersionView.as_view(),
-        name="space-file-pin-version",
-    ),
-    path(
-        "spaces/<int:space_id>/files/<int:space_file_id>/restore/",
-        SpaceFileRestoreView.as_view(),
-        name="space-file-restore",
-    ),
-    path(
-        "spaces/<int:space_id>/files/<int:space_file_id>/threads/",
-        SpaceFileThreadsView.as_view(),
-        name="space-file-threads",
-    ),
-    path(
-        "spaces/<int:space_id>/files/<int:space_file_id>/tasks/",
-        SpaceFileTasksView.as_view(),
-        name="space-file-tasks",
-    ),
-    path("spaces/<int:space_id>/tasks/", SpaceTasksView.as_view(), name="space-tasks"),
-
-    path(
-        "spaces/<int:space_id>/threads/<int:thread_id>/comments/",
-        SpaceThreadCommentsView.as_view(),
-        name="space-thread-comments",
-    ),
-    path(
-        "spaces/<int:space_id>/threads/<int:thread_id>/resolve/",
-        SpaceThreadResolveView.as_view(),
-        name="space-thread-resolve",
-    ),
-    path(
-        "spaces/<int:space_id>/presence/heartbeat/",
-        SpacePresenceHeartbeatView.as_view(),
-        name="space-presence-heartbeat",
-    ),
-    path("spaces/<int:space_id>/my/mute/", SpaceMyMuteView.as_view(), name="space-my-mute"),
-
-
+   
 
         # ─── Storage Manager ────────────────────────────────────────────────
     path("storage-manager/summary/",      StorageManagerSummaryView.as_view(),        name="storage-manager-summary"),

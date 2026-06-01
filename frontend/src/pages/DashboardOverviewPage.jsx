@@ -31,10 +31,10 @@ export default function DashboardOverviewPage() {
       setRecentShares(data.results?.shares || []);
     });
 
-    fetchExpiringSoonApi().then(({ data }) => {
-      setExpiringSoon(data.count || 0);
-    });
-
+   fetchExpiringSoonApi().then(({ data }) => {
+    console.log('expiring soon response:', data);
+    setExpiringSoon(data.count || 0);
+  });
     fetchPrivateSharesInboxApi(1, 9).then(({ data }) => {
       setSharedWithMe(data.count || 0);
     });
@@ -105,7 +105,7 @@ export default function DashboardOverviewPage() {
                     <span className="item-name">{file.original_name}</span>
                     <span className="item-meta">{file.file_size_display}</span>
                   </div>
-                  <Clock size={14} color="#3f3f46" />
+                 
                 </div>
               ))
             ) : (
@@ -131,7 +131,6 @@ export default function DashboardOverviewPage() {
                     <span className="item-name">{share.file_name || 'Shared Link'}</span>
                     <span className="item-meta">{share.clicks} clicks</span>
                   </div>
-                  <ExternalLink size={14} color="#3f3f46" />
                 </div>
               ))
             ) : (

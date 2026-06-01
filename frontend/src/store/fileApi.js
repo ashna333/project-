@@ -152,3 +152,6 @@ export const transferFileOwnershipApi = (fileId, newOwnerEmail) =>
 
 export const fetchExpiringSoonApi = () =>
   api.get('/shares/expiring-soon/');
+
+export const fetchExpiringSoonDetailApi = () =>
+  api.get('/shares/expiring-soon/detail/');
