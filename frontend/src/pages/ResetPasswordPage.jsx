@@ -19,10 +19,11 @@ const EyeIcon = ({ open }) => open ? (
 export default function ResetPasswordPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const token = searchParams.get('token')
+  // const token = searchParams.get('token')
   const { resetPassword, loading, error, successMessage, clearMessages } = useAuthStore()
   const [showPass, setShowPass] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const { uid, token } = useParams()
 
   const [form, setForm] = useState({ new_password: '', confirm: '' })
   const [fieldErrors, setFieldErrors] = useState({})

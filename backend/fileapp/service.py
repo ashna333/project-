@@ -14,6 +14,9 @@ from django.db import models as db_models
 import hashlib
 from django.utils import timezone
 
+import logging
+logger = logging.getLogger(__name__)
+
 User= get_user_model()
 
 _PLACEHOLDER_LAST_NAMES = frozenset({"google", "google user", "user"})
@@ -79,17 +82,17 @@ def register_user(data):
     return user
 
 
-def login_user(email,password):
-   user = authenticate(username=email,password=password)
+def login_user(email, password):
+    user = authenticate(username=email, password=password)
 
-   if not user:
-       return None
-   
-   tokens = get_user_tokens(user)
-   
-   return {
-       "user": user,
-       "tokens":tokens
+    if not user:
+        return None
+
+    tokens = get_user_tokens(user)
+
+    return {
+        "user": user,
+        "tokens": tokens
     }
 
 
@@ -119,12 +122,12 @@ def login_with_google_code(code):
     user = _get_or_create_google_user(user_info)
     tokens = get_user_tokens(user)
     return {"user": user, "tokens": tokens}
-   
 
-def change_user_password(user,old_password,new_password):
+
+def change_user_password(user, old_password, new_password):
     if not user.check_password(old_password):
         return False
-    
+
     user.set_password(new_password)
     user.save()
     return True
@@ -181,7 +184,6 @@ def _get_or_create_google_user(user_info):
         elif not (user.last_name or "").strip() and last_name:
             user.last_name = last_name
             update_fields.append("last_name")
-        # Keep password-based accounts on password provider (same email, both methods).
         if user.auth_provider != "password":
             user.auth_provider = "google"
             update_fields.append("auth_provider")
@@ -201,47 +203,74 @@ def _get_or_create_google_user(user_info):
     return user
 
 
+# ─── Password Reset ───────────────────────────────────────────────────────────
+
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+from .tokens import token_generator
+
 def send_password_reset_email(email):
     try:
         user = User.objects.get(email=email)
     except User.DoesNotExist:
-        return True
+        return  # silently do nothing (security)
 
-    token = str(uuid.uuid4())
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = token_generator.make_token(user)
+    
 
-    user.reset_token = token
-    user.save()
+    reset_link = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}/"
 
-    reset_link = f"{settings.FRONTEND_URL}/reset-password/?token={token}"
+    subject = "Reset your CloudShare password"
+    message = (
+        f"Hi {user.first_name},\n\n"
+        f"We received a request to reset the password for your CloudShare account "
+        f"associated with this email address.\n\n"
+        f"To reset your password, click the link below:\n"
+        f"{reset_link}\n\n"
+        f"This link is valid for a limited time. If you did not request a password reset, "
+        f"you can safely ignore this email — your account remains secure and no changes "
+        f"have been made.\n\n"
+        f"For security reasons, please do not share this link with anyone.\n\n"
+        f"Best regards,\n"
+        f"The CloudShare Team\n\n"
+        f"---\n"
+        f"This is an automated message. Please do not reply to this email."
+    )
 
     send_mail(
-        subject="Password Reset Request",
-        message=(
-            f"Hi {user.first_name},\n\n"
-            f"Click the link below to reset your password:\n{reset_link}\n\n"
-            f"If you did not request this, please ignore this email."
-        ),
+        subject=subject,
+        message=message,
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[user.email],
     )
 
     return True
 
+from django.utils.http import urlsafe_base64_decode
+from django.utils.encoding import force_str
 
-def reset_user_password(token, new_password):
+def reset_user_password(uid, token, new_password):
+    # Decode uid to get user
     try:
-        user = User.objects.get(reset_token=token)
-    except User.DoesNotExist:
+        user_id = force_str(urlsafe_base64_decode(uid))
+        user = User.objects.get(pk=user_id)
+    except (User.DoesNotExist, ValueError):
         return False, "Invalid or expired token"
 
+    # Validate token (expiry + single use)
+    if not token_generator.check_token(user, token):
+        return False, "Invalid or expired token"
+
+    # Check new password is not same as old
     if user.check_password(new_password):
         return False, "New password cannot be the same as old password"
 
     user.set_password(new_password)
-    user.reset_token = None
-    user.save()
+    user.save()  # token auto-invalidates here!
 
     return True, "Password reset successful"
+
 
 import mimetypes
 from django.db.models import Sum, Q
@@ -277,7 +306,6 @@ def list_user_trash(user, search=None):
     if search:
         qs = qs.filter(original_name__icontains=search)
     return qs.order_by("-deleted_at", "-uploaded_at")
-
 
 
 def rename_user_file(user, file_id, new_name):
@@ -322,14 +350,14 @@ def permanently_delete_user_file(user, file_id):
 
 def get_user_file(user, file_id):
     try:
-        return UserFile.objects.get(id=file_id, user=user, is_deleted=False)  # 👈
+        return UserFile.objects.get(id=file_id, user=user, is_deleted=False)
     except UserFile.DoesNotExist:
         return None
 
 
 def get_storage_summary(user):
     MAX_STORAGE = 1 * 1024 * 1024 * 1024
-    used = UserFile.objects.filter(user=user, is_deleted=False).aggregate(  # 👈
+    used = UserFile.objects.filter(user=user, is_deleted=False).aggregate(
         total=Sum("file_size"))["total"] or 0
     return {
         "used_bytes": used,
@@ -339,13 +367,7 @@ def get_storage_summary(user):
     }
 
 
-# service.py
-
 def toggle_file_star(user, file_id):
-    """
-    Toggles the is_starred status of a file.
-    Returns the file object if successful, None otherwise.
-    """
     try:
         user_file = UserFile.objects.get(id=file_id, user=user, is_deleted=False)
         user_file.is_starred = not user_file.is_starred
@@ -355,9 +377,6 @@ def toggle_file_star(user, file_id):
         return None
 
 def restore_all_user_trash(user):
-    """
-    Restores all files from trash for a specific user.
-    """
     trashed_files = UserFile.objects.filter(user=user, is_deleted=True)
     count = trashed_files.count()
     if count > 0:
@@ -365,9 +384,6 @@ def restore_all_user_trash(user):
     return count
 
 def empty_user_trash(user):
-    """
-    Permanently deletes all files in trash (Disk + DB).
-    """
     trashed_files = UserFile.objects.filter(user=user, is_deleted=True)
     count = trashed_files.count()
     for user_file in trashed_files:
@@ -375,8 +391,6 @@ def empty_user_trash(user):
             user_file.file.delete(save=False)
         user_file.delete()
     return count
-
-
 
 
 import hashlib
@@ -496,6 +510,8 @@ from django.core.mail import send_mail
 from .models import FileShare, UserFile
 
 
+# ─── Public File Share ────────────────────────────────────────────────────────
+
 def create_file_share(*, owner, file_id, recipient_email, expires_in_hours, message, request=None):
     """
     Create a public share link for a user's own file and email it to recipient.
@@ -521,17 +537,246 @@ def create_file_share(*, owner, file_id, recipient_email, expires_in_hours, mess
     if request is not None:
         share_url = f"{settings.FRONTEND_APP_URL}/s/{share.token}/"
 
-   
-
     _send_file_share_email(
         owner_email=getattr(owner, "email", ""),
+        owner_name=get_user_display_name(owner),
         recipient_email=recipient_email,
         message=message,
         share_url=share_url or f"/api/public/shares/{share.token}/",
+        file_name=share.user_file.original_name,
         expires_at=expires_at,
     )
 
     return share, share_url
+
+
+def _send_file_share_email(*, owner_email, recipient_email, message, share_url, expires_at,
+                            owner_name=None, file_name=None, file_size=None):
+    from django.core.mail import EmailMultiAlternatives
+
+    expires_formatted = expires_at.strftime("%B %d, %Y at %I:%M %p UTC")
+    sender_display = owner_name or owner_email or "Someone"
+    file_display = f'"{file_name}"' if file_name else "a file"
+    subject = f"{sender_display} shared {file_display} with you"
+
+    # ── Plain text fallback ───────────────────────────────────────────────────
+    text_body = (
+        f"Hi there,\n\n"
+        f"You have received a file share from {sender_display} ({owner_email}) via CloudShare.\n\n"
+        + (f"Message from {sender_display}:\n\"{message}\"\n\n" if message else "")
+        + (f"File: {file_name}\n\n" if file_name else "")
+        + f"To view and download the file, use the secure link below:\n"
+        f"{share_url}\n\n"
+        f"Please note that this link will expire on {expires_formatted}. "
+        f"Make sure to download the file before it expires.\n\n"
+        f"If you were not expecting this file or believe it was sent to you in error, "
+        f"you can safely ignore this email. The link will expire automatically.\n\n"
+        f"Best regards,\n"
+        f"The CloudShare Team\n\n"
+        f"---\n"
+        f"This is an automated message. Please do not reply to this email.\n"
+        f"Powered by CloudShare"
+    )
+
+    # ── HTML blocks ───────────────────────────────────────────────────────────
+#     message_block = (
+#         f"""
+#         <tr>
+#           <td style="padding: 0 40px 24px;">
+#             <div style="background:#2a2a2a; border-left:3px solid #e8294a;
+#                         border-radius:0 8px 8px 0; padding:14px 18px;">
+#               <p style="margin:0; color:#cccccc; font-style:italic;
+#                         font-size:14px; line-height:1.6;">"{message}"</p>
+#             </div>
+#           </td>
+#         </tr>
+#         """
+#         if message else ""
+#     )
+
+#     file_info_block = (
+#         f"""
+#         <tr>
+#           <td style="padding:0 40px 24px; text-align:center;">
+#             <div style="background:#2a2a2a; border-radius:12px; padding:20px;
+#                         width:100%; box-sizing:border-box;">
+#               <div style="width:56px; height:56px; background:#333333;
+#                           border-radius:14px; margin:0 auto 12px; line-height:56px;
+#                           text-align:center; font-size:24px;">📄</div>
+#               <p style="margin:0 0 4px; color:#ffffff; font-weight:700;
+#                         font-size:15px; word-break:break-all;">{file_name}</p>
+#               {f'<p style="margin:4px 0 0; color:#888888; font-size:13px;">{file_size}</p>' if file_size else ''}
+#             </div>
+#           </td>
+#         </tr>
+#         """
+#         if file_name else ""
+#     )
+
+#     # ── Full HTML email ───────────────────────────────────────────────────────
+#     html_body = f"""<!DOCTYPE html>
+# <html lang="en">
+# <head>
+#   <meta charset="UTF-8"/>
+#   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+# </head>
+# <body style="margin:0; padding:0; background-color:#0f0f0f;
+#              font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">
+
+#   <table width="100%" cellpadding="0" cellspacing="0"
+#          style="background-color:#0f0f0f; padding:40px 20px;">
+#     <tr>
+#       <td align="center">
+#         <table width="520" cellpadding="0" cellspacing="0"
+#                style="max-width:520px; width:100%;">
+
+#           <!-- Logo -->
+#           <tr>
+#             <td align="center" style="padding-bottom:28px;">
+#               <table cellpadding="0" cellspacing="0">
+#                 <tr>
+#                   <td style="vertical-align:middle; padding-right:10px;">
+#                     <div style="width:36px; height:36px; background:#e8294a;
+#                                 border-radius:9px; text-align:center;
+#                                 line-height:36px; font-size:20px;">☁️</div>
+#                   </td>
+#                   <td style="vertical-align:middle;">
+#                     <span style="font-size:20px; font-weight:700;">
+#                       <span style="color:#ffffff;">Cloud</span><span style="color:#e8294a;">Share</span>
+#                     </span>
+#                   </td>
+#                 </tr>
+#               </table>
+#             </td>
+#           </tr>
+
+#           <!-- Main card -->
+#           <tr>
+#             <td style="background:#1a1a1a; border-radius:16px;
+#                        border:1px solid #2a2a2a; overflow:hidden;">
+#               <table width="100%" cellpadding="0" cellspacing="0">
+
+#                 <!-- Header -->
+#                 <tr>
+#                   <td style="padding:32px 40px 24px; text-align:center;">
+#                     <p style="margin:0 0 4px; color:#888888; font-size:11px;
+#                               letter-spacing:2px; text-transform:uppercase;
+#                               font-weight:600;">Shared With You</p>
+#                     <p style="margin:0; color:#cccccc; font-size:15px;">
+#                       from <strong style="color:#ffffff;">{sender_display}</strong>
+#                     </p>
+#                   </td>
+#                 </tr>
+
+#                 <!-- File info -->
+#                 {file_info_block}
+
+#                 <!-- Message -->
+#                 {message_block}
+
+#                 <!-- Divider -->
+#                 <tr>
+#                   <td style="padding:0 40px;">
+#                     <hr style="border:none; border-top:1px solid #2a2a2a; margin:0 0 24px;"/>
+#                   </td>
+#                 </tr>
+
+#                 <!-- Body text -->
+#                 <tr>
+#                   <td style="padding:0 40px 16px;">
+#                     <p style="margin:0 0 10px; color:#888888; font-size:11px;
+#                               text-transform:uppercase; letter-spacing:2px;
+#                               font-weight:600;">🔗 Access Your File</p>
+#                     <p style="margin:0; color:#cccccc; font-size:14px; line-height:1.7;">
+#                       Hi there,<br/><br/>
+#                       You have received a file share from
+#                       <strong style="color:#ffffff;">{sender_display}</strong>
+#                       via CloudShare. Click the button below to view and download the file.
+#                     </p>
+#                   </td>
+#                 </tr>
+
+#                 <!-- CTA button -->
+#                 <tr>
+#                   <td style="padding:8px 40px 20px;" align="center">
+#                     <a href="{share_url}"
+#                        style="display:block; background:#e8294a; color:#ffffff;
+#                               text-decoration:none; text-align:center;
+#                               padding:15px 28px; border-radius:10px;
+#                               font-weight:700; font-size:15px; letter-spacing:0.3px;">
+#                       ⬇&nbsp; View &amp; Download File
+#                     </a>
+#                   </td>
+#                 </tr>
+
+#                 <!-- Expiry notice -->
+#                 <tr>
+#                   <td style="padding:0 40px 28px; text-align:center;">
+#                     <p style="margin:0; color:#666666; font-size:13px;">
+#                       ⏰ This link expires on:
+#                       <strong style="color:#888888;">{expires_formatted}</strong><br/>
+#                       <span style="color:#555555; font-size:12px;">
+#                         Please download the file before it expires.
+#                       </span>
+#                     </p>
+#                   </td>
+#                 </tr>
+
+#                 <!-- Divider -->
+#                 <tr>
+#                   <td style="padding:0 40px;">
+#                     <hr style="border:none; border-top:1px solid #2a2a2a; margin:0;"/>
+#                   </td>
+#                 </tr>
+
+#                 <!-- Footer note -->
+#                 <tr>
+#                   <td style="padding:20px 40px 28px; text-align:center;">
+#                     <p style="margin:0; color:#555555; font-size:12px; line-height:1.7;">
+#                       If you were not expecting this file or believe it was sent to you in error,
+#                       you can safely ignore this email. The link will expire automatically.<br/><br/>
+#                       This is an automated message — please do not reply to this email.
+#                     </p>
+#                   </td>
+#                 </tr>
+
+#               </table>
+#             </td>
+#           </tr>
+
+#           <!-- Powered by -->
+#           <tr>
+#             <td align="center" style="padding-top:24px;">
+#               <p style="margin:0; color:#444444; font-size:12px;">
+#                 Powered by
+#                 <a href="#" style="color:#e8294a; text-decoration:none;
+#                                    font-weight:600;">CloudShare</a>
+#               </p>
+#             </td>
+#           </tr>
+
+#         </table>
+#       </td>
+#     </tr>
+#   </table>
+
+# </body>
+# </html>"""
+
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@cloudshare.local")
+
+    try:
+        email = EmailMultiAlternatives(
+            subject=subject,
+            body=text_body,
+            from_email=from_email,
+            to=[recipient_email],
+        )
+        # email.attach_alternative(html_body, "text/html")
+        email.send(fail_silently=False)
+        logger.info("Public share email sent to %s", recipient_email)
+    except Exception as exc:
+        logger.exception("Failed to send public share email to %s: %s", recipient_email, exc)
 
 
 def list_user_shares(user, search=None):
@@ -566,10 +811,8 @@ def mark_share_accessed(share):
 
 
 def _send_app_email(*, subject, body, recipient_list, html_body=None):
-    import logging
-    logger = logging.getLogger(__name__)
     from django.core.mail import EmailMultiAlternatives
-    
+
     from_email = getattr(settings, "DEFAULT_FROM_EMAIL", None) or "noreply@cloudshare.local"
     recipients = [r.strip().lower() for r in recipient_list if r and str(r).strip()]
     if not recipients:
@@ -577,7 +820,7 @@ def _send_app_email(*, subject, body, recipient_list, html_body=None):
     try:
         email = EmailMultiAlternatives(
             subject=subject,
-            body=body,  # plain text fallback
+            body=body,
             from_email=from_email,
             to=recipients,
         )
@@ -591,21 +834,7 @@ def _send_app_email(*, subject, body, recipient_list, html_body=None):
         return False
 
 
-def _send_file_share_email(*, owner_email, recipient_email, message, share_url, expires_at):
-    body = (
-        f"You have received a file share link from {owner_email or 'a user'}.\n\n"
-        f"Message:\n{message}\n\n"
-        f"Link: {share_url}\n"
-        f"Expires at: {expires_at.isoformat()}\n"
-    )
-    _send_app_email(
-        subject="File shared with you",
-        body=body,
-        recipient_list=[recipient_email],
-    )
-
-
-# ─── Private file sharing ───────────────────────────────────────────────────
+# ─── Private File Share ───────────────────────────────────────────────────────
 
 from django.contrib.auth.hashers import make_password, check_password
 from .models import (
@@ -676,7 +905,6 @@ def _share_is_accessible(share, grant=None, ignore_download_limit=False):
     return True, None
 
 
-
 def _get_upstream_owner_emails(parent_share):
     """Emails of owners in the share chain — cannot be re-shared back to them."""
     emails = set()
@@ -709,8 +937,7 @@ def create_private_share(
             grant = PrivateShareRecipient.objects.get(private_share=parent_share, recipient=owner, is_revoked=False)
             if not grant.can_reshare:
                 return None, "Re-sharing not permitted."
-            
-            # Additional validation against parent permissions
+
             for raw_email, perms in recipient_permissions.items():
                 if perms.get("can_download") and not grant.can_download:
                     return None, "Cannot grant download permission."
@@ -718,10 +945,10 @@ def create_private_share(
                     return None, "Cannot grant reshare permission."
                 if perms.get("can_comment") and not grant.can_comment:
                     return None, "Cannot grant comment permission."
-            
+
             if expires_at and parent_share.expires_at and expires_at > parent_share.expires_at:
                 return None, "Expiry cannot exceed parent share expiry."
-            
+
             user_file = parent_share.user_file
         except (PrivateShare.DoesNotExist, PrivateShareRecipient.DoesNotExist):
             return None, "Invalid parent share or no access."
@@ -757,9 +984,7 @@ def create_private_share(
     if not resolved:
         msg = "No valid registered recipients."
         if blocked_upstream:
-            msg += (
-                f" Cannot share back to the original sender(s): {', '.join(blocked_upstream)}."
-            )
+            msg += f" Cannot share back to the original sender(s): {', '.join(blocked_upstream)}."
         if unregistered:
             msg += f" Not registered on CloudShare: {', '.join(unregistered)}."
         if skipped_self:
@@ -808,22 +1033,77 @@ def create_private_share(
 
 def _send_private_share_email(*, owner, recipient, share, message):
     frontend = getattr(settings, "FRONTEND_APP_URL", "http://localhost:5173")
-    subject = f"{owner.first_name} shared a file with you on CloudShare"
+    inbox_url = f"{frontend}/private-shares/inbox"
+    owner_display = get_user_display_name(owner)
+    file_name = share.user_file.original_name
+
+    subject = f"{owner_display} has privately shared a file with you on CloudShare"
+
     body = (
         f"Hi {recipient.first_name},\n\n"
-        f"{owner.first_name} {owner.last_name} ({owner.email}) has privately shared "
-        f'"{share.user_file.original_name}" with you.\n\n'
-        f"Message: {message or '(no message)'}\n\n"
-        f"Log in to CloudShare and visit Shared With Me to access the file:\n"
-        f"{frontend}/private-shares/inbox\n"
+        f"{owner_display} ({owner.email}) has privately shared the file "
+        f'"{file_name}" with you on CloudShare.\n\n'
+        + (f"Message from {owner_display}:\n\"{message}\"\n\n" if message else "")
+        + f"To access this file, log in to your CloudShare account and visit your inbox:\n"
+        f"{inbox_url}\n\n"
+        + (
+            f"Please note this share will expire on "
+            f"{share.expires_at.strftime('%B %d, %Y at %I:%M %p UTC')}.\n\n"
+            if share.expires_at else ""
+        )
+        + f"If you believe this file was shared with you in error or have any concerns, "
+        f"please disregard this notification.\n\n"
+        f"Best regards,\n"
+        f"The CloudShare Team\n\n"
+        f"---\n"
+        f"This is an automated message. Please do not reply to this email.\n"
+        f"Powered by CloudShare"
     )
-    if share.expires_at:
-        body += f"\nExpires: {share.expires_at.isoformat()}\n"
+
     return _send_app_email(
         subject=subject,
         body=body,
         recipient_list=[recipient.email],
     )
+
+
+# ─── Read Receipt Notification ────────────────────────────────────────────────
+
+def _notify_owner_read_receipt(share, recipient, action):
+    """Notify the file owner when a recipient views or downloads their shared file."""
+    recipient_display = get_user_display_name(recipient)
+    file_name = share.user_file.original_name
+    actioned_at = timezone.now().strftime("%B %d, %Y at %I:%M %p UTC")
+
+    action_label = "viewed" if action == "viewed" else "downloaded"
+    subject = f"{recipient_display} has {action_label} your shared file — {file_name}"
+
+    message = (
+        f"Hi {share.owner.first_name},\n\n"
+        f"This is a read receipt to let you know that {recipient_display} ({recipient.email}) "
+        f"has {action_label} the file you shared:\n\n"
+        f"  File: {file_name}\n"
+        f"  Action: {action_label.capitalize()}\n"
+        f"  Date & Time: {actioned_at}\n\n"
+        f"No action is required on your part. This notification was sent because "
+        f"read receipts are enabled for your shared files.\n\n"
+        f"You can manage your shared files and view access activity from your CloudShare dashboard.\n\n"
+        f"Best regards,\n"
+        f"The CloudShare Team\n\n"
+        f"---\n"
+        f"This is an automated message. Please do not reply to this email.\n"
+        f"Powered by CloudShare"
+    )
+
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", None)
+    send_mail(
+        subject=subject,
+        message=message,
+        from_email=from_email,
+        recipient_list=[share.owner.email],
+        fail_silently=True,
+    )
+
 
 def list_private_shares_by_owner(user, status_filter=None):
     qs = PrivateShare.objects.select_related("user_file").prefetch_related(
@@ -835,13 +1115,13 @@ def list_private_shares_by_owner(user, status_filter=None):
             db_models.Q(expires_at__isnull=True) |
             db_models.Q(expires_at__gt=timezone.now())
         ).exclude(
-            one_time_access=True, download_count__gte=1  # exclude used one-time shares
+            one_time_access=True, download_count__gte=1
         )
 
     elif status_filter == "expired":
         qs = qs.filter(is_revoked=False).filter(
             db_models.Q(expires_at__isnull=False, expires_at__lt=timezone.now()) |
-            db_models.Q(one_time_access=True, download_count__gte=1)  # include used one-time shares
+            db_models.Q(one_time_access=True, download_count__gte=1)
         )
 
     elif status_filter == "revoked":
@@ -869,23 +1149,6 @@ def verify_private_share_password(share, password):
     if not share.password_hash:
         return True
     return check_password(password, share.password_hash)
-
-
-
-
-
-def _notify_owner_read_receipt(share, recipient, action):
-    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", None)
-    send_mail(
-        subject=f"Read receipt: {recipient.email} {action} your file",
-        message=(
-            f'"{share.user_file.original_name}" was {action} by {recipient.first_name} '
-            f"{recipient.last_name} ({recipient.email}) at {timezone.now().isoformat()}."
-        ),
-        from_email=from_email,
-        recipient_list=[share.owner.email],
-        fail_silently=True,
-    )
 
 
 def _user_owns_ancestor_share(user, share):
@@ -920,14 +1183,12 @@ def cascade_revoke_share(share, request_user=None):
     share.is_revoked = True
     share.revoked_at = timezone.now()
     share.save(update_fields=["is_revoked", "revoked_at"])
-    
-    # Revoke all direct recipients of this share
+
     share.recipients.filter(is_revoked=False).update(is_revoked=True, revoked_at=timezone.now())
-    
+
     if request_user:
         _log_share_access(share, request_user, ShareAccessLog.ACTION_REVOKE, metadata={"cascade": True})
 
-    # Find all child shares and revoke them recursively
     child_shares = share.child_shares.filter(is_revoked=False)
     for child in child_shares:
         cascade_revoke_share(child, request_user)
@@ -957,10 +1218,9 @@ def revoke_private_share_recipient(owner, share_id, recipient_id):
     grant.is_revoked = True
     grant.revoked_at = timezone.now()
     grant.save(update_fields=["is_revoked", "revoked_at"])
-    
+
     _log_share_access(grant.private_share, owner, ShareAccessLog.ACTION_REVOKE, metadata={"recipient": grant.recipient.email})
-    
-    # Cascade to all child shares created by this recipient based on this parent share
+
     child_shares = PrivateShare.objects.filter(parent_share=grant.private_share, owner=grant.recipient, is_revoked=False)
     for cs in child_shares:
         cascade_revoke_share(cs, owner)
@@ -979,7 +1239,6 @@ def transfer_file_ownership(owner, file_id, new_owner_email):
     user_file.user = new_owner
     user_file.save(update_fields=["user"])
     return True, "Ownership transferred."
-
 
 
 def _share_ids_for_same_file(share):
@@ -1055,17 +1314,12 @@ def apply_watermark_to_file(user_file, recipient):
             draw = ImageDraw.Draw(overlay)
             text = f"{get_user_display_name(recipient)} | {recipient.email}"
 
-            # Font size: ~2.5% of image width, minimum 14px
             font_size = max(14, int(img.width * 0.025))
             font = ImageFont.load_default(size=font_size)
 
-            # Position near the bottom-left with a small margin
             x = 20
             y = img.height - font_size - 16
 
-            # Very light ghost stamp — visible if you look for it,
-            # but does not obscure the image content at all.
-            # Alpha 55/255 ≈ 22% opacity for text, 35/255 ≈ 14% for outline.
             draw.text(
                 (x, y),
                 text,
@@ -1082,8 +1336,6 @@ def apply_watermark_to_file(user_file, recipient):
     except Exception:
         pass
     return user_file.file.path
-
-
 
 
 def lookup_users_by_email(emails):
@@ -1107,7 +1359,6 @@ def _share_is_accessible_for_action(share, grant=None, action='download'):
     - 'preview':  all checks EXCEPT download limit
     - 'comment' / 'reshare': only revoked + expired (download limit never blocks these)
     """
-    # Always block revoked
     if share.is_revoked:
         return False, "Revoked."
     if share.is_expired:
@@ -1118,14 +1369,12 @@ def _share_is_accessible_for_action(share, grant=None, action='download'):
         if grant.individual_expires_at and timezone.now() >= grant.individual_expires_at:
             return False, "Expired."
 
-    # Below checks only apply to download/preview
     if action in ('download', 'preview'):
         if share.one_time_access and share.download_count > 0:
             return False, "One time access."
         if not _is_within_time_windows(share.time_windows):
             return False, "Time window expired."
 
-    # Below checks only apply to download
     if action == 'download':
         if share.max_downloads and share.download_count >= share.max_downloads:
             return False, "Maximum download limit reached."
@@ -1133,7 +1382,6 @@ def _share_is_accessible_for_action(share, grant=None, action='download'):
             return False, "Download limit reached."
 
     return True, None
-
 
 
 def record_private_share_view(grant, request=None, *, preview=False):

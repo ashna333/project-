@@ -106,14 +106,10 @@ class ForgotPasswordSerializer(serializers.Serializer):
 
 
 class ResetPasswordSerializer(serializers.Serializer):
-    token = serializers.CharField(min_length=10)
+    uid = serializers.CharField()
+    token = serializers.CharField()
     new_password = serializers.CharField(write_only=True)
     confirm_new_password = serializers.CharField(write_only=True)
-
-    def validate_token(self, value):
-        if not (value or "").strip():
-            raise serializers.ValidationError("Reset token is required.")
-        return value.strip()
 
     def validate_new_password(self, value):
         return validate_password_strength(value)
@@ -122,7 +118,6 @@ class ResetPasswordSerializer(serializers.Serializer):
         if data['new_password'] != data['confirm_new_password']:
             raise serializers.ValidationError("Passwords do not match")
         return data
-
 
 class UserProfileSerializer(serializers.ModelSerializer):
     display_name = serializers.SerializerMethodField()

@@ -39,5 +39,5 @@ export const forgotPasswordApi = (email) =>
  * POST /api/reset-password/
  * Body: { token, new_password }
  */
-export const resetPasswordApi = (token, newPassword,confirmPassword) =>
-  api.post('/reset-password/', { token, new_password: newPassword ,confirm_new_password:confirmPassword})
+export const resetPasswordApi = (uid, token, newPassword, confirmPassword) =>
+  api.post('/reset-password/', { uid, token, new_password: newPassword, confirm_new_password: confirmPassword })

@@ -156,6 +156,7 @@ class ChangePasswordView(APIView):
         return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
     
 class ForgotPasswordView(APIView):
+    permission_classes = []  
     def post(self,request):
        serializer=ForgotPasswordSerializer(data=request.data)
        if serializer.is_valid():
@@ -167,18 +168,21 @@ class ForgotPasswordView(APIView):
 
 
 class ResetPasswordView(APIView):
+    permission_classes = []
+
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
         if serializer.is_valid():
-            success, message = reset_user_password(   # ✅ unpack the tuple
-                serializer.validated_data.get("token"),
-                serializer.validated_data.get("new_password")
+            success, message = reset_user_password(
+                serializer.validated_data['uid'],
+                serializer.validated_data['token'],
+                serializer.validated_data['new_password']
             )
             if not success:
-                return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)  # ✅ use actual message
-            return Response({"message": message})  # ✅ use actual message
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": message})
 
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 import os

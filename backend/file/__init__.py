@@ -4,3 +4,8 @@ try:
 except ImportError:
     celery_app = None
     __all__ = ()
+
+
+import pymysql
+
+pymysql.install_as_MySQLdb()

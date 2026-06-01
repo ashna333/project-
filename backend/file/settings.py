@@ -19,6 +19,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 env = Config(RepositoryEnv(str(BASE_DIR / ".env")))
 
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': 'file_manager_db',
+#         'USER': 'root',
+#         'PASSWORD': '12345678',
+#         'HOST': '127.0.0.1',
+#         'PORT': '3306',
+#     }
+# }
+
+
 FRONTEND_URL = "http://localhost:5173"
 FRONTEND_APP_URL = env("FRONTEND_APP_URL", default="http://localhost:5173")
 GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")
