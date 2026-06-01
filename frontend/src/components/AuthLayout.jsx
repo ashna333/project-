@@ -9,7 +9,7 @@ export default function AuthLayout({ children, eyebrow, title, subtitle, feature
 
         <div className="brand-logo">
           <div className="icon">⚡</div>
-          <span className="name">CloudNest</span>
+          <span className="name">CloudShare</span>
         </div>
 
         <div className="brand-hero">

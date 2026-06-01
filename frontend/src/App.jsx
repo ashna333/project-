@@ -12,7 +12,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage'
 import GoogleAuthCallbackPage from './pages/GoogleAuthCallbackPage'
 
 import { InboxBadgeProvider } from './context/InboxBadgeContext';
-
+import LandingPage from './pages/Landing'
 
  import ExpiringSoonPage from './pages/ExpiringSoonPage';
 // Dashboard/App Pages
@@ -45,6 +45,7 @@ export default function App() {
       <InboxBadgeProvider>
         <Routes>
           {/* --- PUBLIC ROUTES --- */}
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
           <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
@@ -81,7 +82,7 @@ export default function App() {
         
           </Route>
 
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={ <PublicRoute><LandingPage /> </PublicRoute>} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
         </InboxBadgeProvider>

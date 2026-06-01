@@ -1,46 +1,23 @@
+# Environment & secrets
+.env
+
+# Database
+db.sqlite3
+
+# Celery
+celerybeat-schedule
+celerybeat-schedule-shm
+celerybeat-schedule-wal
+
+# Media uploads
+media/
+
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.env
-venv/
-.venv/
-env/
+migrations/__pycache__/
+
+# Sent emails (dev only)
 sent_emails/
-*.egg-info/
-build/
-dist/
-
-# Django
-*.sqlite3
-media/
-*.log
-
-# Celery
-celerybeat-schedule
-celerybeat-schedule.db
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-
-# Temporary / Generated files
-*.wm.png
-*.wm.*
-tmp/
-
-# OS specific
-.DS_Store
-Thumbs.db
-
-# IDE / Editors
-.vscode/
-.idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.swp

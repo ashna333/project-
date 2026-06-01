@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import( RegisterView, LoginView, 
                    ChangePasswordView,ForgotPasswordView,
-                   ResetPasswordView, FileUploadView, UploadCheckView,
+                   ResetPasswordView,VerifyResetTokenView, FileUploadView, UploadCheckView,
                     FileListView,
                     FileDeleteView,
                     FileDownloadView,
@@ -68,6 +68,7 @@ urlpatterns = [
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
     path('forgot-password/', ForgotPasswordView.as_view()),
     path('reset-password/', ResetPasswordView.as_view()),
+    path('auth/verify-reset-token/', VerifyResetTokenView.as_view()),
     path("upload/check/", UploadCheckView.as_view(), name="upload-check"),
     path("upload/", FileUploadView.as_view(), name="file-upload"),
     path("fetch/", FileListView.as_view(), name="file-list"),

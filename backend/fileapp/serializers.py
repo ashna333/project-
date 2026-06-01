@@ -14,6 +14,8 @@ from .validators import (
     MAX_MESSAGE_LENGTH,
 )
 
+from rest_framework import serializers
+from .models import UserFile
 from django.conf import settings
 from .validators import validate_file_type
 
@@ -149,12 +151,8 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
 
 
 
-
-from rest_framework import serializers
-from .models import UserFile
-
 class UserFileSerializer(serializers.ModelSerializer):
-    """Read serializer — used for listing/retrieving files."""
+
     file_size_display = serializers.SerializerMethodField()
     url = serializers.SerializerMethodField()
 
@@ -172,7 +170,7 @@ class UserFileSerializer(serializers.ModelSerializer):
         ]
 
     def get_file_size_display(self, obj):
-        """Human-readable file size."""
+        
         size = obj.file_size
         for unit in ["B", "KB", "MB", "GB"]:
             if size < 1024:
@@ -279,11 +277,9 @@ class FileShareListSerializer(serializers.ModelSerializer):
         return f"{frontend_base}/s/{obj.token}/"
 
 
-# In your serializers.py (Backend)
 class PublicFileShareSerializer(serializers.ModelSerializer):
     file_name = serializers.CharField(source='user_file.original_name',read_only=True)
     file_size = serializers.IntegerField(source='user_file.file_size',read_only=True)
-    # Add this to get the sender's name
     sender = serializers.SerializerMethodField(source='owner.username', read_only=True)
     download_url = serializers.SerializerMethodField()
     

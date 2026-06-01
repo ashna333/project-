@@ -66,13 +66,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-!l4m7ofg3wov$zzc9f4^=-k9jt4q==(@+n@jrc74)@=bm0dz+o'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
+SECRET_KEY = env("SECRET_KEY")
+DEBUG = env("DEBUG", default=False, cast=bool)
+ALLOWED_HOSTS = env("ALLOWED_HOSTS", default="127.0.0.1,localhost").split(",")
 
 
 INSTALLED_APPS = [
@@ -150,6 +147,7 @@ DATABASES = {
 }
 
 
+
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
 
@@ -221,7 +219,7 @@ CELERY_BEAT_SCHEDULE = {
     }
 }
 
-
+PASSWORD_RESET_TIMEOUT = 120
 DATA_UPLOAD_MAX_NUMBER_FILES = 1000
 
 # Celery Settings

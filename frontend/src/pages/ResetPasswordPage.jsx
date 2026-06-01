@@ -4,6 +4,7 @@ import useAuthStore from '../store/authStore'
 import { validatePassword, validatePasswordMatch } from '../utils/validation'
 import '../styles/Forgotpassword.css'
 
+
 const EyeIcon = ({ open }) => open ? (
   <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
@@ -18,22 +19,31 @@ const EyeIcon = ({ open }) => open ? (
 export default function ResetPasswordPage() {
   const navigate = useNavigate()
   const { uid, token } = useParams()
-  const { resetPassword, loading, error, successMessage, clearMessages } = useAuthStore()
+  const { resetPassword, validateResetToken, loading, error, successMessage, clearMessages } = useAuthStore()
 
   const [showPass, setShowPass] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [form, setForm] = useState({ new_password: '', confirm: '' })
   const [fieldErrors, setFieldErrors] = useState({})
+  const [expired, setExpired] = useState(false)
 
-  useEffect(() => {
-    return () => clearMessages()
-  }, [clearMessages])
-
+  
   useEffect(() => {
     if (!error && !successMessage) return
     const timer = setTimeout(() => clearMessages(), 5000)
     return () => clearTimeout(timer)
   }, [error, successMessage, clearMessages])
+
+
+  useEffect(() => {
+    const verifyToken = async () => {
+      if (!uid || !token) { setExpired(true); return }
+      const result = await validateResetToken(uid, token)  // from store, not validation.js
+      if (!result?.valid) setExpired(true)
+    }
+    verifyToken()
+    return () => clearMessages()
+  }, [uid, token, clearMessages])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -60,7 +70,43 @@ export default function ResetPasswordPage() {
 
     if (result?.success) {
       setTimeout(() => navigate('/login'), 3000)
+    } else if (result?.error === 'Invalid or expired token') {
+      setExpired(true)
     }
+  }
+
+  // Expired link screen
+  if (expired) {
+    return (
+      <div className="auth-container reset-page-layout">
+        <div className="reset-wrapper">
+          <div className="security-header">
+            <div className="security-icon-box">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <div>
+              <h2 className="page-title">Link Expired</h2>
+            </div>
+          </div>
+          <p style={{ color: '#94a3b8', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
+            This password reset link has expired.
+          </p>
+          <p style={{ color: '#64748b', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+            Reset links are only valid for <strong style={{ color: '#e11d48' }}>15 minutes</strong>. Please request a new one.
+          </p>
+          <button
+            className="submit-btn-rose"
+            onClick={() => navigate('/forgot-password')}
+          >
+            Request New Link
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (

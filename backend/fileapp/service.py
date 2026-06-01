@@ -10,11 +10,23 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 from django.db import models as db_models
-
 import hashlib
+import mimetypes
 from django.utils import timezone
-
 import logging
+from django.db import transaction
+from django.core.mail import send_mail
+from .models import FileShare, UserFile
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+from .tokens import token_generator
+from django.db.models import Sum, Q
+from django.utils.http import urlsafe_base64_decode
+from django.utils.encoding import force_str
+
+
+
+
 logger = logging.getLogger(__name__)
 
 User= get_user_model()
@@ -205,10 +217,6 @@ def _get_or_create_google_user(user_info):
 
 # ─── Password Reset ───────────────────────────────────────────────────────────
 
-from django.utils.http import urlsafe_base64_encode
-from django.utils.encoding import force_bytes
-from .tokens import token_generator
-
 def send_password_reset_email(email):
     try:
         user = User.objects.get(email=email)
@@ -247,8 +255,7 @@ def send_password_reset_email(email):
 
     return True
 
-from django.utils.http import urlsafe_base64_decode
-from django.utils.encoding import force_str
+
 
 def reset_user_password(uid, token, new_password):
     # Decode uid to get user
@@ -271,10 +278,6 @@ def reset_user_password(uid, token, new_password):
 
     return True, "Password reset successful"
 
-
-import mimetypes
-from django.db.models import Sum, Q
-from .models import UserFile
 
 
 def get_user_storage_usage(user):
@@ -352,7 +355,7 @@ def permanently_delete_user_file(user, file_id):
     user_file.delete()  # just delete, no share checks
     return "deleted"
 
-# service.py
+
 def empty_user_trash(user):
     trashed_files = UserFile.objects.filter(user=user, is_deleted=True)
     deleted = 0
@@ -376,7 +379,7 @@ def empty_user_trash(user):
             user_file.file.delete(save=False)
         user_file.delete()
         deleted += 1
-    return deleted, deferred  # ← return tuple now
+    return deleted, deferred
 
         
    
@@ -417,23 +420,6 @@ def restore_all_user_trash(user):
         trashed_files.update(is_deleted=False)
     return count
 
-def empty_user_trash(user):
-    trashed_files = UserFile.objects.filter(user=user, is_deleted=True)
-    count = trashed_files.count()
-    for user_file in trashed_files:
-        if user_file.file:
-            user_file.file.delete(save=False)
-        user_file.delete()
-    return count
-
-
-
-
-import hashlib
-import mimetypes
-from django.db.models import Sum
-from django.utils import timezone
-from .models import UserFile
 
 
 def get_file_hash(file):
@@ -475,10 +461,7 @@ def check_upload_conflicts(user, files):
 
 
 def upload_files(user, files, resolutions=None):
-    """
-    Upload files with optional per-file resolution for duplicates.
-    resolutions: dict mapping filename -> 'replace' | 'keep_both' | 'discard'
-    """
+   
     import os as _os
 
     resolutions = resolutions or {}
@@ -540,19 +523,11 @@ def upload_files(user, files, resolutions=None):
     return created, skipped
 
 
-from django.db import transaction
-from datetime import timedelta
-from django.core.mail import send_mail
-from .models import FileShare, UserFile
-
 
 # ─── Public File Share ────────────────────────────────────────────────────────
 
 def create_file_share(*, owner, file_id, recipient_email, expires_in_hours, message, request=None):
-    """
-    Create a public share link for a user's own file and email it to recipient.
-    Returns the created FileShare instance and the share URL (string).
-    """
+   
     try:
         user_file = UserFile.objects.get(id=file_id, user=owner, is_deleted=False)
     except UserFile.DoesNotExist:
@@ -1136,7 +1111,6 @@ def upload_file_version(owner, file_id, new_file, change_note=""):
 
 
 def apply_watermark_to_file(user_file, recipient):
-    """Stamp recipient info onto downloadable file (images only)."""
     try:
         from PIL import Image, ImageDraw, ImageFont
         path = user_file.file.path
@@ -1232,7 +1206,7 @@ def record_private_share_view(grant, request=None, *, preview=False):
     _log_share_access(share, grant.recipient, ShareAccessLog.ACTION_VIEW, request, metadata=metadata)
     _notify_owner_read_receipt(share, grant.recipient, "viewed")
 
-    # ── One-time access: revoke after first view (WhatsApp style) ────────────
+    
     if share.one_time_access and not share.is_revoked:
         share.is_revoked = True
         share.revoked_at = timezone.now()

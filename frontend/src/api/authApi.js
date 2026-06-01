@@ -35,9 +35,10 @@ export const changePasswordApi = (data) =>
 export const forgotPasswordApi = (email) =>
   api.post('/forgot-password/', { email })
 
-/**
- * POST /api/reset-password/
- * Body: { token, new_password }
- */
+
 export const resetPasswordApi = (uid, token, newPassword, confirmPassword) =>
   api.post('/reset-password/', { uid, token, new_password: newPassword, confirm_new_password: confirmPassword })
+
+
+export const validateResetTokenApi = (uid, token) =>
+  api.post('/auth/verify-reset-token/', { uid, token })

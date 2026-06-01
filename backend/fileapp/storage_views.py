@@ -1,13 +1,3 @@
-"""
-storage_views.py  —  add to your existing app
-
-These views follow the exact same pattern as your existing views.py:
-  - class-based APIView
-  - IsAuthenticated permission
-  - Response() returns
-  - Same error format {"error": "..."}
-"""
-
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated

@@ -1,7 +1,6 @@
 import { create } from 'zustand'
-import { loginApi, registerApi, changePasswordApi, forgotPasswordApi, resetPasswordApi, profileApi } from '../api/authApi'
+import { loginApi, registerApi, changePasswordApi, forgotPasswordApi, resetPasswordApi, profileApi,validateResetTokenApi  } from '../api/authApi'
 
-// Bootstrap user from stored tokens on page load
 const getInitialUser = () => {
   const access = localStorage.getItem('access_token')
   if (!access) return null
@@ -19,8 +18,6 @@ const useAuthStore = create((set) => ({
   //  State
   user: getInitialUser(),
   isAuthenticated: !!getInitialUser(),
-  // True while hydrateUser is running on page load.
-  // ProtectedRoute waits for this to be false before deciding to redirect.
   hydrating: true,
   loading: false,
   error: null,
@@ -41,14 +38,10 @@ const useAuthStore = create((set) => ({
       return
     }
     try {
-      // profileApi goes through the Axios interceptor.
-      // If access_token is null/invalid, the interceptor silently uses
-      // refresh_token to obtain a new access_token and retries automatically.
       const { data } = await profileApi()
       localStorage.setItem('auth_user', JSON.stringify(data))
       set({ user: data, isAuthenticated: true, hydrating: false })
     } catch {
-      // Both tokens are gone/invalid — clear everything.
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
       localStorage.removeItem('auth_user')
@@ -153,22 +146,32 @@ const useAuthStore = create((set) => ({
     }
   },
 
-  //  Reset Password 
-  resetPassword: async (token, newPassword,confirmPassword) => {
-    set({ loading: true, error: null, successMessage: null })
+//  Reset Password 
+resetPassword: async (uid, token, newPassword, confirmPassword) => {  // ✅ fix
+  set({ loading: true, error: null, successMessage: null })
+  try {
+    await resetPasswordApi(uid, token, newPassword, confirmPassword)
+    set({ loading: false, successMessage: 'Password reset successfully! You can now log in.' })
+    return { success: true }
+  } catch (err) {
+    const errors = err.response?.data
+    let message = 'Invalid or expired reset link.'
+    if (errors?.error) message = errors.error
+    set({ loading: false, error: message })
+    return { success: false, error: message }
+  }
+},
+  validateResetToken: async (uid, token) => {
+  try {
+    const { data } = await validateResetTokenApi(uid, token)
+    return data // { valid: true }
+  } catch {
+    return { valid: false }
+  }
+}
 
-    try {
-      await resetPasswordApi(token, newPassword,confirmPassword)
-      set({ loading: false, successMessage: 'Password reset successfully! You can now log in.' })
-      return { success: true }
-    } catch (err) {
-      const errors = err.response?.data
-      let message = 'Invalid or expired reset link.'
-      if (errors?.error) message = errors.error
-      set({ loading: false, error: message })
-      return { success: false }
-    }
-  },
 }))
+
+
 
 export default useAuthStore

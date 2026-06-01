@@ -163,16 +163,21 @@ export default function FilePreview({ file, compact = false, iconSize = 40, clas
     );
 
     if (isPDF) return (
-      <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
-        <iframe
-          src={`${file.url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-          width="100%"
-          height="100%"
-          title="PDF Preview"
-          style={{ border: 'none', display: 'block', pointerEvents: 'none' }}
-        />
-      </div>
-    );
+  <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+    <iframe
+      src={`${file.url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH&zoom=page-fit`}
+      style={{ 
+        border: 'none', 
+        display: 'block', 
+        pointerEvents: 'none',
+        width: 'calc(100% + 17px)',  // 👈
+        height: '100%',
+      }}
+      title="PDF Preview"
+      scrolling="no"
+    />
+  </div>
+);
 
     if (isText) return <TextPreview file={file} compact />;
 

@@ -1,26 +1,40 @@
 from datetime import timezone
-
+from django.conf import settings
+from django.db.models import Sum
+import os
+from django.http import FileResponse, Http404
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
+from rest_framework import status
 from django.utils import timezone
 from datetime import timedelta
 import token
 from .models import FileShare, UserFile
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated,AllowAny
 from rest_framework import status
 from django.shortcuts import redirect
 from urllib.parse import urlencode
 from .models import FileShare, UserFile, PrivateShare,PrivateShareRecipient
-from .serializers import (
-    RegisterSerializer,
-    LoginSerializer,
-    ChangePasswordSerializer,
-    ForgotPasswordSerializer,
-    ResetPasswordSerializer,
-    UserProfileSerializer,
-    UserProfileUpdateSerializer,
-)
+from .tokens import token_generator
+from .serializers import FileUploadSerializer, UserFileSerializer,FileRenameSerializer
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode
+from django.contrib.auth import get_user_model
 from .service import (
+    upload_files,
+    check_upload_conflicts,
+    list_user_files,
+    delete_user_file,
+    get_user_file,
+    get_storage_summary,
+    rename_user_file,
+    list_user_trash,
+    restore_user_file,
+    permanently_delete_user_file,
     register_user,
     login_user,
     build_google_auth_url,
@@ -31,10 +45,27 @@ from .service import (
     restore_all_user_trash,
     empty_user_trash,
     toggle_file_star,
+    create_file_share,
+    list_user_shares,
+    get_valid_share_by_token,
+    mark_share_accessed,
 )
-from django.conf import settings
-from django.db.models import Sum
-from django.utils import timezone
+
+from .serializers import (
+    RegisterSerializer,
+    LoginSerializer,
+    ChangePasswordSerializer,
+    ForgotPasswordSerializer,
+    ResetPasswordSerializer,
+    UserProfileSerializer,
+    UserProfileUpdateSerializer,
+     FileShareCreateSerializer,
+    FileShareListSerializer,
+    PublicFileShareSerializer,
+)
+
+
+User = get_user_model()
 
 class RegisterView(APIView):
     def post(self, request):
@@ -166,6 +197,22 @@ class ForgotPasswordView(APIView):
        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
 
 
+class VerifyResetTokenView(APIView):
+    permission_classes = []
+
+    def post(self, request):
+        uid = request.data.get('uid')
+        token = request.data.get('token')
+        try:
+            user_id = force_str(urlsafe_base64_decode(uid))
+            user = User.objects.get(pk=user_id)
+        except (User.DoesNotExist, ValueError):
+            return Response({"error": "Invalid or expired token"}, status=400)
+
+        if not token_generator.check_token(user, token):
+            return Response({"error": "Invalid or expired token"}, status=400)
+
+        return Response({"valid": True})
 
 
 class ResetPasswordView(APIView):
@@ -186,27 +233,6 @@ class ResetPasswordView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-import os
-from django.http import FileResponse, Http404
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.pagination import PageNumberPagination
-from rest_framework import status
-
-from .serializers import FileUploadSerializer, UserFileSerializer,FileRenameSerializer
-from .service import (
-    upload_files,
-    check_upload_conflicts,
-    list_user_files,
-    delete_user_file,
-    get_user_file,
-    get_storage_summary,
-    rename_user_file,
-    list_user_trash,
-    restore_user_file,
-    permanently_delete_user_file,
-)
 
 
 class FilePagination(PageNumberPagination):
@@ -216,7 +242,6 @@ class FilePagination(PageNumberPagination):
 
 
 class UploadCheckView(APIView):
-    """POST /api/upload/check/ — detect duplicate files before upload."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -312,8 +337,7 @@ class FileUploadView(APIView):
             "remaining_bytes": remaining,
         }, status=status.HTTP_201_CREATED)
 
-from django.utils import timezone
-from datetime import timedelta
+
 
 class FileListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -361,7 +385,7 @@ class FileListView(APIView):
             elif uploaded == 'month':
                 qs = qs.filter(uploaded_at__gte=now - timedelta(days=30))
 
-        # ❌ removed qs = qs.order_by(ordering) — this was overriding the annotated sort from service
+      
 
         paginator = FilePagination()
         page = paginator.paginate_queryset(qs, request)
@@ -371,10 +395,7 @@ class FileListView(APIView):
         return paginator.get_paginated_response({"files": serializer.data, "storage": storage})
 
 class FileDeleteView(APIView):
-    """
-    DELETE /api/files/<id>/delete/
-    Delete a file owned by the authenticated user.
-    """
+    
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, file_id):
@@ -391,10 +412,7 @@ class FileDeleteView(APIView):
 
 
 class FileDownloadView(APIView):
-    """
-    GET /api/files/<id>/download/
-    Stream-download a file owned by the authenticated user.
-    """
+    
     permission_classes = [IsAuthenticated]
 
     def get(self, request, file_id):
@@ -421,10 +439,7 @@ class FileDownloadView(APIView):
         return response
 
 class FileRenameView(APIView):
-    """
-    PATCH /api/<id>/rename/
-    Rename a file owned by the authenticated user.
-    """
+    
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, file_id):
@@ -471,10 +486,7 @@ class FileToggleStarView(APIView):
     
         
 class StorageSummaryView(APIView):
-    """
-    GET /api/files/storage/
-    Returns storage usage summary for the authenticated user.
-    """
+    
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -519,29 +531,10 @@ class TrashDeletePermanentView(APIView):
             )
         return Response({"message": "File permanently deleted.", "status": "deleted"})
 
-from rest_framework.permissions import AllowAny
-from .serializers import (
-    FileShareCreateSerializer,
-    FileShareListSerializer,
-    PublicFileShareSerializer,
-)
-from .service import (
-    create_file_share,
-    list_user_shares,
-    get_valid_share_by_token,
-    mark_share_accessed,
-)
+
 
 
 class FileShareView(APIView):
-    """
-    POST /api/shares/
-    Create a share link for a file owned by the authenticated user.
-
-    GET /api/shares/?search=<term>&page=<n>&page_size=<n>
-    List all shares created by the authenticated user.
-    """
-
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -596,19 +589,14 @@ class FileShareView(APIView):
         
 
 class PublicShareDetailView(APIView):
-    """
-    GET /api/public/shares/<token>/
-    Public endpoint to view share metadata (also marks as accessed).
-    """
 
     permission_classes = [AllowAny]
 
     def get(self, request, token):
         try:
-            # Look up the share by its unique token
             share = FileShare.objects.get(token=token)
 
-            # Check if it was revoked or expired
+           
             if share.is_revoked:
                 return Response({"error": "Link revoked"}, status=403)
             if share.is_expired:
@@ -620,7 +608,6 @@ class PublicShareDetailView(APIView):
                 share.accessed_at = timezone.now() # Good practice to track WHEN
                 share.save()
 
-            # 4. Return data to frontend
             serializer = PublicFileShareSerializer(share, context={"request": request})
             return Response(serializer.data, status=status.HTTP_200_OK)
             
@@ -628,23 +615,8 @@ class PublicShareDetailView(APIView):
             return Response({"error": "Invalid link."}, status=status.HTTP_404_NOT_FOUND)
        
 
-
-
-
-            # 3. TRIGGER STATUS CHANGE HERE
-            # This runs whether they clicked the email OR pasted the link.
-           
-            return Response(serializer.data)
-
-        except FileShare.DoesNotExist:
-            return Response({"error": "Invalid link"}, status=404)
         
 class PublicShareDownloadView(APIView):
-    """
-    GET /api/public/shares/<token>/download/
-    Public endpoint to download the shared file (marks as accessed).
-    """
-
     permission_classes = [AllowAny]
 
     def get(self, request, token):
@@ -676,18 +648,12 @@ class PublicShareDownloadView(APIView):
 
 
 class FileShareDeleteView(APIView):
-    """
-    DELETE /api/shares/<share_id>/delete/
-    Revoke a share so the public link stops working.
-    """
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, share_id):
         try:
             share = FileShare.objects.get(id=share_id, owner=request.user)
             
-
-            # Delete share = token invalid instantly
             share.is_revoked = True
             share.save()
 
@@ -712,7 +678,7 @@ class TrashRestoreAllView(APIView):
             "restored_count": count
         })
 
-# views.py
+
 class TrashDeleteAllPermanentView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -724,9 +690,6 @@ class TrashDeleteAllPermanentView(APIView):
             "deferred_count": deferred,
         })
 
-
-from datetime import timedelta
-from django.utils import timezone
 
 class ExpiringSoonView(APIView):
     permission_classes = [IsAuthenticated]
@@ -745,9 +708,6 @@ class ExpiringSoonView(APIView):
 
         return Response({"count": private_count})
     
-
-
-
 
 class ExpiringSoonDetailView(APIView):
     permission_classes = [IsAuthenticated]
